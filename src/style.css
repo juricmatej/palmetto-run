@@ -155,6 +155,7 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #power{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#f3ecff;text-shadow:0 0 8px rgba(255,255,255,.8)}
 #bNose{left:24px;bottom:calc(272px + env(safe-area-inset-bottom,0px));width:62px!important;height:62px!important;font-size:11px!important}
 #drunk{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#ffb86b}
+#perf{left:10px;bottom:10px;font:12px/1.4 ui-monospace,Menlo,monospace;color:#29e6d6;background:rgba(10,8,20,.75);padding:6px 8px;border-radius:6px}
 #scope{position:fixed;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 0 33vmin,rgba(0,0,0,.92) 33.4vmin)}
 #scope::before,#scope::after{content:"";position:absolute;left:50%;top:50%;background:rgba(0,0,0,.85)}
 #scope::before{width:66vmin;height:1.5px;transform:translate(-50%,-50%)}

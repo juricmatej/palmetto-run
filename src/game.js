@@ -2466,6 +2466,17 @@ function phoneStep(dt){
 }
 if(DBG)Object.defineProperties(DBG,{phoneOpen:{get:()=>phoneOpen},waypoint:{get:()=>waypoint},phoneNotify:{get:()=>phoneNotify},phoneApps:{get:()=>Object.keys(apps)}});
 
+// ---------- perf ----------
+// Frame cost for ?perf (overlay) and F3. The boot loop passes ms for update() and ui(); render() sets pf.gl around renderer.render.
+const pf={on:/[?&]perf\b/.test(location.search),gl:0,n:0,s:{fr:0,up:0,mi:0,ui:0,gl:0},avg:{fps:0,fr:0,up:0,mi:0,ui:0,gl:0,calls:0,tris:0,geo:0,tex:0,heap:0},el:$('perf')};
+pf.el.hidden=!pf.on;
+function perfFrame(fr,up,mi,ui){const s=pf.s;s.fr+=fr;s.up+=up;s.mi+=mi;s.ui+=ui;s.gl+=pf.gl;if(++pf.n<60)return;
+  const a=pf.avg,ri=renderer.info;for(const k in s){a[k]=s[k]/pf.n;s[k]=0}pf.n=0;
+  a.fps=1000/a.fr;a.calls=ri.render.calls;a.tris=ri.render.triangles;a.geo=ri.memory.geometries;a.tex=ri.memory.textures;a.heap=performance.memory?Math.round(performance.memory.usedJSHeapSize/1048576):0;
+  if(!pf.el.hidden)pf.el.textContent=`${a.fps.toFixed(0)} fps  ${a.fr.toFixed(1)} ms\nupdate ${a.up.toFixed(2)}  gl ${a.gl.toFixed(2)}  ui ${a.ui.toFixed(2)}  mini ${a.mi.toFixed(2)}\ncalls ${a.calls}  tris ${(a.tris/1000).toFixed(0)}k  geo ${a.geo}  tex ${a.tex}  heap ${a.heap} MB`}
+addEventListener('keydown',e=>{if(e.code==='F3'){e.preventDefault();pf.el.hidden=!pf.el.hidden}});
+if(DBG)Object.defineProperties(DBG,{perf:{get:()=>pf.avg}});
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
@@ -3600,7 +3611,7 @@ function render(dt){
     if(!aimPt)aimPt=[o.x+dv.x*2600,o.z+dv.z*2600,o.y+dv.y*2600]}
   $('xh').style.borderColor=aimHit?'#ff4b4b':'';
   $('xh').hidden=!(state==='play'&&!inCar)||scoped;
-  renderer.render(scene,camera);
+  const tg=performance.now();renderer.render(scene,camera);pf.gl=performance.now()-tg;
 }
 
 // minimap
@@ -3754,7 +3765,7 @@ function start(data){
   if(data&&data.playing){$('start').hidden=true;state='play';if(isTouch)$('touch').hidden=false}
   let last=performance.now();
   const loop=now=>{const raw=(now-last)/1000;let dt=clamp(raw,0,.033);last=now;perfTick(raw);if(wheelOpen)dt*=.25;
-    try{update(dt);render(dt);drawMini();ui(dt);soundStep(dt)}catch(err){console.error(err)}
+    try{const t0=performance.now();update(dt);const t1=performance.now();render(dt);const t2=performance.now();drawMini();const t3=performance.now();ui(dt);soundStep(dt);perfFrame(raw*1000,t1-t0,t3-t2,performance.now()-t3)}catch(err){console.error(err)}
     requestAnimationFrame(loop)};
   requestAnimationFrame(loop);
 }
