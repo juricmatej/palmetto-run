@@ -120,6 +120,16 @@
   <div class="row" id="rkAct"><button class="b go" id="rkBet" type="button">Bet $100</button><button class="b go" id="rkOut" type="button" disabled>Cash out</button></div>
   <div class="row" id="rkHist" aria-label="Last crash points"></div>
   <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="tcp" class="gm" hidden><div class="card" role="dialog" aria-label="Three Card Poker">
+  <h2>Three Card Poker</h2>
+  <p class="tag" style="margin:0;color:#d8ffe8">Dealer qualifies with Queen high. Ante bonus pays on a straight or better. Pair Plus pays on your hand alone. Cash <b id="tcpCash" style="color:var(--gold)"></b></p>
+  <div class="tcpLbl">Dealer<b id="tcpDv"></b></div><div class="tcpHand" id="tcpD"></div>
+  <div class="tcpLbl">You<b id="tcpPv"></b></div><div class="tcpHand" id="tcpP"></div>
+  <div class="msg" id="tcpMsg"></div>
+  <div class="row"><span class="tcpLbl">Ante</span><span class="row" id="tcpAnte"></span></div>
+  <div class="row"><span class="tcpLbl">Pair Plus</span><span class="row" id="tcpPP"></span></div>
+  <div class="row" id="tcpAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
 <div id="brief" class="gm" hidden><div class="card" role="dialog" aria-label="Heist board">
   <h2 style="color:var(--gold)">The Union Job</h2><div id="bBody" style="display:flex;flex-direction:column;gap:12px"></div>
   <div class="row" id="bAct"></div><button class="b" type="button" data-close>Close</button></div></div>

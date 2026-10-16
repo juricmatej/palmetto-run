@@ -159,6 +159,22 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #rkChips button.on{outline:3px solid var(--cyan);outline-offset:1px}
 #rkHist{gap:6px}
 .rkh{padding:3px 9px;border-radius:999px;font:700 12px var(--body);color:#fff;font-variant-numeric:tabular-nums}
+#tcp .card{background:radial-gradient(ellipse at 50% 20%,#17643f,#0b2d1f 75%);border-color:rgba(255,201,74,.55)}
+#tcp h2{font-family:var(--display);color:var(--gold);text-shadow:0 0 16px rgba(255,201,74,.45)}
+.tcpLbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cfe9da}
+.tcpLbl b{color:var(--gold);font-size:14px;margin-left:6px;letter-spacing:.04em;text-transform:none}
+.tcpHand{display:flex;gap:10px;justify-content:center;min-height:96px;align-items:center;perspective:700px}
+.tcpc{width:66px;height:92px;transition:transform .5s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.tcpc.fly{transform:translate(-130px,-150px) rotate(-16deg) scale(.6);opacity:0}
+.tcpi{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.3,.7,.2,1)}
+.tcpi.down{transform:rotateY(180deg)}
+.tcpf,.tcpb{position:absolute;inset:0;border-radius:7px;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-sizing:border-box;box-shadow:0 4px 10px rgba(0,0,0,.45)}
+.tcpf{background:#f8f5ff;color:#16121f;display:flex;flex-direction:column;justify-content:space-between;padding:5px 7px;font:700 18px var(--body)}
+.tcpf.red{color:#d23c5a}
+.tcps{align-self:flex-end;font-size:20px}
+.tcpb{transform:rotateY(180deg);background:repeating-linear-gradient(45deg,#ffc94a 0 6px,#8a5a10 6px 12px);border:2px solid #f8f5ff}
+.tcpc.win .tcpf{box-shadow:0 0 0 2px #ffc94a,0 0 18px #ffc94a}
+#tcpAnte button.on,#tcpPP button.on{outline:3px solid var(--cyan);outline-offset:1px}
 #brief .card{background:linear-gradient(180deg,#1d1724,#0f0c17);border-color:rgba(255,201,74,.5)}
 #brief p{margin:0;line-height:1.55;color:#d8d0ea;max-width:62ch}
 .steps{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}

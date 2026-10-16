@@ -215,7 +215,7 @@ prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,215,355,'poker','Play Three Card Poker');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -897,6 +897,7 @@ function mkBtn(parent,label,fn,cls,dis){const b=document.createElement('button')
 function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();return true}
   if(p.act==='wheel'){openLucky();return true}
   if(p.act==='rocket'){openRocket();return true}
+  if(p.act==='poker'){openTCP();return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
   if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
@@ -1281,6 +1282,69 @@ for(const v of[10,50,100,500,1000]){const b=document.createElement('button');b.t
 $('rkBet').addEventListener('click',rkPlace);
 $('rkOut').addEventListener('click',()=>rkOut(Date.now()));
 if(DBG)Object.defineProperties(DBG,{rocketRTP:{get:()=>rocketRTP},rkS:{get:()=>rkS},RKG:{get:()=>RKG}});
+
+// ---------- Three Card Poker ----------
+// Ante and optional Pair Plus against the dealer. The dealer qualifies with Queen high. Ante bonus pays on a played
+// straight or better, whatever the dealer holds. Pair Plus pays on your hand alone, even after a fold.
+const TCP_RK=['2','3','4','5','6','7','8','9','10','J','Q','K','A'],TCP_SU=['♠','♥','♦','♣'];
+const TCP_NAME={6:'Straight flush',5:'Three of a kind',4:'Straight',3:'Flush',2:'Pair',1:'High card'};
+const TCP_PP={6:40,5:30,4:6,3:3,2:1},TCP_AB={6:5,5:4,4:1};
+const tcp={ante:10,pp:0,p:[],d:[],phase:'bet',msg:'Place your ante.'};
+function tcpDeck(){const d=[];for(const su of TCP_SU)for(let r=0;r<13;r++)d.push([r+2,su]);for(let i=d.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[d[i],d[j]]=[d[j],d[i]]}return d}
+// cat: 6 straight flush, 5 trips, 4 straight, 3 flush, 2 pair, 1 high card. ks: ranks to compare, best first. Ace is low only in A-2-3.
+function tcpEval(h){const v=h.map(c=>c[0]).sort((a,b)=>b-a),fl=h[0][1]===h[1][1]&&h[1][1]===h[2][1];
+  let st=v[0]-v[1]===1&&v[1]-v[2]===1,sh=v[0];if(!st&&v[0]===14&&v[1]===3&&v[2]===2){st=true;sh=3}
+  if(st&&fl)return{cat:6,ks:[sh]};if(v[0]===v[2])return{cat:5,ks:[v[0]]};if(st)return{cat:4,ks:[sh]};if(fl)return{cat:3,ks:v};
+  if(v[0]===v[1])return{cat:2,ks:[v[0],v[2]]};if(v[1]===v[2])return{cat:2,ks:[v[1],v[0]]};return{cat:1,ks:v}}
+function tcpCmp(a,b){if(a.cat!==b.cat)return a.cat-b.cat;for(let i=0;i<a.ks.length;i++)if(a.ks[i]!==b.ks[i])return a.ks[i]-b.ks[i];return 0}
+// Strategy for the RTP check: play on a pair or better, or on high card Q-6-4 or better.
+const tcpPlays=e=>e.cat>1||tcpCmp(e,{cat:1,ks:[12,6,4]})>=0;
+// Returns what comes back to the player for ante and play (ret), and for Pair Plus (ppRet). Both include the stakes.
+function tcpPay(p,d,play,ante,pp){const pe=tcpEval(p),de=tcpEval(d),ppRet=pp&&TCP_PP[pe.cat]?pp*(TCP_PP[pe.cat]+1):0;let ret=0;
+  if(play){const dq=de.cat>1||de.ks[0]>=12,c=tcpCmp(pe,de);
+    if(!dq)ret=ante*3;else if(c>0)ret=ante*4;else if(c===0)ret=ante*2;
+    ret+=ante*(TCP_AB[pe.cat]||0)}
+  return{ret,ppRet,total:ret+ppRet,pe,de}}
+// RTP of ante and play with the strategy above. Pair Plus is left out. Seeded so the result repeats.
+function pokerRTP(n){const keep=rand;rand=seeded(9021);let ret=0,wag=0;try{for(let i=0;i<n;i++){const d=tcpDeck(),p=[d[0],d[2],d[4]],de=[d[1],d[3],d[5]],play=tcpPlays(tcpEval(p));ret+=tcpPay(p,de,play,1,0).ret;wag+=play?2:1}}finally{rand=keep}return ret/wag}
+function tcpCard(c,down,fly){const e=document.createElement('div');e.className='tcpc';const i=document.createElement('div');i.className='tcpi'+(down?' down':'');
+  const f=document.createElement('div');f.className='tcpf'+(c[1]==='♥'||c[1]==='♦'?' red':'');const a=document.createElement('span');a.textContent=TCP_RK[c[0]-2];const b=document.createElement('span');b.className='tcps';b.textContent=c[1];f.append(a,b);
+  const k=document.createElement('div');k.className='tcpb';i.append(f,k);e.appendChild(i);
+  if(fly){e.classList.add('fly');setTimeout(()=>requestAnimationFrame(()=>e.classList.remove('fly')),fly)}return e}
+function tcpCash(){return fmtCash(me.cash)}
+function tcpRender(){
+  $('tcpCash').textContent=tcpCash();$('tcpMsg').textContent=tcp.msg;
+  const done=tcp.phase==='done',show=tcp.phase!=='bet';
+  $('tcpDv').textContent=show&&tcp.d.length?(done?' '+TCP_NAME[tcpEval(tcp.d).cat]:' ?'):'';
+  $('tcpPv').textContent=tcp.p.length?' '+TCP_NAME[tcpEval(tcp.p).cat]:'';
+  const cards=(arr,down,fly)=>arr.map((c,i)=>tcpCard(c,down(i),fly?fly+i*160:0));
+  $('tcpD').replaceChildren(...cards(tcp.d,i=>!done,0));$('tcpP').replaceChildren(...cards(tcp.p,()=>false,0));
+  for(const[id,v,arr]of[['tcpAnte',tcp.ante,[10,50,100,500]],['tcpPP',tcp.pp,[0,10,25,50]]]){const R=$(id);R.replaceChildren();
+    for(const x of arr){const b=document.createElement('button');b.type='button';b.className='b chip'+(x===v?' on':'');b.textContent=x?'$'+x:'Off';b.disabled=tcp.phase!=='bet';b.addEventListener('click',()=>{if(id==='tcpAnte')tcp.ante=x;else tcp.pp=x;tcpRender()});R.appendChild(b)}}
+  const A=$('tcpAct');A.replaceChildren();
+  const btn=(t,fn,dis,cls)=>{const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=t;b.disabled=!!dis;b.addEventListener('click',fn);A.appendChild(b)};
+  if(tcp.phase==='bet')btn(`Deal ($${tcp.ante+tcp.pp})`,tcpDeal,tcp.ante<=0||me.cash<tcp.ante+tcp.pp,'go');
+  else if(tcp.phase==='decide'){btn(`Play (+$${tcp.ante})`,()=>tcpResolve(true),me.cash<tcp.ante,'go');btn('Fold',()=>tcpResolve(false),false)}
+  else btn('Deal again',()=>{tcp.phase='bet';tcp.p=[];tcp.d=[];tcp.msg='Place your bets.';tcpRender()},me.cash<tcp.ante+tcp.pp,'go');
+}
+function tcpDeal(){if(tcp.phase!=='bet')return;const cost=tcp.ante+tcp.pp;
+  if(tcp.ante<=0||me.cash<cost){tcp.msg='Not enough cash for that ante.';tcpRender();return}
+  me.cash-=cost;saveArsenal();const dk=tcpDeck();tcp.p=[dk[0],dk[2],dk[4]];tcp.d=[dk[1],dk[3],dk[5]];tcp.phase='decide';
+  tcp.msg='Play for one more ante, or fold.';noise(.12,5000,.08);tcpRender();
+  $('tcpP').replaceChildren(...tcp.p.map((c,i)=>tcpCard(c,false,i*160)));$('tcpD').replaceChildren(...tcp.d.map((c,i)=>tcpCard(c,true,i*160)))}
+function tcpResolve(play){if(tcp.phase!=='decide')return;if(play&&me.cash<tcp.ante){tcp.msg='Not enough cash to play. Fold or leave.';tcpRender();return}
+  if(play){me.cash-=tcp.ante;saveArsenal()}
+  const r=tcpPay(tcp.p,tcp.d,play,tcp.ante,tcp.pp);me.cash+=r.total;saveArsenal();tcp.phase='done';
+  const wag=tcp.ante+tcp.pp+(play?tcp.ante:0),net=r.total-wag,dq=r.de.cat>1||r.de.ks[0]>=12;
+  let m=!play?'You folded. Ante lost.':!dq?'Dealer does not qualify. Ante and play returned.':tcpCmp(r.pe,r.de)>0?'You beat the dealer.':tcpCmp(r.pe,r.de)===0?'Push.':'Dealer wins.';
+  if(play&&dq&&tcpCmp(r.pe,r.de)<0)m='Dealer wins.';
+  if(r.ppRet)m+=` Pair Plus: ${TCP_NAME[r.pe.cat]} pays ${fmtCash(r.ppRet-tcp.pp)}.`;
+  if(play&&(TCP_AB[r.pe.cat]||0))m+=` Ante bonus ${fmtCash(tcp.ante*TCP_AB[r.pe.cat])}.`;
+  tcp.msg=`${m} ${net>0?'+':net<0?'-':''}${fmtCash(Math.abs(net))}`;
+  if(net>0){jingle('pass');if(net>=5000)feed(`Three Card Poker: +${fmtCash(net)}`)}else noise(.2,400,.06);
+  tcpRender();const win=tcpCmp(r.pe,r.de)>0||r.ppRet>0;$('tcpP').querySelectorAll('.tcpc').forEach(e=>e.classList.toggle('win',win))}
+function openTCP(){openModal('tcp');tcpRender()}
+if(DBG)Object.defineProperties(DBG,{pokerRTP:{get:()=>pokerRTP}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
