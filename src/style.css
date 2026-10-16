@@ -175,6 +175,15 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .tcpb{transform:rotateY(180deg);background:repeating-linear-gradient(45deg,#ffc94a 0 6px,#8a5a10 6px 12px);border:2px solid #f8f5ff}
 .tcpc.win .tcpf{box-shadow:0 0 0 2px #ffc94a,0 0 18px #ffc94a}
 #tcpAnte button.on,#tcpPP button.on{outline:3px solid var(--cyan);outline-offset:1px}
+#horses .card{background:linear-gradient(180deg,#1f3318,#0c140a 80%);border-color:rgba(255,201,74,.5)}
+#horses h2{font-family:var(--display);color:var(--gold);text-shadow:0 0 16px rgba(255,201,74,.45)}
+#hrc{display:block;width:100%;height:auto;aspect-ratio:640/360;border-radius:12px;box-shadow:0 0 24px rgba(0,0,0,.5)}
+.hrOdds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.hrOdds button{text-align:left;font:700 13px var(--body);background:rgba(10,8,20,.6);color:var(--ink);border:1px solid rgba(255,255,255,.2);padding:7px 9px;cursor:pointer}
+.hrOdds button.on{outline:3px solid var(--gold);outline-offset:-2px}
+.hrOdds small{display:block;font-weight:600;color:#cfe9da;font-size:12px}
+#hrBoard span{padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.08);font:600 12px var(--body)}
+#hrChips button.on{outline:3px solid var(--cyan);outline-offset:1px}
 #brief .card{background:linear-gradient(180deg,#1d1724,#0f0c17);border-color:rgba(255,201,74,.5)}
 #brief p{margin:0;line-height:1.55;color:#d8d0ea;max-width:62ch}
 .steps{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}

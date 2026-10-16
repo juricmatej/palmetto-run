@@ -215,7 +215,7 @@ prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,215,355,'poker','Play Three Card Poker');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,215,355,'poker','Play Three Card Poker');spot(casino,545,280,'horse','Bet on the horses');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -898,6 +898,7 @@ function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();retu
   if(p.act==='wheel'){openLucky();return true}
   if(p.act==='rocket'){openRocket();return true}
   if(p.act==='poker'){openTCP();return true}
+  if(p.act==='horse'){openHorses();return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
   if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
@@ -1345,6 +1346,80 @@ function tcpResolve(play){if(tcp.phase!=='decide')return;if(play&&me.cash<tcp.an
   tcpRender();const win=tcpCmp(r.pe,r.de)>0||r.ppRet>0;$('tcpP').querySelectorAll('.tcpc').forEach(e=>e.classList.toggle('win',win))}
 function openTCP(){openModal('tcp');tcpRender()}
 if(DBG)Object.defineProperties(DBG,{pokerRTP:{get:()=>pokerRTP}});
+
+// ---------- Horse racing ----------
+// Six horses, a 20 s race. Each race draws its odds from the horse weights: a win pays 0.9 / p, so every
+// horse returns 90 percent on average. The finish order is drawn with the same probabilities (Plackett-Luce),
+// and place pays when the horse finishes top two at 0.9 / P(top two). The race is decided at the start.
+const HR_NAMES=['Lucky Strike','Neon Comet','Palm Thunder','Midnight Miss','Gold Rush','Sunset Bolt'],HR_COL=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d'],HR_BASE=[5,4,3,2,1.5,1];
+const HRS={p:[],D:[],Dp:[],sel:0,amt:50,bets:[],run:false,order:[],T:[],t0:0,last:'',board:[]};
+const hrC=$('hrc'),hrG=hrC.getContext('2d'),HRW=640,HRH=360,HRX0=84,HRX1=586;
+// Draws a finish order with the given win probabilities (each pick removes the horse from the pool).
+function horsePick(p){const q=p.slice(),out=[];for(let k=0;k<p.length;k++){const tot=q.reduce((a,b)=>a+b,0);let x=rand()*tot,i=0;while(i<q.length-1&&(q[i]===0||x>=q[i])){x-=q[i];i++}out.push(i);q[i]=0}return out}
+function hrProbs(w){const s=w.reduce((a,b)=>a+b,0);return w.map(x=>x/s)}
+function hrOdds(p){const D=p.map(x=>0.9/x),Dp=p.map((x,i)=>{let p2=x;for(let j=0;j<p.length;j++)if(j!==i)p2+=p[j]*x/(1-p[j]);return 0.9/p2});return{D,Dp}}
+function hrCard(){HRS.p=hrProbs(HR_BASE.map(b=>b*(.8+.4*rand())));const o=hrOdds(HRS.p);HRS.D=o.D;HRS.Dp=o.Dp}
+// Win (k 'w') or place (k 'p') bet on the horse picked in the list.
+function hrBet(k){if(HRS.run){HRS.last='Bets close when the race starts.';hrRender();return}
+  if(me.cash<HRS.amt){HRS.last='Not enough cash for that bet.';hrRender();return}
+  me.cash-=HRS.amt;saveArsenal();HRS.bets.push({k,h:HRS.sel,amt:HRS.amt});HRS.last=`${k==='w'?'Win':'Place'} bet ${fmtCash(HRS.amt)} on ${HR_NAMES[HRS.sel]}.`;hrRender()}
+function hrClear(){if(HRS.run)return;for(const b of HRS.bets)me.cash+=b.amt;HRS.bets=[];saveArsenal();HRS.last='Bets returned.';hrRender()}
+function hrStart(){if(HRS.run)return;if(!HRS.bets.length){HRS.last='Place a bet first. Pick a horse, then win or place.';hrRender();return}
+  HRS.order=horsePick(HRS.p);HRS.run=true;for(let k=0;k<6;k++)HRS.T[HRS.order[k]]=17.2+k*.55+(rand()-.5)*.12;
+  HRS.t0=performance.now();HRS.last='And they are off.';noise(.3,800,.1);hrRender();setTimeout(hrSettle,20800)}
+// Pays every bet once, then clears them and draws the next card. Runs on a timer, so closing the modal does not stop it.
+function hrSettle(){const o=HRS.order,win=o[0],top=o.slice(0,2);let pay=0,stake=0;
+  for(const b of HRS.bets){stake+=b.amt;const hit=b.k==='w'?b.h===win:top.includes(b.h);if(hit)pay+=Math.floor(Math.round(b.amt*(b.k==='w'?HRS.D[b.h]:HRS.Dp[b.h])*100)/100)}
+  me.cash+=pay;saveArsenal();HRS.run=false;HRS.board.unshift(o.slice(0,3));if(HRS.board.length>5)HRS.board.length=5;
+  const net=pay-stake;HRS.last=`${HR_NAMES[win]} wins. ${!stake?'No bets this race.':net>0?'You win '+fmtCash(net)+'.':net<0?'You lose '+fmtCash(-net)+'.':'Break even.'}`;
+  HRS.bets=[];if(net>0)jingle('pass');hrCard();hrRender()}
+// Position along the track, 0 at the gate and 1 at the line. A small wave makes the horses swap places mid-race.
+function hrPos(i,t){const x=t/HRS.T[i];if(x>=1)return 1;const n=Math.sin(t*(1.1+i*.23)+i*1.7)*.05*x*(1-x)*4;return Math.max(0,Math.min(1,x+n))}
+function hrHorse(g,x,y,c,n,ph,moving){const bob=Math.abs(Math.sin(ph*2))*2.4,sw=moving?Math.sin(ph)*.75:0;y-=bob;
+  g.save();g.translate(x,y);g.scale(1.2,1.2);g.lineCap='round';g.strokeStyle='#2a1a10';g.lineWidth=3.2;
+  const leg=(bx,by,a)=>{g.beginPath();g.moveTo(bx,by);g.lineTo(bx+Math.sin(a)*10,by+Math.cos(a)*10);g.stroke()};
+  g.strokeStyle='#3a2212';leg(-13,-4,sw);leg(-8,-4,-sw*.9);leg(11,-4,-sw*.9);leg(15,-4,sw);
+  g.fillStyle='#d08f55';g.strokeStyle='#2a1a10';g.lineWidth=1.4;g.beginPath();g.ellipse(0,-10,19,8.5,0,0,TAU);g.fill();g.stroke();
+  g.beginPath();g.moveTo(10,-14);g.lineTo(22,-30);g.lineTo(29,-25);g.lineTo(18,-7);g.closePath();g.fill();g.stroke();
+  g.beginPath();g.ellipse(27,-25,7.5,5.2,-.35,0,TAU);g.fill();g.stroke();
+  g.beginPath();g.moveTo(-17,-12);g.quadraticCurveTo(-32,-16+sw*5,-27,-2);g.lineTo(-18,-7);g.closePath();g.fill();g.stroke();
+  g.fillStyle=c;g.fillRect(-7,-24,14,8);g.beginPath();g.arc(2,-29,4.5,0,TAU);g.fill();
+  g.fillStyle='#16121f';g.beginPath();g.arc(-2,-14,6.5,0,TAU);g.fill();g.fillStyle='#fff';g.font='700 9px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(String(n),-2,-13.5);
+  g.restore()}
+function hrDraw(now){const g=hrG,run=HRS.run,t=run?(now-HRS.t0)/1000:0;g.setTransform(1,0,0,1,0,0);
+  const sky=g.createLinearGradient(0,0,0,70);sky.addColorStop(0,'#0b0a16');sky.addColorStop(1,'#241a14');g.fillStyle=sky;g.fillRect(0,0,HRW,70);
+  g.fillStyle='rgba(255,201,74,.85)';for(let i=0;i<9;i++){g.fillRect(40+i*66,18,40,4)}
+  g.fillStyle='#2d5a2a';g.fillRect(0,70,HRW,8);
+  const L0=HRS.run||HRS.order.length?HRS.order:null;
+  const lane=(HRH-88)/6;
+  g.fillStyle='#6a4426';g.fillRect(0,78,HRW,HRH-78);
+  for(let k=0;k<6;k++){g.fillStyle=k%2?'rgba(0,0,0,.12)':'rgba(255,255,255,.04)';g.fillRect(0,78+k*lane,HRW,lane)}
+  g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;g.setLineDash([10,8]);for(let k=0;k<=6;k++){g.beginPath();g.moveTo(0,78+k*lane);g.lineTo(HRW,78+k*lane);g.stroke()}g.setLineDash([]);
+  g.fillStyle='#e8e0d0';g.fillRect(HRX0-10,78,4,HRH-78);
+  for(let i=0;i<8;i++){g.fillStyle=i%2?'#111':'#f3ecff';g.fillRect(HRX1+4,78+i*(HRH-78)/8,10,(HRH-78)/8)}
+  for(let i=0;i<6;i++){const y=78+lane*(i+.5),x=HRX0+(run||L0?hrPos(i,t):0)*(HRX1-HRX0);hrHorse(g,x,y,HR_COL[i],i+1,t*(6+i*.3)+i,run&&x<HRX1)}
+  g.textAlign='left';g.textBaseline='middle';g.font='700 14px "Chakra Petch",sans-serif';
+  for(let i=0;i<6;i++){g.fillStyle='rgba(255,255,255,.9)';g.fillText(`${i+1}  ${HR_NAMES[i]}`,8,78+lane*(i+.5))}
+  g.fillStyle='#ffc94a';g.textAlign='right';g.font='700 16px "Chakra Petch",sans-serif';g.fillText(run?`${Math.min(20,t).toFixed(1)} s`:'Ready',HRW-10,HRH-10)}
+function hrRender(){
+  $('hrCash').textContent=fmtCash(me.cash);$('hrMsg').textContent=HRS.last;
+  const O=$('hrOdds');O.replaceChildren();
+  HR_NAMES.forEach((n,i)=>{const b=document.createElement('button');b.type='button';if(i===HRS.sel)b.className='on';b.disabled=HRS.run;
+    const a=document.createElement('span');a.textContent=`${i+1}. ${n}`;const sm=document.createElement('small');sm.textContent=`win ${HRS.D[i]?HRS.D[i].toFixed(2):'-'}x · place ${HRS.Dp[i]?HRS.Dp[i].toFixed(2):'-'}x`;
+    b.append(a,sm);b.addEventListener('click',()=>{HRS.sel=i;hrRender()});O.appendChild(b)});
+  const C=$('hrChips');C.replaceChildren();for(const v of[10,50,100,500]){const b=document.createElement('button');b.type='button';b.className='b chip'+(HRS.amt===v?' on':'');b.textContent='$'+v;b.addEventListener('click',()=>{HRS.amt=v;hrRender()});C.appendChild(b)}
+  const A=$('hrAct');A.replaceChildren();
+  const btn=(t,fn,dis,cls)=>{const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=t;b.disabled=!!dis;b.addEventListener('click',fn);A.appendChild(b)};
+  btn(`Win $${HRS.amt}`,()=>hrBet('w'),HRS.run||me.cash<HRS.amt,'go');btn(`Place $${HRS.amt}`,()=>hrBet('p'),HRS.run||me.cash<HRS.amt);
+  btn(HRS.run?'Racing...':'Run the race',hrStart,HRS.run||!HRS.bets.length,'go');btn('Clear bets',hrClear,HRS.run||!HRS.bets.length);
+  const Bd=$('hrBoard');Bd.replaceChildren();for(const r of HRS.board){const e=document.createElement('span');e.textContent=r.map(i=>HR_NAMES[i]).join(' · ');Bd.appendChild(e)}
+}
+function hrLoop(){if($('horses').hidden)return;hrDraw(performance.now());requestAnimationFrame(hrLoop)}
+function openHorses(){openModal('horses');if(!HRS.p.length)hrCard();hrRender();hrDraw(performance.now());requestAnimationFrame(hrLoop)}
+// Test helpers: the same draw and payout rules with a seeded rand. Win and place each return about 0.9.
+function horseRTP(n){const keep=rand;rand=seeded(3307);let ret=0;try{const p=hrProbs(HR_BASE),D=hrOdds(p).D;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p)[0]===h)ret+=D[h]}}finally{rand=keep}return ret/n}
+function horsePlaceRTP(n){const keep=rand;rand=seeded(3308);let ret=0;try{const p=hrProbs(HR_BASE),Dp=hrOdds(p).Dp;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p).slice(0,2).includes(h))ret+=Dp[h]}}finally{rand=keep}return ret/n}
+if(DBG)Object.defineProperties(DBG,{horseRTP:{get:()=>horseRTP},horsePlaceRTP:{get:()=>horsePlaceRTP}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
