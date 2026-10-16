@@ -129,10 +129,10 @@ function collide(body,px,py,r){
   let imp=0;
   // step-up limit: ground more than `lim` above the body's feet is a wall. Push back down the slope and report the speed.
   const car=body.type!==undefined,fz=body===me?me.z:car?(body.air?NaN:body.z):body.gz,lim=body===me?(inAir()?12:8):car?12:8;
-  // The heightmap cell is 10 units, so a cliff reads as a steep slope. Look 12 units ahead along the velocity to catch it.
+  // A heightmap cell reads a cliff as a steep slope, so a rise of more than the limit across one cell ahead counts as a wall.
   const vl=Math.hypot(body.vx||0,body.vy||0);
   if(Number.isFinite(fz)&&vl>1e-3){
-    const fx=body.vx/vl,fy=body.vy/vl,high=(x,y)=>groundZ(x,y)-fz>lim||groundZ(x+fx*12,y+fy*12)-fz>lim;
+    const fx=body.vx/vl,fy=body.vy/vl,high=(x,y)=>groundZ(x,y)-fz>lim||groundZ(x+fx*10,y+fy*10)-groundZ(x,y)>lim;
     if(high(px,py)){
       let k=0;while(k<60&&high(px-fx*k,py-fy*k))k+=.5;
       const dx=-fx*k,dy=-fy*k;body.x+=dx;body.y+=dy;px+=dx;py+=dy;
@@ -288,7 +288,7 @@ if(DBG)Object.defineProperties(DBG,{lockTarget:{get:()=>lockTarget},findLock:{ge
 
 // ---------- cars ----------
 const POS=d=>d===0||d===1,laneOff=d=>(d===0||d===3)?84:36;
-function mkCar(x,y,a,kind,color,type){type=hasCT(type)?type:(kind==='police'?'police':pickType());if(CT[type].color)color=CT[type].color;return{id:++cid,type,x,y,a,vx:0,vy:0,kind,color,hp:CT[type].hp,burn:0,stun:0,cur:0,ghost:0,blockT:0,stuckT:0,revT:0,shootT:rr(1,2),siren:rand()*TAU}}
+function mkCar(x,y,a,kind,color,type){type=hasCT(type)?type:(kind==='police'?'police':pickType());if(CT[type].color)color=CT[type].color;return{id:++cid,type,x,y,a,vx:0,vy:0,z:0,vz:0,air:false,kind,color,hp:CT[type].hp,burn:0,stun:0,cur:0,ghost:0,blockT:0,stuckT:0,revT:0,shootT:rr(1,2),siren:rand()*TAU}}
 function along(c){return c.d%2===0?c.x:c.y}
 function setAlong(c,v){if(c.d%2===0){c.x=v;c.y=c.road*B+laneOff(c.d)}else{c.y=v;c.x=c.road*B+laneOff(c.d)}}
 function decide(c,greedy){
@@ -325,6 +325,8 @@ function drive(c,thr,steer,hand,dt){
     const tg=dr?.9:hand?1.4:T.grip;driftG=tg<driftG?tg:Math.min(tg,driftG+dt*(T.grip-.9)/.4);lg=driftG;
     c.brk=thr<0&&fwd>0;
   }
+  if(P&&c.air){c.x+=c.vx*dt;c.y+=c.vy*dt;return} // airborne: no throttle, steering or friction
+  if(P){const[gx,gy]=groundN(c.x,c.y);fwd-=260*(gx*fx+gy*fy)*dt} // uphill takes speed, downhill gives it
   if(thr>0)fwd+=(fwd<0?650:T.acc)*thr*dt;
   else if(thr<0)fwd+=(fwd>0?-brk:-240)*(-thr)*dt;
   else fwd-=Math.sign(fwd)*Math.min(Math.abs(fwd),coast*dt);
@@ -335,6 +337,21 @@ function drive(c,thr,steer,hand,dt){
   c.vx=fx*fwd-fy*lat;c.vy=fy*fwd+fx*lat;
   c.x+=c.vx*dt;c.y+=c.vy*dt;
   if(P)driftA=Math.hypot(c.vx,c.vy)>5?Math.abs(wrap(Math.atan2(c.vy,c.vx)-c.a)):0;
+}
+// Player car height. On the ground z follows groundZ and vz is the ground's rise per second along the motion.
+// If the ground falls away faster than the car rises (lip, crest, cliff) the car goes airborne under gravity 650.
+function carZ(c,dt){
+  const g=groundZ(c.x,c.y);
+  if(!c.air&&g<c.z+c.vz*dt-2){c.air=true;c.airT=0}
+  if(c.air){
+    c.airT+=dt;c.vz-=650*dt;c.z+=c.vz*dt;
+    if(c.z>g)return;
+    const hit=-c.vz;c.air=false;c.z=g;c.vz=0;
+    if(hit>260){damageCar(c,Math.min(BAL.crashMax,(hit-260)*.12),true);thud(hit);shake=Math.max(shake,hit/60)}
+    if(c.airT>1.2){const pay=Math.round(200*c.airT);me.cash+=pay;showBig('STUNT JUMP','#ffc94a',`+$${pay} for ${c.airT.toFixed(1)} s in the air`,2);gainXP(50*c.airT,'Stunt jump')}
+    return;
+  }
+  c.vz=dt>0?(g-c.z)/dt:0;c.z=g; // the rise this frame, so a lip carries the climb speed off the edge
 }
 function carCircles(c){const o=ctOf(c).len/4,fx=Math.cos(c.a)*o,fy=Math.sin(c.a)*o;return[[c.x+fx,c.y+fy],[c.x-fx,c.y-fy]]}
 function carWalls(c){let imp=0;for(const[px,py]of carCircles(c))imp=Math.max(imp,collide(c,px,py,ctOf(c).wid/2));return imp}
@@ -723,7 +740,7 @@ function toggleCar(){
 function leaveCar(force){
   const c=me.car;if(!c)return;
   const sp=Math.hypot(c.vx,c.vy);if(!force&&sp>120)return;
-  c.kind='parked';me.car=null;
+  c.kind='parked';c.air=false;me.car=null;
   for(const s of[-1,1]){const x=c.x+Math.cos(c.a+s*1.57)*24,y=c.y+Math.sin(c.a+s*1.57)*24;if(!inBuilding(x,y)){me.x=x;me.y=y;break}}me.z=groundZ(me.x,me.y);
   me.vx=me.vy=0;
 }
@@ -1658,6 +1675,7 @@ function update(dt){
   }
   // cars
   for(const c of cars){
+    if(c.air&&c.kind!=='mine')c.air=false;if(!c.air)c.z=groundZ(c.x,c.y);
     if(c.kind==='mine'){
       let thr=-iy,st=ix,hand=shift;
       if(stick.id!==null){thr=Math.abs(stick.y)>.2?-stick.y:0;st=Math.abs(stick.x)>.15?stick.x:0}
@@ -1665,7 +1683,7 @@ function update(dt){
       if(c.burn||!play){thr=0;st=0}
       drive(c,thr,st,hand,dt);
       const imp=carWalls(c);if(imp>90){damageCar(c,Math.min(BAL.crashMax,(imp-90)*.12),true);thud(imp);shake=Math.max(shake,imp/60);burst(c.x+Math.cos(c.a)*20,c.y+Math.sin(c.a)*20,6,'#ffd27a',160,.3)}
-      me.x=c.x;me.y=c.y;me.a=c.a;
+      carZ(c,dt);me.x=c.x;me.y=c.y;me.a=c.a;me.z=c.z;
       const sp=Math.hypot(c.vx,c.vy);
       for(const p of peds){if(p.down)continue;if(Math.hypot(p.x-c.x,p.y-c.y)<16&&sp>55)knockPed(p,c.vx*1.1,c.vy*1.1,true)}
       for(const[peer,r]of remotes){if(r.dead)continue;const d=Math.hypot(r.x-c.x,r.y-c.y);
