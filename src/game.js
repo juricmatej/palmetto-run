@@ -1120,13 +1120,14 @@ function honk(){
 if(DBG)Object.defineProperties(DBG,{stam:{get:()=>stam},handsUp:{get:()=>handsUp},driftA:{get:()=>driftA}});
 
 // ---------- traffic lights ----------
-// Cycle shared worldwide: green for one axis group (6s), yellow for everyone (1.5s), then the flip (4.5s).
+// Four phases, shared worldwide, 15s cycle: 0 = axis A green (6s), 1 = axis A yellow (1.5s),
+// 2 = axis B green (6s), 3 = axis B yellow (1.5s). Crossing roads alternate; the cross axis stays red.
 // tlPaint is set by the 3D scene once the instanced lamps exist; it repaints all instances in one pass per phase change.
-const TLD=[6,1.5,4.5];let tlT=0,tlP=-1,tlPaint=null;
+const TLD=[6,1.5,6,1.5];let tlT=0,tlP=-1,tlPaint=null;
 function trafficStep(dt){
   if(!tlPaint)return;
   tlT+=dt;
-  const c=TLD[0]+TLD[1]+TLD[2],t=tlT%c,ph=t<TLD[0]?0:t<TLD[0]+TLD[1]?1:2;
+  const c=TLD[0]+TLD[1]+TLD[2]+TLD[3],t=tlT%c,ph=t<TLD[0]?0:t<TLD[0]+TLD[1]?1:t<TLD[0]+TLD[1]+TLD[2]?2:3;
   if(ph!==tlP){tlP=ph;tlPaint(ph)}
 }
 if(DBG)Object.defineProperties(DBG,{tlP:{get:()=>tlP}});
@@ -1730,7 +1731,7 @@ let ferris=null;
 {const s=B-R,lp=[],tl=[],hy=[],bn=[],bch=[],sh=[],AV=[2,4,6],mx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x0=bi*B+R,y0=bj*B+R,t=blockType[bj*N+bi];
    for(const o of[25,135,245])lp.push([x0+7,y0+o,-1,0],[x0+s-7,y0+o,1,0],[x0+o,y0+7,0,-1],[x0+o,y0+s-7,0,1]); // lamps every 110 on both sides of each road
-   for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+bj)%2]); // corner housing; index 4 = cycle phase group
+   for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]); // corner housing; index 4 = cycle phase group
    if(t!=='airport')hy.push([x0+10,y0+80]);
    if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry])}
  for(const d of DOORS){const big=d.int===club||d.int===casino||d.int===bankL;for(const o of[-1,1])bch.push([d.x+o*(big?70:48),d.y-3,Math.PI]);bn.push([d.x+(big?92:72),d.y-3])}
@@ -1747,7 +1748,7 @@ let ferris=null;
   tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),
   red=new THREE.Color('#ff2d55'),grn=new THREE.Color('#3dd68c'),tlY=new THREE.Color('#ffcf4d');
  tl.forEach(([x,y,dx,dz,k],i)=>{inst(tp,i,x,13,y,0);inst(th,i,x,28,y,0);inst(tc,i*2,x-dx*2.9,28,y,0);inst(tc,i*2+1,x,28,y-dz*2.9,0);tc.setColorAt(i*2,k?red:grn);tc.setColorAt(i*2+1,k?grn:red)});
- tlPaint=ph=>{for(let i=0;i<tl.length;i++){const k=tl[i][4],lo=ph===1?tlY:ph===2?k?grn:red:k?red:grn,hi=ph===1?red:ph===2?k?red:grn:k?grn:red;tc.setColorAt(i*2,lo);tc.setColorAt(i*2+1,hi)}tc.instanceColor.needsUpdate=true};
+ tlPaint=ph=>{for(let i=0;i<tl.length;i++){const k=tl[i][4];for(let ax=0;ax<2;ax++){const own=(ph>>1)===(ax===k?0:1);tc.setColorAt(i*2+ax,own?(ph&1?tlY:grn):red)}}tc.instanceColor.needsUpdate=true};
  // hydrants, bins, benches, bus shelters
  const hg=mergeGeos([[new THREE.CylinderGeometry(1.8,2.2,5,8),mx(0,2.5,0)],[new THREE.SphereGeometry(1.9,8,6),mx(0,5.2,0)],[new THREE.BoxGeometry(6,1.2,1.2),mx(0,3.4,0)]]);
  const hm=IM(hg,lam('#c0283c'),hy.length);hy.forEach(([x,y],i)=>inst(hm,i,x,1,y,0));
