@@ -1288,6 +1288,7 @@ function facMat(type,v){const key=type+v;if(facMats[key])return facMats[key];
  const t=new THREE.CanvasTexture(cg),l=new THREE.CanvasTexture(ce);for(const q of[t,l]){q.wrapS=q.wrapT=THREE.RepeatWrapping;q.anisotropy=4}
  return facMats[key]=new THREE.MeshLambertMaterial({map:t,emissive:new THREE.Color('#ffffff'),emissiveMap:l})}
 const facPick=b=>Math.floor(seeded((b.x*131+b.y*17)|0)()*4);
+if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).length}});
 
 // ground
 {const water=new THREE.Mesh(new THREE.PlaneGeometry(W*5,W*5),new THREE.MeshLambertMaterial({color:'#0b2436',emissive:'#05131f'}));water.rotation.x=-Math.PI/2;water.position.set(W/2,-3,W/2);scene.add(water);
@@ -1428,8 +1429,8 @@ let ferris=null;
   head=IM(new THREE.BoxGeometry(7,1.6,6),new THREE.MeshBasicMaterial({color:'#ffd9a0'}),lp.length),pool=IM(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,176,90,.55)'),.4),lp.length);
  lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx);inst(post,i,x,0,y,ry);inst(head,i,x+dx*7.5,38.6,y+dz*7.5,ry);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
  // traffic lights: pole, housing and two lamp cubes per intersection corner, one red and one green
- const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),lam('#2c2938'),tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),red=new THREE.Color('#ff2d55'),grn=new THREE.Color('#3dd68c');
- tl.forEach(([x,y,dx,dz,k],i)=>{inst(tp,i,x,13,y,0);inst(th,i,x,28,y,0);inst(tc,i*2,x+dx*2.9,28,y,0);inst(tc,i*2+1,x,28,y+dz*2.9,0);tc.setColorAt(i*2,k?red:grn);tc.setColorAt(i*2+1,k?grn:red)});
+ const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),post.material,tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),red=new THREE.Color('#ff2d55'),grn=new THREE.Color('#3dd68c');
+ tl.forEach(([x,y,dx,dz,k],i)=>{inst(tp,i,x,13,y,0);inst(th,i,x,28,y,0);inst(tc,i*2,x-dx*2.9,28,y,0);inst(tc,i*2+1,x,28,y-dz*2.9,0);tc.setColorAt(i*2,k?red:grn);tc.setColorAt(i*2+1,k?grn:red)});
  // hydrants, bins, benches, bus shelters
  const hg=mergeGeos([[new THREE.CylinderGeometry(1.8,2.2,5,8),mx(0,2.5,0)],[new THREE.SphereGeometry(1.9,8,6),mx(0,5.2,0)],[new THREE.BoxGeometry(6,1.2,1.2),mx(0,3.4,0)]]);
  const hm=IM(hg,lam('#c0283c'),hy.length);hy.forEach(([x,y],i)=>inst(hm,i,x,1,y,0));
