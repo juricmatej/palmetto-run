@@ -302,6 +302,26 @@ function knockPed(p,vx,vy,byMe){
   scare(p.x,p.y,260);
 }
 function scare(x,y,r){for(const p of peds){if(p.down)continue;if(p.gang){if(Math.hypot(p.x-x,p.y-y)<r*1.2)p.aggro=true;continue}if(Math.hypot(p.x-x,p.y-y)<r){p.flee=3+rand()*2;p.fx=x;p.fy=y}}}
+function pedsStep(dt){
+  for(let i=peds.length-1;i>=0;i--){
+    const p=peds[i];
+    if(p.guard){if(p.down){p.down-=dt;if(p.down<=0)peds.splice(i,1)}else guardStep(p,dt);continue}
+    if(p.gang){if(p.down){p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);if(p.down<=0)peds.splice(i,1)}else if(Math.hypot(p.x-A.x,p.y-A.y)>1800)peds.splice(i,1);else gangStep(p,dt);continue}
+    if(pedStep(p,dt))peds.splice(i,1);
+  }
+}
+// Civilians. Returns true when the ped should be removed.
+function pedStep(p,dt){
+  if(p.cop)return false;
+  if(p.down){p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);collide(p,p.x,p.y,6);return p.down<=0||Math.hypot(p.x-A.x,p.y-A.y)>1600}
+  let tx,ty,sp=p.spd;
+  if(p.flee>0){p.flee-=dt;const dx=p.x-p.fx,dy=p.y-p.fy,l=Math.hypot(dx,dy)||1;tx=p.x+dx/l*50;ty=p.y+dy/l*50;sp=105;if(p.flee<=0)setPedBlock(p)}
+  else{const c=pedCorners(p)[p.ci];tx=c[0];ty=c[1];if(Math.hypot(tx-p.x,ty-p.y)<4){p.ci=(p.ci+p.dir+4)%4;if(rand()<.15){const nb=(p.ci===1||p.ci===2)?1:-1;p.bi=clamp(p.bi+(rand()<.5?nb:0),0,N-1)}}}
+  const dx=tx-p.x,dy=ty-p.y,l=Math.hypot(dx,dy)||1;p.vx=dx/l*sp;p.vy=dy/l*sp;p.a=Math.atan2(dy,dx);p.ph+=dt*sp*.25;
+  p.x+=p.vx*dt;p.y+=p.vy*dt;collide(p,p.x,p.y,6);
+  for(const c of cars){if(c.kind==='traffic'||c.kind==='mine')continue;const s=Math.hypot(c.vx,c.vy);if(s>70&&Math.hypot(c.x-p.x,c.y-p.y)<16)knockPed(p,c.vx,c.vy,false)}
+  return Math.hypot(p.x-A.x,p.y-A.y)>1700;
+}
 
 // ---------- Rustwater Vipers (docks gang) ----------
 const GANGHQ={x:1*B+60,y:3*B+60};let gangT=0;
@@ -1160,20 +1180,7 @@ function update(dt){
     if(imp>80){const mine=a.kind==='mine'||b.kind==='mine';damageCar(a,(imp-80)*.1,mine);damageCar(b,(imp-80)*.1,mine);if(mine){noise(.25,700,clamp(imp/400,0,.4));shake=Math.max(shake,imp/70)}
       if(a.kind==='police'&&b.kind==='mine'||b.kind==='police'&&a.kind==='mine')addHeat(.12)}
   }
-  // peds
-  for(let i=peds.length-1;i>=0;i--){
-    const p=peds[i];
-    if(p.guard){if(p.down){p.down-=dt;if(p.down<=0)peds.splice(i,1)}else guardStep(p,dt);continue}
-    if(p.gang){if(p.down){p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);if(p.down<=0)peds.splice(i,1)}else if(Math.hypot(p.x-A.x,p.y-A.y)>1800)peds.splice(i,1);else gangStep(p,dt);continue}
-    if(p.down){p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);collide(p,p.x,p.y,6);if(p.down<=0||Math.hypot(p.x-A.x,p.y-A.y)>1600)peds.splice(i,1);continue}
-    let tx,ty,sp=p.spd;
-    if(p.flee>0){p.flee-=dt;const dx=p.x-p.fx,dy=p.y-p.fy,l=Math.hypot(dx,dy)||1;tx=p.x+dx/l*50;ty=p.y+dy/l*50;sp=105;if(p.flee<=0)setPedBlock(p)}
-    else{const c=pedCorners(p)[p.ci];tx=c[0];ty=c[1];if(Math.hypot(tx-p.x,ty-p.y)<4){p.ci=(p.ci+p.dir+4)%4;if(rand()<.15){const nb=(p.ci===1||p.ci===2)?1:-1;p.bi=clamp(p.bi+(rand()<.5?nb:0),0,N-1)}}}
-    const dx=tx-p.x,dy=ty-p.y,l=Math.hypot(dx,dy)||1;p.vx=dx/l*sp;p.vy=dy/l*sp;p.a=Math.atan2(dy,dx);p.ph+=dt*sp*.25;
-    p.x+=p.vx*dt;p.y+=p.vy*dt;collide(p,p.x,p.y,6);
-    for(const c of cars){if(c.kind==='traffic'||c.kind==='mine')continue;const s=Math.hypot(c.vx,c.vy);if(s>70&&Math.hypot(c.x-p.x,c.y-p.y)<16)knockPed(p,c.vx,c.vy,false)}
-    if(Math.hypot(p.x-A.x,p.y-A.y)>1700)peds.splice(i,1);
-  }
+  pedsStep(dt);
   // bullets
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];b.px=b.x;b.py=b.y;if(b.home)steerMissile(b,dt);b.x+=b.vx*dt;b.z+=(b.vz||0)*dt;b.y+=b.vy*dt;b.life-=dt;let dead=b.life<=0;
