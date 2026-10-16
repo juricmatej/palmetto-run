@@ -203,14 +203,19 @@ spot(store,205,52,'snack','Buy snacks ($20, full health)');
 const home=mkRoom('home','Safehouse',260,200,'#1e1a2c',3);
 prop(home,20,20,60,80,10,'#3b3355');prop(home,150,30,80,26,12,'#4a2f3a');prop(home,150,0,80,6,30,'#121018');
 spot(home,95,60,'sleep','Sleep (heal, save, lose the cops)');spot(home,200,130,'board','Open the heist board');
-const casino=mkRoom('casino','Lucky Palms Casino',420,320,'#3a1030',4);
+const casino=mkRoom('casino','Lucky Palms Casino',640,460,'#3a1030',4);
 prop(casino,150,40,120,44,11,'#145a3a');
-for(let i=0;i<6;i++)prop(casino,8,70+i*36,22,26,30,'#5a2a6e');
-prop(casino,385,90,27,150,16,'#3b2416');prop(casino,260,200,64,64,10,'#145a3a');
-spot(casino,210,108,'blackjack','Play blackjack');spot(casino,360,165,'liquor','Whiskey shot ($25, get drunk)');
+for(let i=0;i<6;i++)prop(casino,8,40+i*30,22,26,30,'#5a2a6e');
+for(const y of[230,260])prop(casino,8,y,22,26,30,'#3a1f12');
+prop(casino,596,60,26,170,16,'#3b2416');prop(casino,270,170,80,60,11,'#145a3a');prop(casino,400,150,80,50,11,'#1d2a5a');
+prop(casino,150,290,130,44,11,'#145a3a');prop(casino,500,220,90,40,36,'#0f2a1a');prop(casino,40,380,70,50,40,'#2a1a3e');
+prop(casino,480,350,64,30,11,'#145a3a');prop(casino,570,350,50,40,11,'#145a3a');
+prop(casino,470,330,156,110,8,'#2a1438',false);
+prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop(casino,462,322,164,2,16,'#e0b84a',false);prop(casino,462,322,2,118,16,'#e0b84a',false);
+spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,292,288,'roulette','Play roulette');spot(casino,52,190,'slots','Play Candy Cascade slots');spot(casino,52,228,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -222,7 +227,7 @@ prop(bankV,150,6,120,24,64,'#6a5f3c');spot(bankV,210,58,'drill','Drill the vault
 for(const[k,x,y]of[[0,64,52],[1,356,52],[2,210,104]]){spot(bankV,x,y,'loot','Grab the gold');bankV.spots[bankV.spots.length-1].i=k}
 spot(bankV,390,282,'vaultUp','Stairs up to floor 12');
 const laserY=i=>bankV.oy+132+(Math.sin(time*(.9+i*.25)+i*2.1)*.5+.5)*118;
-prop(casino,300,10,70,26,30,'#6a6a7a');spot(casino,335,62,'heist','Rob the cashier cage (big heist)');
+prop(casino,455,10,80,26,30,'#6a6a7a');spot(casino,495,62,'heist','Rob the cashier cage (big heist)');
 const doorAt=(bi,bj)=>({x:bi*B+R+(B-R)/2,y:bj*B+R+9});
 const DOORS=[...SHOPS.map(p=>({x:p.x,y:p.y,int:gunInt,label:'Gun shop',col:'#29e6d6'})),{...doorAt(3,3),int:club,label:'Velvet Palms',col:'#ff3ea5'},{...doorAt(5,3),int:store,label:'Snack & Go',col:'#3dd68c'},{...doorAt(4,4),int:home,label:'Safehouse',col:'#ffc94a'},{...doorAt(4,2),int:casino,label:'Casino',col:'#c08bff'},{...doorAt(3,4),int:bankL,label:'Union Bank',col:'#ffd76a'}];
 function enterInt(d){if(d.int===home&&heist.carry>0){const pay=heist.carry+5000;me.cash+=pay;showBig('HEIST COMPLETE','#ffc94a',`+$${pay.toLocaleString('en-US')} including Vic's bonus`,3);noise(.5,6000,.3);gainXP(600,'Union Job');heistReset();saveArsenal()}
@@ -1147,6 +1152,9 @@ function casinoOpenSlots(){sl.skip=false;if(!sl.grid.length)slFall(sl,Array.from
 addEventListener('keydown',e=>{if(e.repeat||(e.code!=='Space'&&e.code!=='Enter'))return;
   if(!sl.el.hidden){e.preventDefault();slSpin(false)}else if(!s7.el.hidden){e.preventDefault();s7Spin()}});
 if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino},interact:{get:()=>interact}});
+
+// ---------- casino games ----------
+if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
@@ -2221,18 +2229,27 @@ const clubLights=['#ff3ea5','#29e6d6'].map(c=>{const l=new THREE.PointLight(c,1.
 let roul=null,clubBall=null;
 {const ox=casino.ox,oy=casino.oy;
  const dealer=personMesh('#111018','#e0b48f',false);dealer.position.set(ox+210,0,oy+30);dealer.rotation.y=-Math.PI/2;scene.add(dealer);intAnim.push({m:dealer,kind:'bob',ph:3});
- const bar=personMesh('#1d1830','#8d5a3b',false);bar.position.set(ox+405,0,oy+165);bar.rotation.y=-Math.PI;scene.add(bar);intAnim.push({m:bar,kind:'bob',ph:4});
- for(let i=0;i<6;i++){const sc=new THREE.Mesh(new THREE.PlaneGeometry(14,10),new THREE.MeshBasicMaterial({color:['#ff3ea5','#29e6d6','#ffc94a'][i%3]}));sc.position.set(ox+30.2,22,oy+83+i*36);sc.rotation.y=Math.PI/2;scene.add(sc)}
- for(let i=0;i<3;i++){const g=personMesh(SHIRT[(i+2)%SHIRT.length],PEDCOL[(i+1)%PEDCOL.length],false);g.position.set(ox+44,0,oy+83+i*72);g.rotation.y=Math.PI;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i*1.7})}
- for(let i=0;i<2;i++){const g=personMesh(SHIRT[(i+4)%SHIRT.length],PEDCOL[(i+3)%PEDCOL.length],false);g.position.set(ox+250+i*80,0,oy+280);g.rotation.y=Math.PI/2;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i})}
+ const pd=personMesh('#111018','#e0b48f',false);pd.position.set(ox+215,0,oy+270);pd.rotation.y=-Math.PI/2;scene.add(pd);intAnim.push({m:pd,kind:'bob',ph:6});
+ const rd=personMesh('#2a1a3e','#c98b6b',false);rd.position.set(ox+310,0,oy+150);rd.rotation.y=-Math.PI/2;scene.add(rd);intAnim.push({m:rd,kind:'bob',ph:7});
+ const bar=personMesh('#1d1830','#8d5a3b',false);bar.position.set(ox+578,0,oy+145);bar.rotation.y=Math.PI/2;scene.add(bar);intAnim.push({m:bar,kind:'bob',ph:4});
+ for(const[y,c]of[[53,'#ff3ea5'],[83,'#29e6d6'],[113,'#ffc94a'],[143,'#ff3ea5'],[173,'#29e6d6'],[203,'#ffc94a'],[243,'#ffd84a'],[273,'#ffd84a']]){const sc=new THREE.Mesh(new THREE.PlaneGeometry(14,10),new THREE.MeshBasicMaterial({color:c}));sc.position.set(ox+30.2,22,oy+y);sc.rotation.y=Math.PI/2;scene.add(sc)}
+ for(let i=0;i<3;i++){const g=personMesh(SHIRT[(i+2)%SHIRT.length],PEDCOL[(i+1)%PEDCOL.length],false);g.position.set(ox+44,0,oy+[80,160,262][i]);g.rotation.y=Math.PI;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i*1.7})}
+ for(let i=0;i<2;i++){const g=personMesh(SHIRT[(i+4)%SHIRT.length],PEDCOL[(i+3)%PEDCOL.length],false);g.position.set(ox+410+i*34,0,oy+262);g.rotation.y=Math.PI/2;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i})}
+ const glowAt=(x,y,w,h,c)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),additive(glowTex(c)));m.rotation.x=-Math.PI/2;m.position.set(ox+x,.5,oy+y);scene.add(m)};
+ glowAt(210,62,220,70,'rgba(41,230,214,.35)');glowAt(310,200,150,120,'rgba(255,201,74,.35)');glowAt(440,175,170,110,'rgba(192,139,255,.4)');glowAt(215,312,200,110,'rgba(61,214,140,.35)');glowAt(548,385,160,120,'rgba(255,62,165,.4)');glowAt(30,135,44,190,'rgba(255,62,165,.25)');glowAt(545,240,130,70,'rgba(255,216,74,.3)');
  const felt=lam('#145a3a'),wheelTop=canvasTex(128,128,(g)=>{for(let i=0;i<36;i++){g.fillStyle=i===0?'#1f8a4c':i%2?'#c2202f':'#141018';g.beginPath();g.moveTo(64,64);g.arc(64,64,62,i/36*TAU,(i+1)/36*TAU);g.closePath();g.fill()}g.fillStyle='#ffc94a';g.beginPath();g.arc(64,64,14,0,TAU);g.fill()});
- roul=new THREE.Mesh(new THREE.CylinderGeometry(22,22,2,32),[lam('#5a3a22'),new THREE.MeshBasicMaterial({map:wheelTop}),lam('#5a3a22')]);roul.position.set(casino.ox+292,11.2,casino.oy+232);scene.add(roul);
+ roul=new THREE.Mesh(new THREE.CylinderGeometry(22,22,2,32),[lam('#5a3a22'),new THREE.MeshBasicMaterial({map:wheelTop}),lam('#5a3a22')]);roul.position.set(casino.ox+310,11.2,casino.oy+200);scene.add(roul);
  const chipMat=['#ff3ea5','#29e6d6','#ffc94a','#f3ecff'].map(c=>new THREE.MeshBasicMaterial({color:c})),chipG=new THREE.CylinderGeometry(2.2,2.2,1.2,12);
  for(let i=0;i<10;i++){const c=new THREE.Mesh(chipG,chipMat[i%4]);c.position.set(ox+170+(i%5)*20,11.6+Math.floor(i/5)*1.3,oy+70);scene.add(c)}
  const cardM=new THREE.MeshBasicMaterial({color:'#f8f5ff'});for(let i=0;i<4;i++){const c=new THREE.Mesh(new THREE.BoxGeometry(5,.3,7),cardM);c.position.set(ox+185+i*14,11.3,oy+56);c.rotation.y=rr(-.2,.2);scene.add(c)}}
 {const clerk=personMesh('#3dd68c','#c98b6b',false);clerk.position.set(store.ox+205,0,store.oy+13);clerk.rotation.y=-Math.PI/2;scene.add(clerk);intAnim.push({m:clerk,kind:'bob',ph:5});
- const cashier=personMesh('#ffc94a','#8d5a3b',false);cashier.position.set(casino.ox+335,0,casino.oy+40);cashier.rotation.y=-Math.PI/2;scene.add(cashier);
- const bars=new THREE.MeshLambertMaterial({color:'#c9c3d6'});for(let i=0;i<8;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(1,30,1),bars);b.position.set(casino.ox+302+i*9,15,casino.oy+37);scene.add(b)}}
+ const cashier=personMesh('#ffc94a','#8d5a3b',false);cashier.position.set(casino.ox+495,0,casino.oy+40);cashier.rotation.y=-Math.PI/2;scene.add(cashier);
+ const bars=new THREE.MeshLambertMaterial({color:'#c9c3d6'});for(let i=0;i<8;i++){const b=new THREE.Mesh(new THREE.BoxGeometry(1,30,1),bars);b.position.set(casino.ox+462+i*9,15,casino.oy+37);scene.add(b)}
+ const lw=new THREE.Mesh(new THREE.CylinderGeometry(22,22,3,32),new THREE.MeshBasicMaterial({map:canvasTex(128,128,(g)=>{for(let i=0;i<20;i++){g.fillStyle=i%2?'#ffc94a':'#ff3ea5';g.beginPath();g.moveTo(64,64);g.arc(64,64,62,i/20*TAU,(i+1)/20*TAU);g.closePath();g.fill()}g.fillStyle='#16121f';g.beginPath();g.arc(64,64,12,0,TAU);g.fill()})}));
+ lw.rotation.x=Math.PI/2;lw.position.set(casino.ox+75,62,casino.oy+372);scene.add(lw);
+ const rs=new THREE.Mesh(new THREE.PlaneGeometry(56,24),new THREE.MeshBasicMaterial({color:'#2a0f4a'}));rs.position.set(casino.ox+440,30,casino.oy+202);scene.add(rs);
+ const hs=new THREE.Mesh(new THREE.PlaneGeometry(80,16),new THREE.MeshBasicMaterial({color:'#3dd68c'}));hs.position.set(casino.ox+545,30,casino.oy+262);scene.add(hs);
+ const vs=new THREE.Mesh(new THREE.PlaneGeometry(60,20),new THREE.MeshBasicMaterial({map:signTex('VIP','#ffc94a'),transparent:true}));vs.position.set(casino.ox+545,34,casino.oy+323);vs.rotation.y=Math.PI;scene.add(vs)}
 const bankFx={lasers:[],door:null,gold:null};
 {const L=bankL,S=bankS,V=bankV;
  for(const[x,y]of[[150,120],[290,120],[150,220],[290,220]]){const c=new THREE.Mesh(new THREE.CylinderGeometry(7,7,72,12),lam('#cfc8b8'));c.position.set(L.ox+x,36,L.oy+y);scene.add(c)}
