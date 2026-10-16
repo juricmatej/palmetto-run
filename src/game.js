@@ -806,7 +806,7 @@ const slBounce=p=>{const n=7.5625,d=2.75;return p<1/d?n*p*p:p<2/d?n*(p-=1.5/d)*p
 function slPos(c,now){if(c.t0===undefined)return c.tr;const p=Math.min(1,Math.max(0,(now-c.t0)/c.dur)),e=c.e===2?p*p*p:c.e===1?slBounce(p):1-Math.pow(1-p,3);return c.fr+(c.tr-c.fr)*e}
 function slPosOf(m,c){const t=performance.now();for(let x=0;x<6;x++){const y=m.grid[x].indexOf(c);if(y>=0)return slCellXY(x,slPos(c,t))}return[320,250]}
 // Old cells drop out of the bottom, column by column. Returns ms until the last one is gone.
-function slDropOut(m){const now=performance.now();let end=now;m.grid.forEach((col,x)=>col.forEach(c=>{c.fr=c.tr;c.tr=6;c.t0=now+x*slT(45);c.dur=slT(220);c.e=2;c.h=0;c.ant=0;end=Math.max(end,c.t0+c.dur)}));return end-now}
+function slDropOut(m){const now=performance.now();let end=now;m.grid.forEach((col,x)=>col.forEach(c=>{c.fr=c.tr;c.tr=6;c.t0=now+x*slT(60);c.dur=slT(220);c.e=2;c.h=0;c.ant=0;end=Math.max(end,c.t0+c.dur)}));return end-now}
 // Tweens grid G into place. Kept cells slide from their old row. New cells fall from above. ant: after 3 lollipops land, the rest slow down and glow.
 function slFall(m,G,ant){const now=performance.now(),kept=new Set(m.grid.flat());let sc=0,t=0,hot=false,end=now;
   for(let x=0;x<6;x++){const col=G[x],k=col.filter(c=>!kept.has(c)).length,slow=ant&&sc>=3,dur=slT(slow?900:380);
