@@ -215,7 +215,7 @@ prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,215,355,'poker','Play Three Card Poker');spot(casino,545,280,'horse','Bet on the horses');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,215,355,'poker','Play Three Card Poker');spot(casino,545,280,'horse','Bet on the horses');spot(casino,512,392,'hlbj','High-limit blackjack ($100K cash)');spot(casino,595,402,'hlro','High-limit roulette ($100K cash)');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -899,6 +899,8 @@ function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();retu
   if(p.act==='rocket'){openRocket();return true}
   if(p.act==='poker'){openTCP();return true}
   if(p.act==='horse'){openHorses();return true}
+  if(p.act==='hlbj'){if(hlGate())openBJ();return true}
+  if(p.act==='hlro'){if(hlGate()){openModal('roul');renderRoul()}return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
   if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
@@ -1158,6 +1160,11 @@ addEventListener('keydown',e=>{if(e.repeat||(e.code!=='Space'&&e.code!=='Enter')
 if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino},interact:{get:()=>interact}});
 
 // ---------- casino games ----------
+// High-limit room in the VIP area. Players need $100,000 in cash (or VIP, once a later ticket adds it).
+// ponytail: the 10x limits are not wired. openBJ() and roBet()/roSpin() take no limit, so both spots use the normal table limits.
+// Add a one-line limit multiplier hook in the blackjack and roulette sections, then pass it from here.
+const HL_MIN=100000;
+function hlGate(){if(me.cash>=HL_MIN||me.vip)return true;feed(`High-limit tables need ${fmtCash(HL_MIN)} in cash`);return false}
 const fmtCash=n=>'$'+Math.round(n).toLocaleString('en-US');
 // Lucky Wheel. Each segment is [label, kind, value, weight]; weights sum to 100. The jackpot has weight 1.
 const LW=[['$500','c',500,14],['RP 100','r',100,11],['$1,000','c',1000,11],['Chips $2,000','h',2000,7],['$500','c',500,14],['RP 250','r',250,7],['$2,500','c',2500,6],['Mystery','m',0,5],['$1,000','c',1000,8],['$5,000','c',5000,3],['RP 500','r',500,3],['Chips $5,000','h',5000,2],['$1,000','c',1000,2],['$500','c',500,1],['RP 100','r',100,1],['Mystery','m',0,1],['$2,500','c',2500,1],['Chips $2,000','h',2000,1],['$50,000','c',50000,1],['JACKPOT $250,000','j',250000,1]];
@@ -1200,7 +1207,6 @@ function lwSpin(){if(lwS.spin)return;if(lwLast===lwDay()){lwMsg('You already spu
     const won=k==='r'?`${v} RP`:k==='m'?'ammo for every gun you own':fmtCash(v)+(k==='h'?' in chips':'');lwMsg(`Won ${won}`);feed(`Lucky Wheel: won ${won}`);if(k==='j')noise(.5,6000,.3)},5300)}
 function openLucky(){openModal('lwheel');lwMsg(lwLast===lwDay()?'Your free spin for today is gone. Come back tomorrow.':'One free spin every real day. Good luck.');lwBtn();lwDraw();$('lwGo').focus()}
 $('lwGo').addEventListener('click',lwSpin);
-if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel}});
 
 // ---------- Rocket (crash game) ----------
 // Launches run on a shared clock. Each 45 s slot opens with 8 s of betting, then the rocket flies.
@@ -1282,7 +1288,6 @@ function openRocket(){openModal('lrocket');RKG.open=true;RKG.lt=0;rkUI(Date.now(
 for(const v of[10,50,100,500,1000]){const b=document.createElement('button');b.type='button';b.className='b chip';b.dataset.v=String(v);b.textContent='$'+v;b.addEventListener('click',()=>{RKG.amt=v});$('rkChips').appendChild(b)}
 $('rkBet').addEventListener('click',rkPlace);
 $('rkOut').addEventListener('click',()=>rkOut(Date.now()));
-if(DBG)Object.defineProperties(DBG,{rocketRTP:{get:()=>rocketRTP},rkS:{get:()=>rkS},RKG:{get:()=>RKG}});
 
 // ---------- Three Card Poker ----------
 // Ante and optional Pair Plus against the dealer. The dealer qualifies with Queen high. Ante bonus pays on a played
@@ -1345,7 +1350,6 @@ function tcpResolve(play){if(tcp.phase!=='decide')return;if(play&&me.cash<tcp.an
   if(net>0){jingle('pass');if(net>=5000)feed(`Three Card Poker: +${fmtCash(net)}`)}else noise(.2,400,.06);
   tcpRender();const win=tcpCmp(r.pe,r.de)>0||r.ppRet>0;$('tcpP').querySelectorAll('.tcpc').forEach(e=>e.classList.toggle('win',win))}
 function openTCP(){openModal('tcp');tcpRender()}
-if(DBG)Object.defineProperties(DBG,{pokerRTP:{get:()=>pokerRTP}});
 
 // ---------- Horse racing ----------
 // Six horses, a 20 s race. Each race draws its odds from the horse weights: a win pays 0.9 / p, so every
@@ -1353,7 +1357,7 @@ if(DBG)Object.defineProperties(DBG,{pokerRTP:{get:()=>pokerRTP}});
 // and place pays when the horse finishes top two at 0.9 / P(top two). The race is decided at the start.
 const HR_NAMES=['Lucky Strike','Neon Comet','Palm Thunder','Midnight Miss','Gold Rush','Sunset Bolt'],HR_COL=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d'],HR_BASE=[5,4,3,2,1.5,1];
 const HRS={p:[],D:[],Dp:[],sel:0,amt:50,bets:[],run:false,order:[],T:[],t0:0,last:'',board:[]};
-const hrC=$('hrc'),hrG=hrC.getContext('2d'),HRW=640,HRH=360,HRX0=84,HRX1=586;
+const hrC=$('hrc'),hrG=hrC.getContext('2d'),HRW=640,HRH=360,HRX0=134,HRX1=588;
 // Draws a finish order with the given win probabilities (each pick removes the horse from the pool).
 function horsePick(p){const q=p.slice(),out=[];for(let k=0;k<p.length;k++){const tot=q.reduce((a,b)=>a+b,0);let x=rand()*tot,i=0;while(i<q.length-1&&(q[i]===0||x>=q[i])){x-=q[i];i++}out.push(i);q[i]=0}return out}
 function hrProbs(w){const s=w.reduce((a,b)=>a+b,0);return w.map(x=>x/s)}
@@ -1398,7 +1402,7 @@ function hrDraw(now){const g=hrG,run=HRS.run,t=run?(now-HRS.t0)/1000:0;g.setTran
   g.fillStyle='#e8e0d0';g.fillRect(HRX0-10,78,4,HRH-78);
   for(let i=0;i<8;i++){g.fillStyle=i%2?'#111':'#f3ecff';g.fillRect(HRX1+4,78+i*(HRH-78)/8,10,(HRH-78)/8)}
   for(let i=0;i<6;i++){const y=78+lane*(i+.5),x=HRX0+(run||L0?hrPos(i,t):0)*(HRX1-HRX0);hrHorse(g,x,y,HR_COL[i],i+1,t*(6+i*.3)+i,run&&x<HRX1)}
-  g.textAlign='left';g.textBaseline='middle';g.font='700 14px "Chakra Petch",sans-serif';
+  g.textAlign='left';g.textBaseline='middle';g.font='700 13px "Chakra Petch",sans-serif';
   for(let i=0;i<6;i++){g.fillStyle='rgba(255,255,255,.9)';g.fillText(`${i+1}  ${HR_NAMES[i]}`,8,78+lane*(i+.5))}
   g.fillStyle='#ffc94a';g.textAlign='right';g.font='700 16px "Chakra Petch",sans-serif';g.fillText(run?`${Math.min(20,t).toFixed(1)} s`:'Ready',HRW-10,HRH-10)}
 function hrRender(){
@@ -1419,7 +1423,7 @@ function openHorses(){openModal('horses');if(!HRS.p.length)hrCard();hrRender();h
 // Test helpers: the same draw and payout rules with a seeded rand. Win and place each return about 0.9.
 function horseRTP(n){const keep=rand;rand=seeded(3307);let ret=0;try{const p=hrProbs(HR_BASE),D=hrOdds(p).D;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p)[0]===h)ret+=D[h]}}finally{rand=keep}return ret/n}
 function horsePlaceRTP(n){const keep=rand;rand=seeded(3308);let ret=0;try{const p=hrProbs(HR_BASE),Dp=hrOdds(p).Dp;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p).slice(0,2).includes(h))ret+=Dp[h]}}finally{rand=keep}return ret/n}
-if(DBG)Object.defineProperties(DBG,{horseRTP:{get:()=>horseRTP},horsePlaceRTP:{get:()=>horsePlaceRTP}});
+if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel},rocketRTP:{get:()=>rocketRTP},pokerRTP:{get:()=>pokerRTP},horseRTP:{get:()=>horseRTP},horsePlaceRTP:{get:()=>horsePlaceRTP},rkS:{get:()=>rkS},RKG:{get:()=>RKG}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
@@ -2502,7 +2506,7 @@ let roul=null,clubBall=null;
  for(let i=0;i<3;i++){const g=personMesh(SHIRT[(i+2)%SHIRT.length],PEDCOL[(i+1)%PEDCOL.length],false);g.position.set(ox+44,0,oy+[80,160,262][i]);g.rotation.y=Math.PI;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i*1.7})}
  for(let i=0;i<2;i++){const g=personMesh(SHIRT[(i+4)%SHIRT.length],PEDCOL[(i+3)%PEDCOL.length],false);g.position.set(ox+410+i*34,0,oy+262);g.rotation.y=Math.PI/2;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i})}
  const glowAt=(x,y,w,h,c)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),additive(glowTex(c)));m.rotation.x=-Math.PI/2;m.position.set(ox+x,.5,oy+y);scene.add(m)};
- glowAt(210,62,220,70,'rgba(41,230,214,.35)');glowAt(310,200,150,120,'rgba(255,201,74,.35)');glowAt(440,175,170,110,'rgba(192,139,255,.4)');glowAt(215,312,200,110,'rgba(61,214,140,.35)');glowAt(548,385,160,120,'rgba(255,62,165,.4)');glowAt(30,135,44,190,'rgba(255,62,165,.25)');glowAt(545,240,130,70,'rgba(255,216,74,.3)');
+ glowAt(210,62,220,70,'rgba(41,230,214,.6)');glowAt(310,200,150,120,'rgba(255,201,74,.6)');glowAt(440,175,170,110,'rgba(192,139,255,.65)');glowAt(215,312,200,110,'rgba(61,214,140,.6)');glowAt(548,385,160,120,'rgba(255,62,165,.7)');glowAt(30,135,44,190,'rgba(255,62,165,.45)');glowAt(545,240,130,70,'rgba(255,216,74,.5)');
  const felt=lam('#145a3a'),wheelTop=canvasTex(128,128,(g)=>{for(let i=0;i<36;i++){g.fillStyle=i===0?'#1f8a4c':i%2?'#c2202f':'#141018';g.beginPath();g.moveTo(64,64);g.arc(64,64,62,i/36*TAU,(i+1)/36*TAU);g.closePath();g.fill()}g.fillStyle='#ffc94a';g.beginPath();g.arc(64,64,14,0,TAU);g.fill()});
  roul=new THREE.Mesh(new THREE.CylinderGeometry(22,22,2,32),[lam('#5a3a22'),new THREE.MeshBasicMaterial({map:wheelTop}),lam('#5a3a22')]);roul.position.set(casino.ox+310,11.2,casino.oy+200);scene.add(roul);
  const chipMat=['#ff3ea5','#29e6d6','#ffc94a','#f3ecff'].map(c=>new THREE.MeshBasicMaterial({color:c})),chipG=new THREE.CylinderGeometry(2.2,2.2,1.2,12);
