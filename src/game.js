@@ -103,7 +103,7 @@ function inBuilding(x,y){if(x>W+300){for(const b of iwalls)if(x>b.x&&x<b.x+b.w&&
 function collide(body,px,py,r){
   let imp=0;
   const hit=b=>{
-    if(body===me&&me.z>9&&(b.H<14||me.z>b.H+1.6))return;
+    if(body===me&&me.z>9&&(b.H<14||me.z>b.H+(b.kind==='house'?16:1.6)))return;
     const cx=clamp(px,b.x,b.x+b.w),cy=clamp(py,b.y,b.y+b.h);let dx=px-cx,dy=py-cy,d2=dx*dx+dy*dy;
     if(d2>=r*r)return;let nx,ny,pen;
     if(d2<1e-6){const l=px-b.x,rt=b.x+b.w-px,t=py-b.y,bt=b.y+b.h-py,m=Math.min(l,rt,t,bt);
@@ -426,7 +426,7 @@ function die(word,fine){
   const loss=Math.floor(me.cash*(fine||(word==='BUSTED'?.15:.1)));me.cash-=loss;
   showBig(word,word==='BUSTED'?'#4aa3ff':'#ff4b4b',loss?`-$${loss}`:'');
 }
-function respawn(){handsUp=false;me.inside=null;me.heli=null;me.jet=null;me.z=0;me.roof=null;me.climb=null;drunk=0;
+function respawn(){handsUp=false;me.inside=null;me.heli=null;me.jet=null;me.z=0;jvz=0;stam=1;stamOut=false;me.roof=null;me.climb=null;drunk=0;
   const[x,y]=pointAway(0,900);me.x=x;me.y=y;me.vx=me.vy=0;me.hp=100;me.inv=2.5;me.bustT=0;heat=0;state='play';hideBig();
   for(let i=cars.length-1;i>=0;i--)if(cars[i].kind==='police')cars.splice(i,1);
 }
@@ -455,7 +455,7 @@ function toggleCar(){
   if(c.kind==='traffic'){const p=spawnPed(c.x+Math.cos(c.a-1.57)*20,c.y+Math.sin(c.a-1.57)*20);p.flee=4;p.fx=c.x;p.fy=c.y;c.vx=Math.cos(c.a)*c.cur*.3;c.vy=Math.sin(c.a)*c.cur*.3;
     for(const q of cars)if(q.kind==='police'&&Math.hypot(q.x-me.x,q.y-me.y)<400){addHeat(.5);break}}
   if(c.kind==='police')addHeat(1);
-  c.kind='mine';me.car=c;
+  c.kind='mine';me.car=c;handsUp=false;
 }
 function leaveCar(force){
   const c=me.car;if(!c)return;
@@ -868,7 +868,6 @@ function footStep(dt){
   if(jvz<=0&&me.z<=f){const fall=peak-f;me.z=f;jvz=0;peak=f;me.roof=roofAt(me.x,me.y);if(fall>40)hurtMe((fall-40)*.9)}
 }
 function handsStep(dt){
-  if(me.car)handsUp=false;
   const cop=heat>0&&Math.ceil(heat)<=2&&cars.some(c=>c.kind==='police'&&Math.hypot(c.x-me.x,c.y-me.y)<220);
   if(!handsUp||!cop){surrT=0;return}
   if((surrT+=dt)>1.5){handsUp=false;surrT=0;feed('You gave yourself up');die('BUSTED',.05)}
