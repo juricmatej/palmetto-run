@@ -69,10 +69,13 @@ const PASTEL=['#e8b4c8','#b4d8e8','#f1e3a8','#c8e8b4','#e8c8a8','#d0c4f0'];
 const CONT=['#b8432f','#2f6fb8','#d68a2f','#3d8a52','#7b6bff','#9d97ad'];
 function district(bi,bj){if(bj===N-1)return'beach';if(bi<=1)return'industrial';if(bi>=8&&bj<=5)return'airport';if(bi>=6&&bj<=3)return'suburb';if(bi>=6&&bj>=4)return'hood';if((bi===3||bi===4)&&bj<=1)return'park';if(bi>=2&&bi<=5&&bj>=2&&bj<=5)return'downtown';return'midtown'}
 const AREA={airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
+// blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
+const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
 {const r=seeded(4242);
  const mk=(list,o)=>{const[roof,trim]=o.pal||ROOFS[Math.floor(r()*ROOFS.length)];const b=Object.assign({roof,trim,vent:null,sign:false,ladder:null},o);b.sides=[shade(b.roof,.55),shade(b.roof,.8),shade(b.roof,.45),shade(b.roof,.7)];list.push(b);buildings.push(b);return b};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){
   const x0=bi*B+R,y0=bj*B+R,s=B-R,list=[];cells.push(list);const dist=district(bi,bj);
+  if(LANDBLK[bi+','+bj]){blockType.push(LANDBLK[bi+','+bj]);continue}
   if(dist==='park'){blockType.push('park');const trees=[];
     if(bi===4&&bj===0){mk(list,{x:x0+50,y:y0+50,w:s-100,h:s-100,H:.6,kind:'water',pal:['#1d6a8a','#29e6d6']});for(let i=0;i<16;i++){const a=i/16*TAU;trees.push([x0+s/2+Math.cos(a)*(s/2-24),y0+s/2+Math.sin(a)*(s/2-24),10+r()*8])}}
     else for(let i=0;i<22;i++)trees.push([x0+28+r()*(s-56),y0+28+r()*(s-56),10+r()*10]);
@@ -186,7 +189,7 @@ function addShape(s){TERRAIN.push(s);if(s.kind==='ramp')RAMPS.push(s);
     i1=Math.min(HM.gw-1,Math.ceil((bb[2]-HM.x0)/HM.cell)+1),j1=Math.min(HM.gh-1,Math.ceil((bb[3]-HM.y0)/HM.cell)+1),sunken=s.kind==='bowl';
   s.box=[i0,j0,i1,j1];
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const h=shapeHz(HM.x0+i*HM.cell,HM.y0+j*HM.cell,s);if(h===null)continue;
-    const k=j*gw+i;HM.a[k]=sunken?Math.min(HM.a[k],-h):Math.max(HM.a[k],h)}}
+    const k=j*gw+i;HM.a[k]=sunken?HM.a[k]-h:Math.max(HM.a[k],h)}} // a bowl digs into the ground under it, so it works on a raised deck
 function groundZ(x,y){if(x>W+300)return 0;const gx=(x-HM.x0)/HM.cell,gy=(y-HM.y0)/HM.cell;if(gx<0||gy<0||gx>=HM.gw-1||gy>=HM.gh-1)return 0;const ix=gx|0,iy=gy|0,fx=gx-ix,fy=gy-iy,g=HM.a,i=iy*HM.gw+ix;
   return g[i]*(1-fx)*(1-fy)+g[i+1]*fx*(1-fy)+g[i+HM.gw]*(1-fx)*fy+g[i+HM.gw+1]*fx*fy}
 const GN=[0,0]; // shared result: read it at once, do not keep the reference
@@ -209,6 +212,75 @@ for(const[pk,h]of[[parks.find(p=>p.x===3*B+R&&p.y===R),hillA],[parks.find(p=>p.x
 // cells above 1 unit, for the minimap shading. Rebuild with rebuildRaised() if the heightmap changes.
 const RAISED=[];function rebuildRaised(){RAISED.length=0;for(let k=0;k<HM.a.length;k++)if(HM.a[k]>1)RAISED.push(k)}rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAMPS},terrain:{get:()=>TERRAIN.length},air:{get:()=>me.car?Math.max(0,me.car.z-groundZ(me.car.x,me.car.y)):0}});
+
+// ---------- landmarks ----------
+// Hand-placed places on the blocks in LANDBLK. Their buildings are solid boxes (kind 'lm') with a mesh in landmarkMeshes() (models section).
+// Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
+const LMS=[],LMA={spray:null,boats:null};
+// name shown on entry (AREA banner), footprint for the minimap and the debug list
+const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3200,w:320,h:760,ic:'M'}];
+function landmarkKey(x,y){const i=LANDMARKS.findIndex(l=>x>=l.x&&x<l.x+l.w&&y>=l.y&&y<l.y+l.h);return i<0?null:'lm'+i}
+LANDMARKS.forEach((l,i)=>AREA['lm'+i]=[l.name,l.sub]); // entry banner text
+const LMC={cA:'#b8432f',cB:'#2f6fb8',cC:'#d68a2f',cD:'#3d8a52',stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
+// solid box: collision in buildings, a mesh in landmarkMeshes(); m is a key of LMC. H is the height above the ground.
+function lmSolid(x,y,w,h,H,m){const b={x,y,w,h,H,kind:'lm',m,roof:LMC[m]};buildings.push(b);LMS.push(b);
+  cells[clamp(Math.floor((y+h/2)/B),0,N-1)*N+clamp(Math.floor((x+w/2)/B),0,N-1)].push(b);return b}
+// Palmetto Plaza, block (2,4): x 1000 to 1320, y 1880 to 2200. Low walls with a gap on the west and east sides, a fountain, planters, a 12-high terrace with 4-high steps and a stunt ramp that drives up onto it.
+const PLAZA={x:1000,y:1880};
+lmSolid(1000,1880,320,4,3.2,'wall');lmSolid(1000,2196,320,4,3.2,'wall');              // north and south walls
+lmSolid(1000,1880,4,136,3.2,'wall');lmSolid(1000,2064,4,136,3.2,'wall');              // west wall, gap at y 2016 to 2064
+lmSolid(1316,1880,4,136,3.2,'wall');lmSolid(1316,2064,4,136,3.2,'wall');              // east wall, same gap
+lmSolid(1140,2020,40,40,3.2,'stone');                                                 // fountain basin (round in the mesh)
+for(const[x,y]of[[1010,1890],[1040,1890],[1280,1890],[1296,1890],[1010,1960],[1010,2110],[1296,1960],[1296,2110],[1010,2180],[1040,2180],[1200,2180],[1240,2180],[1280,2180]])lmSolid(x,y,14,14,4,'planter');
+addShape({kind:'plateau',x:1160,y:1950,w:200,d:80,h:4,slope:3});    // terrace, step 1
+addShape({kind:'plateau',x:1160,y:1950,w:160,d:56,h:8,slope:3});    // step 2
+addShape({kind:'plateau',x:1160,y:1950,w:120,d:32,h:12,slope:3});   // top, 12 high
+addShape({kind:'ramp',x:1160,y:2010,a:-Math.PI/2,len:40,w:24,h:12}); // drive up onto the terrace; lip at y 1970
+addShape({kind:'plateau',x:1240,y:2140,w:110,d:56,h:4,slope:2});    // stage
+// Rustwater Marina, blocks (0,7) and (0,8): a container yard on (0,7); on (0,8) a basin with boats, a quay on its east side with containers and a crane, and a stunt ramp off the quay over the basin onto a container row on the west bank.
+for(let i=0;i<6;i++){lmSolid(140+i*44,3236,40,18,8,i%2?'cA':'cB');lmSolid(140+i*44,3290,40,18,i<3?16:8,i%2?'cC':'cD')}
+lmSolid(140,3350,40,18,8,'cC');lmSolid(184,3350,40,18,8,'cA');
+lmSolid(170,3648,126,4,3.2,'wall');lmSolid(170,3948,126,4,3.2,'wall');   // basin bulkheads, north and south
+lmSolid(166,3648,4,304,3.2,'wall');lmSolid(296,3648,4,304,3.2,'wall');    // west bank and quay edge
+addShape({kind:'plateau',x:370,y:3800,w:140,d:320,h:3,slope:2});          // quay
+addShape({kind:'ramp',x:345,y:3800,a:Math.PI,len:40,w:30,h:12});         // off the quay, west over the basin
+for(const[y,c]of[[3660,'cA'],[3682,'cB'],[3704,'cC'],[3960-18-80,'cD']])lmSolid(372,y,40,18,8,c); // quay containers, north part
+lmSolid(126,3664,36,18,8,'cB');lmSolid(126,3686,36,18,8,'cA');lmSolid(126,3822,36,18,8,'cC');lmSolid(126,3844,36,18,16,'cD');lmSolid(126,3866,36,18,8,'cB'); // west bank row
+cranes.push([424,3450],[424,3930]);
+// The Pit, block (7,7): a walled arena for player fights. Two gaps in the west and east walls, cover blocks, a 6-high catwalk along the north wall, four floodlight pylons.
+lmSolid(3230,3230,260,4,8,'wall');lmSolid(3230,3486,260,4,8,'wall');              // north and south walls
+lmSolid(3230,3230,4,108,8,'wall');lmSolid(3230,3382,4,108,8,'wall');              // west wall, gap at y 3338 to 3382
+lmSolid(3486,3230,4,108,8,'wall');lmSolid(3486,3382,4,108,8,'wall');              // east wall, same gap
+for(const[x,y]of[[3296,3296],[3406,3296],[3296,3406],[3406,3406]])lmSolid(x,y,18,18,5,'stone');
+lmSolid(3346,3346,28,28,5,'stone');                                               // centre cover
+addShape({kind:'plateau',x:3360,y:3262,w:200,d:22,h:6,slope:2});                  // catwalk
+addShape({kind:'ramp',x:3360,y:3600,a:-Math.PI/2,len:40,w:30,h:12});             // stunt ramp on the road south of the Pit, over the south wall
+// Alleys: the largest tower in three downtown blocks without a door is split in two with a 30-wide alley between, so a car can cut through the block.
+const ALLEYS=[];
+function alleyCut(bi,bj){const cell=cells[bj*N+bi];let b=null;for(const q of cell)if((q.kind==='glass'||q.kind==='tower')&&!q.ladder&&(!b||q.w*q.h>b.w*b.h))b=q;if(!b)return;
+  const gap=30,hw=(b.w-gap)/2,ax=b.x+hw;cell.splice(cell.indexOf(b),1);buildings.splice(buildings.indexOf(b),1);
+  for(const x of[b.x,ax+gap]){const h={...b,x,w:hw,vent:null,sign:false,ladder:null};cell.push(h);buildings.push(h)}
+  ALLEYS.push({x:ax,y:b.y,h:b.h});
+  lmSolid(ax-34,b.y-14,12,8,4,'metal'); // dumpster beside the north mouth, off the car path
+}
+for(const[bi,bj]of[[2,3],[5,4],[3,2]])alleyCut(bi,bj);
+if(DBG)Object.defineProperties(DBG,{alleys:{get:()=>ALLEYS.map(a=>[a.x,a.y,a.h])}});
+// Sunset Pier, block row bj=9: a boardwalk on the sea side of the road (y 4524 to 4568) and the pier south from its middle to the world edge (y 4780). Deck at 4.
+addShape({kind:'plateau',x:W/2,y:4546,w:W,d:40,h:4,slope:2,mat:'wood'});
+addShape({kind:'plateau',x:2100,y:4670,w:40,d:209,h:4,slope:2,mat:'wood'});
+addShape({kind:'ramp',x:2080,y:4600,a:Math.PI,len:40,w:30,h:12}); // off the pier start, west onto the sand
+lmSolid(1880,4528,24,16,7,'stall');lmSolid(2290,4528,24,16,7,'stall');
+// Skate park, block (4,7): a 6-high concrete deck with two bowls dug 4 deep, walls with graffiti on two sides, and rails.
+addShape({kind:'plateau',x:2040,y:3360,w:260,d:260,h:6,slope:6});
+addShape({kind:'bowl',x:1990,y:3290,r:50,depth:4});
+addShape({kind:'bowl',x:2095,y:3420,r:40,depth:4});
+addShape({kind:'ramp',x:2140,y:3240,a:Math.PI/2,len:26,w:30,h:12}); // quarter pipe, facing south
+addShape({kind:'ramp',x:2140,y:3480,a:-Math.PI/2,len:26,w:30,h:12}); // quarter pipe, facing north
+lmSolid(2100,3204,80,4,10,'wall');  // north wall, graffiti on its south face
+lmSolid(1884,3300,4,80,10,'wall');  // west wall, graffiti on its east face
+// (trees, benches and lamps: see landmarkMeshes)
+rebuildRaised();
+if(DBG)Object.defineProperties(DBG,{landmarks:{get:()=>LANDMARKS.map(l=>l.name)}});
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
@@ -2574,7 +2646,7 @@ function ui(dt){phoneStep(dt);
   if(isTouch){$('bBoom').hidden=!stickies.length;$('bAim').hidden=!(weap==='sniper'&&!me.car)}
   $('scope').hidden=!scoped;
   {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
-  {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(A.y>W?'beach':district(bi,bj));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
+  {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(landmarkKey(A.x,A.y)||(A.y>W?'beach':district(bi,bj)));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
   $('carhp').textContent=me.jet?`Fighter jet ${Math.max(0,Math.round(me.jet.hp/BAL.jetHp*100))}% · ${Math.round(me.jet.speed*.6)} km/h · ${Math.round((me.jet.z-heliGround(me.jet.x,me.jet.y))/10)} m up`:me.heli?`Attack helicopter ${Math.max(0,Math.round(me.heli.hp/BAL.heliHp*100))}% · ${Math.round((me.heli.z-heliGround(me.heli.x,me.heli.y))/10)} m up`:me.car?(me.car.burn?'Car on fire! Get out (E)':`${ctOf(me.car).name} ${Math.max(0,Math.round(me.car.hp/ctOf(me.car).hp*100))}%`):'';
   const j=$('job');j.replaceChildren();{const jt=document.createElement('strong'),jx=document.createElement('span');
     if(!job||job.phase==='wait'){jt.textContent='Missions';jx.textContent=job&&job.msg?job.msg:'Waiting for the next job...'}
@@ -2886,7 +2958,7 @@ if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).lengt
 
 // blocks
 function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
-{const sw=new THREE.MeshLambertMaterial({map:walkTex}),inner={airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
+{const sw=new THREE.MeshLambertMaterial({map:walkTex}),inner={plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
  const s=B-R,swGeo=new THREE.BoxGeometry(s,1,s),inGeo=new THREE.BoxGeometry(s-2*SW,.3,s-2*SW);
  const lines=new THREE.InstancedMesh(new THREE.BoxGeometry(1.5,.3,40),new THREE.MeshBasicMaterial({color:'#5a566a'}),lots.length*27);let ln=0;
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi],cx=bi*B+R+s/2,cz=bj*B+R+s/2;
@@ -2905,12 +2977,13 @@ function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
 // terrain meshes: one per shape, built on the heightmap cells that groundZ reads. Only cells that rise are drawn.
 // Ramps get yellow and black chevrons; parks grass, the city concrete, the beach sand.
 const tgrass=new THREE.MeshLambertMaterial({map:grassTex}),tsand=new THREE.MeshLambertMaterial({map:sandTex}),tconc=new THREE.MeshLambertMaterial({map:walkTex});
+const twood=new THREE.MeshLambertMaterial({map:rtex(128,128,(g,w,h)=>{g.fillStyle='#6b4a32';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=16){g.fillStyle='#3e2a1c';g.fillRect(0,y,w,2);g.fillStyle='rgba(255,220,170,.06)';g.fillRect(0,y+2,w,12)}grit(g,w,h,800,11,.06)},1,1)});
 const tchev=new THREE.MeshLambertMaterial({map:canvasTex(64,64,(g,w,h)=>{g.fillStyle='#ffc94a';g.fillRect(0,0,w,h);g.fillStyle='#141218';for(let k=-1;k<3;k++){g.beginPath();g.moveTo(k*32,0);g.lineTo(k*32+16,0);g.lineTo(k*32+48,h);g.lineTo(k*32+32,h);g.fill()}})});
 tchev.map.wrapS=tchev.map.wrapT=THREE.RepeatWrapping;
 function terrainMesh(s){
   const[i0,j0,i1,j1]=s.box,nw=i1-i0+1,nh=j1-j0+1,pos=[],uv=[],ix=[],hz=(i,j)=>HM.a[j*HM.gw+i];
-  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tchev:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
-  const sc=mat===tchev?1/40:mat===tconc?1/(B-R):1/IN;
+  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tchev:s.mat==='wood'?twood:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
+  const sc=mat===tchev?1/40:mat===twood?1/24:mat===tconc?1/(B-R):1/IN;
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell;pos.push(x,hz(i,j),z);uv.push(x*sc,z*sc)}
   for(let j=0;j<nh-1;j++)for(let i=0;i<nw-1;i++){const a=j*nw+i,b=a+1,c=a+nw,d=c+1;if(Math.max(hz(i0+i,j0+j),hz(i0+i+1,j0+j),hz(i0+i,j0+j+1),hz(i0+i+1,j0+j+1))<=0)continue;ix.push(a,c,b,b,c,d)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();
@@ -2940,6 +3013,7 @@ const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object
 const glassMat=new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex});
 const winMat=new THREE.MeshBasicMaterial({color:'#ffd28a'}),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
 for(const b of buildings){
+  if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
   const H=b.H,cx=b.x+b.w/2,cz=b.y+b.h/2;
   const put=(geo,mat,x,y,z,ry)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;scene.add(m);return m};
   if(b.kind==='water'){const w=new THREE.Mesh(new THREE.CircleGeometry(.5,40),new THREE.MeshLambertMaterial({color:'#12506a',emissive:'#0a3346'}));w.rotation.x=-Math.PI/2;w.scale.set(b.w+30,b.h+30,1);w.position.set(cx,1.5,cz);scene.add(w);continue}
@@ -2974,6 +3048,7 @@ for(const b of buildings){
   if(b.vent)put(new THREE.BoxGeometry(Math.min(26,b.w*.3),8,Math.min(18,b.h*.25)),capMat,b.x+b.w*(b.vent[0]+.1),H+5,b.y+b.h*(b.vent[1]+.1));
   if(glass&&H>240){put(new THREE.CylinderGeometry(1,1.6,60,6),capMat,cx,H+30,cz);put(new THREE.BoxGeometry(3,3,3),redLight,cx,H+61,cz)}
 }
+landmarkMeshes(); // after graffMats
 // ladders
 {const rail=new THREE.MeshLambertMaterial({color:'#a7a1ba'}),rungs=[];
  for(const b of ladders){const L=b.ladder,z=b.y+b.h+1.6;for(const dx of[-5,5]){const m=new THREE.Mesh(new THREE.BoxGeometry(1,b.H+5,1),rail);m.position.set(L.x+dx,(b.H+5)/2,z);scene.add(m)}for(let y=6;y<b.H+2;y+=8)rungs.push([L.x,y,z])}
@@ -2994,14 +3069,13 @@ let ferris=null;
 {const sand=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(W+600,300),(W+600)/IN,300/IN),new THREE.MeshLambertMaterial({map:sandTex}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-.5,W+150);scene.add(sand);
  const surf=new THREE.Mesh(new THREE.BoxGeometry(W+600,.6,5),new THREE.MeshBasicMaterial({color:'#bfeaf5',transparent:true,opacity:.55}));surf.position.set(W/2,-.4,W+300);scene.add(surf);
  const plank=new THREE.MeshLambertMaterial({color:'#5a4030'});
- const pier=new THREE.Mesh(new THREE.BoxGeometry(46,3,520),plank);pier.position.set(2100,2,W+300+250);scene.add(pier);
- for(let z=0;z<520;z+=40)for(const dx of[-20,20]){const p=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,10,6),plank);p.position.set(2100+dx,-3,W+300+z);scene.add(p)}
- ferris=new THREE.Group();ferris.position.set(2100,140,W+700);
+ ferris=new THREE.Group();ferris.position.set(2100,140,4700);
  const rimMat=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),spokeMat=new THREE.MeshBasicMaterial({color:'#29e6d6'});
  ferris.add(new THREE.Mesh(new THREE.TorusGeometry(115,2.5,8,48),rimMat));
- for(let i=0;i<12;i++){const a=i/12*TAU,sp=new THREE.Mesh(new THREE.BoxGeometry(230,1.2,1.2),spokeMat);sp.rotation.z=a;ferris.add(sp);const cab=new THREE.Mesh(new THREE.BoxGeometry(12,12,10),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][i%3]}));cab.position.set(Math.cos(a)*115,Math.sin(a)*115,0);ferris.add(cab)}
- scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,W+700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
- const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,W+690);scene.add(fg);
+ const spk=[],cabs=[[],[],[]],I=new THREE.Matrix4();for(let i=0;i<12;i++){const a=i/12*TAU;spk.push([new THREE.BoxGeometry(230,1.2,1.2).rotateZ(a),I]);cabs[i%3].push([new THREE.BoxGeometry(12,12,10).translate(Math.cos(a)*115,Math.sin(a)*115,0),I])}
+ ferris.add(new THREE.Mesh(mergeGeos(spk),spokeMat));cabs.forEach((l,k)=>ferris.add(new THREE.Mesh(mergeGeos(l),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][k]}))));
+ scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,4700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
+ const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,4690);scene.add(fg);
  // palms
  const trunkG=new THREE.CylinderGeometry(1.4,2.4,1,6),trunk=new THREE.InstancedMesh(trunkG,new THREE.MeshLambertMaterial({color:'#6b4a32'}),Math.max(1,palms.length)),frond=new THREE.InstancedMesh(new THREE.BoxGeometry(24,1,6),new THREE.MeshLambertMaterial({color:'#2f8a4e'}),Math.max(1,palms.length*6));
  palms.forEach(([x,y,rot],i)=>{const h=44;inst(trunk,i,x,h/2,y,0,1,h,1);for(let k=0;k<6;k++){const a=rot+k/6*TAU;dummy.position.set(x+Math.cos(a)*10,h-2,y+Math.sin(a)*10);dummy.rotation.set(0,-a,-.45);dummy.scale.set(1,1,1);dummy.updateMatrix();frond.setMatrixAt(i*6+k,dummy.matrix)}});
@@ -3337,7 +3411,7 @@ function lapAnim(dt){lapDancer.visible=!!lap;if(!lap)return;const t=lap.t,ud=lap
   ud.l1.rotation.z=Math.sin(t*3.2)*.25;ud.l2.rotation.z=-Math.sin(t*3.2)*.25;ud.a1.rotation.z=0;ud.a2.rotation.z=0;ud.a1.rotation.x=-(1.9+Math.sin(t*3)*.5);ud.a2.rotation.x=1.9+Math.sin(t*3+1)*.5}
 function animInteriors(dt){
   for(const f of fireGlows){const k=f.userData.s*(.85+Math.random()*.3);f.scale.set(k,k,1)}
-  lapAnim(dt);if(clubBall)clubBall.rotation.y+=dt*.8;
+  lapAnim(dt);landmarkTick();if(clubBall)clubBall.rotation.y+=dt*.8;
   bankAnim(dt);
   if(ferris)ferris.rotation.z+=dt*.12;
   if(roul)roul.rotation.y+=dt*1.6;
@@ -3562,6 +3636,7 @@ function drawMini(){
   if(waypoint&&!me.inside){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();c.moveTo(...Pt(A.x,A.y));rt.forEach(([x,y])=>c.lineTo(...Pt(x,y)));c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // places
   c.font='700 13px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
+  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,9,0,TAU);c.fill();c.strokeStyle='#ffc94a';c.lineWidth=2;c.stroke();c.fillStyle='#ffc94a';c.fillText(l.ic,px,py+1)}
   for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=2.5;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',px,py+1)}
   for(const b of ladders){if(!inView(b.ladder.x,b.ladder.base))continue;const[px,py]=Pt(b.ladder.x,b.ladder.base);c.fillStyle='#a7a1ba';c.fillRect(px-2,py-2,4,4)}
   // armored truck
@@ -3587,6 +3662,68 @@ function drawMini(){
   if(me.inside){c.fillStyle='rgba(10,8,20,.72)';c.fillRect(0,0,S,S);c.fillStyle='#f3ecff';c.font='22px Bungee,Impact,sans-serif';c.fillText('INDOORS',C,C-8);c.font='600 14px "Chakra Petch",sans-serif';c.fillStyle='#a69cc4';c.fillText(me.inside.name,C,C+18)}
   c.restore();
   c.strokeStyle='rgba(255,62,165,.7)';c.lineWidth=4;c.beginPath();c.arc(C,C,147,0,TAU);c.stroke();
+}
+// ---------- landmarks meshes ----------
+// Built after the terrain meshes and before staticBatch. Static pieces merge per material; animated ones are instanced or kept apart.
+function landmarkMeshes(){
+  const lmm={};for(const k in LMC)lmm[k]=new THREE.MeshLambertMaterial({color:LMC[k]});
+  lmm.water.emissive=new THREE.Color('#0a3346');
+  for(const b of LMS){const cx=b.x+b.w/2,cz=b.y+b.h/2,m=new THREE.Mesh(new THREE.BoxGeometry(b.w,b.H,b.h),lmm[b.m]);m.position.set(cx,groundZ(cx,cz)+b.H/2,cz);scene.add(m)}
+  // fountain: round basin, water disc, spout (the spray is animated in landmarkTick)
+  const fx=1160,fy=2040,fg=groundZ(fx,fy);
+  const basin=new THREE.Mesh(new THREE.CylinderGeometry(20,22,3.2,24),lmm.stone);basin.position.set(fx,fg+1.6,fy);scene.add(basin);
+  const wat=new THREE.Mesh(new THREE.CylinderGeometry(17,17,.3,24),lmm.water);wat.position.set(fx,fg+2.4,fy);scene.add(wat);
+  const spout=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.5,9,6),lmm.stone);spout.position.set(fx,fg+8,fy);scene.add(spout);
+  LMA.spray=new THREE.InstancedMesh(new THREE.SphereGeometry(1.1,6,4),new THREE.MeshBasicMaterial({color:'#bfeaf5',transparent:true,opacity:.8}),8);scene.add(LMA.spray);
+  // planters carry a tree each
+  const pl=LMS.filter(b=>b.m==='planter'),tr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.9,1.3,8,6),new THREE.MeshLambertMaterial({color:'#4a3426'}),Math.max(1,pl.length)),
+    lf=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#2a7a4c',flatShading:true}),Math.max(1,pl.length));
+  pl.forEach((b,i)=>{const x=b.x+b.w/2,y=b.y+b.h/2,g=groundZ(x,y);inst(tr,i,x,g+4+4,y,0);inst(lf,i,x,g+4+10,y,i,6,7,6)});tr.count=lf.count=pl.length;scene.add(tr,lf);
+  // benches and lamps on the plaza walks, kept out of ramp landing zones
+  const bench=mergeGeos([[new THREE.BoxGeometry(14,1.2,4.5),new THREE.Matrix4().makeTranslation(0,3.4,0)],[new THREE.BoxGeometry(14,5,.8),new THREE.Matrix4().makeTranslation(0,6,-2.2)],[new THREE.BoxGeometry(1,3,4),new THREE.Matrix4().makeTranslation(-5.5,1.5,0)],[new THREE.BoxGeometry(1,3,4),new THREE.Matrix4().makeTranslation(5.5,1.5,0)]]);
+  const bl=[[1100,2000,0],[1220,2000,0],[1100,2090,Math.PI],[1220,2090,Math.PI]].filter(([x,y])=>!rampZone(x,y));
+  const bm=new THREE.InstancedMesh(bench,new THREE.MeshLambertMaterial({color:'#5a4030'}),Math.max(1,bl.length));bl.forEach(([x,y,r],i)=>inst(bm,i,x,groundZ(x,y)+1.3,y,r));bm.count=bl.length;scene.add(bm);
+  const lp=[[1040,2000],[1280,2000],[1040,2080],[1280,2080]].filter(([x,y])=>!rampZone(x,y)),lpo=new THREE.InstancedMesh(new THREE.CylinderGeometry(.5,.7,16,6),lmm.metal,Math.max(1,lp.length)),
+    lhd=new THREE.InstancedMesh(new THREE.SphereGeometry(1.6,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),Math.max(1,lp.length));
+  lp.forEach(([x,y],i)=>{const g=groundZ(x,y);inst(lpo,i,x,g+8,y);inst(lhd,i,x,g+16.4,y)});lpo.count=lhd.count=lp.length;scene.add(lpo,lhd);
+  // alleys: fire escape platforms and ladders on the alley side of the west half, a steam vent per alley
+  {for(const a of ALLEYS){for(const fy of[18,36,54]){const pl=new THREE.Mesh(new THREE.BoxGeometry(2.5,.8,a.h*.5),lmm.metal);pl.position.set(a.x+1.25,fy,a.y+a.h*.5);scene.add(pl)}
+    const ld=new THREE.Mesh(new THREE.BoxGeometry(.6,56,.6),lmm.metal);ld.position.set(a.x+3,28,a.y+a.h*.3);scene.add(ld);
+    const vt=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.6,3,6),lmm.metal);vt.position.set(a.x+15,1.5,a.y+a.h*.7);scene.add(vt);
+    const st=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(200,200,225,.35)'),transparent:true,depthWrite:false}));st.position.set(a.x+15,9,a.y+a.h*.7);st.scale.set(26,26,1);scene.add(st)}}
+  // skate park: graffiti on the wall faces and two rails across the deck
+  {const g1=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[0]);g1.position.set(2140,groundZ(2140,3206)+5,3208.3);scene.add(g1);
+   const g2=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[2]);g2.rotation.y=Math.PI/2;g2.position.set(1888.3,groundZ(1888,3340)+5,3340);scene.add(g2);
+   for(const[x,y,w,d]of[[2000,3440,30,1],[2000,3380,1,30]]){const m=new THREE.Mesh(new THREE.BoxGeometry(w,1,d),lmm.metal);m.position.set(x,groundZ(x,y)+6.5,y);scene.add(m)}}
+  // marina: basin water, three moored boats (one shared bob in landmarkTick), containers, the crane is drawn by the cranes list
+  const mw=new THREE.Mesh(new THREE.PlaneGeometry(126,304),lmm.water);mw.rotation.x=-Math.PI/2;mw.position.set(233,1.6,3800);scene.add(mw);
+  const hull=mergeGeos([[new THREE.BoxGeometry(24,2.2,8),new THREE.Matrix4()],[new THREE.BoxGeometry(8,3,6),new THREE.Matrix4().makeTranslation(-3,2.4,0)]]),hm=new THREE.MeshLambertMaterial({color:'#e8e4f0'});
+  LMA.boats=new THREE.InstancedMesh(hull,hm,3);LMA.boats.userData.pos=[[200,3720],[248,3840],[200,3910]];scene.add(LMA.boats);
+  // the Pit: floodlight pylons with glow sprites, a pink ring on the floor
+  const pyl=[[3218,3218],[3502,3218],[3218,3502],[3502,3502]];
+  const pp=new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2,1.6,36,6),lmm.metal,pyl.length),ph=new THREE.InstancedMesh(new THREE.BoxGeometry(8,2.4,8),new THREE.MeshBasicMaterial({color:'#fff1c4'}),pyl.length);
+  pyl.forEach(([x,y],i)=>{inst(pp,i,x,18,y);inst(ph,i,x,37,y)});pp.count=ph.count=pyl.length;scene.add(pp,ph);
+  for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,38,y);g.scale.set(40,40,1);scene.add(g)}
+  const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);
+  // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
+  const pg=[];for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])pg.push([new THREE.CylinderGeometry(.9,1,9,5).translate(x,0,y),new THREE.Matrix4()]);scene.add(new THREE.Mesh(mergeGeos(pg),lmm.wood));
+  const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
+  const rail=new THREE.Mesh(new THREE.BoxGeometry(W,.7,.7),lmm.metal);rail.position.set(W/2,6.3,4568);scene.add(rail);
+  const awm=new THREE.MeshLambertMaterial({color:'#ff3ea5'});LMS.filter(b=>b.m==='stall').forEach(b=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),awm);m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
+  // roller-coaster frame east of the pier: towers and a track of boxes along a wave, merged into two meshes
+  const trk=[],tow=[],cz=4650;let px=null;
+  for(let i=0;i<=24;i++){const x=2280+i*15,h=groundZ(x,cz)+30+22*Math.abs(Math.sin(i*.5));
+    if(i%4===0)tow.push([new THREE.BoxGeometry(2,h,2),new THREE.Matrix4().makeTranslation(x,h/2,cz)]);
+    if(px){const dh=h-px[1],L=Math.hypot(15,dh),mid=new THREE.Matrix4().makeTranslation((px[0]+x)/2,(px[1]+h)/2,cz).multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(dh,15)));trk.push([new THREE.BoxGeometry(L,1.4,1.4),mid])}
+    px=[x,h]}
+  scene.add(new THREE.Mesh(mergeGeos(trk),lmm.metal),new THREE.Mesh(mergeGeos(tow),lmm.metal));
+}
+// per-frame motion for landmarks: the fountain spray
+function landmarkTick(){
+  const bo=LMA.boats;if(bo){const p=bo.userData.pos;for(let i=0;i<p.length;i++)inst(bo,i,p[i][0],1.9+Math.sin(time*1.3+i*2)*.15,p[i][1],Math.sin(time*.9+i)*.03);bo.instanceMatrix.needsUpdate=true}
+  const sp=LMA.spray;if(!sp)return;const fx=1160,fy=2040,fg=groundZ(fx,fy);
+  for(let i=0;i<8;i++){const a=i/8*TAU+time*.6,r=7+Math.sin(time*3+i)*1.5,y=fg+6+(Math.sin(time*6+i*.9)+1)*2.2;inst(sp,i,fx+Math.cos(a)*r,y,fy+Math.sin(a)*r)}
+  sp.instanceMatrix.needsUpdate=true;
 }
 // ---------- boot ----------
 function seedWorld(){
