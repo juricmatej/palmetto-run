@@ -146,7 +146,7 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .bjRes{font:700 12px var(--body);letter-spacing:.08em;text-transform:uppercase;min-height:16px;color:var(--dim);text-align:center}
 .bjRes.win{color:var(--cyan)}.bjRes.lose{color:#ff8fa8}
 /* chips: .cx on the table, .cb as buttons; colour from .c<value> */
-.c10{--cc:#ece7f4}.c50{--cc:#d23c5a}.c100{--cc:#1f8a4c}.c500{--cc:#7b3fb8}.c1000{--cc:#ffc94a}
+.c10{--cc:#ece7f4}.c25{--cc:#29e6d6}.c50{--cc:#d23c5a}.c100{--cc:#1f8a4c}.c500{--cc:#7b3fb8}.c1000{--cc:#ffc94a}.c0{--cc:#4a4262}
 .cx{position:absolute;left:0;width:26px;height:26px;box-sizing:border-box;border-radius:50%;border:3px dashed rgba(255,255,255,.8);background:var(--cc);box-shadow:0 2px 0 rgba(0,0,0,.5),inset 0 -2px 0 rgba(0,0,0,.25)}
 .cb{position:relative;width:46px;height:46px;border-radius:50%;box-sizing:border-box;border:3px dashed rgba(255,255,255,.85);background:var(--cc);color:#fff;font:700 12px var(--body);text-shadow:0 1px 2px #000;cursor:pointer;box-shadow:0 3px 0 rgba(0,0,0,.45);padding:0}
 .cb.c10,.cb.c1000{color:#1a1205;text-shadow:none}
@@ -249,6 +249,15 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #horses h2{font-family:var(--display);color:var(--gold);text-shadow:0 0 16px rgba(255,201,74,.45)}
 #hrc{display:block;width:100%;height:auto;aspect-ratio:640/360;border-radius:12px;box-shadow:0 0 24px rgba(0,0,0,.5)}
 .hrOdds{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+#horses .card{width:min(880px,100%);display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px 18px;align-items:start}
+#horses h2,#horses .tag{grid-column:1/-1}
+#hrWrap{grid-column:1;grid-row:3}#hrMsg{grid-column:1;grid-row:4}#hrAct{grid-column:1;grid-row:5}
+#horses .card>button{grid-column:1;grid-row:6}
+#hrOdds{grid-column:2;grid-row:3/6}#hrOdds+.row{grid-column:2;grid-row:6}#hrBoard{grid-column:2;grid-row:7}
+#hrWrap canvas{display:block;width:100%;height:auto}
+#horses .hrOdds{grid-template-columns:1fr}
+@media (max-width:640px){#horses .card{display:flex}}
+
 .hrOdds button{text-align:left;font:700 13px var(--body);background:rgba(10,8,20,.6);color:var(--ink);border:1px solid rgba(255,255,255,.2);padding:7px 9px;cursor:pointer}
 .hrOdds button.on{outline:3px solid var(--gold);outline-offset:-2px}
 .hrOdds small{display:block;font-weight:600;color:#cfe9da;font-size:12px}

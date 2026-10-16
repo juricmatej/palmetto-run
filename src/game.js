@@ -249,6 +249,8 @@ const INT=[],iwalls=[];
 function mkRoom(id,name,w,h,col,k){const ox=W+700+k*800,oy=600,t=14;const r={id,name,ox,oy,w,h,col,exit:{x:ox+w/2,y:oy+h-22},spots:[],props:[]};
   iwalls.push({x:ox-t,y:oy-t,w:w+2*t,h:t},{x:ox-t,y:oy+h,w:w+2*t,h:t},{x:ox-t,y:oy,w:t,h},{x:ox+w,y:oy,w:t,h});INT.push(r);return r}
 function prop(r,x,y,w,h,ht,col,solid){const p={x:r.ox+x,y:r.oy+y,w,h,ht,col};r.props.push(p);if(solid!==false)iwalls.push(p);return p}
+// a casino table: solid like any prop, drawn as a felt table (see the casino look block)
+const tableProp=(r,x,y,w,h,ht,col)=>{const p=prop(r,x,y,w,h,ht,col);p.tbl=1;return p};
 const spot=(r,x,y,act,label)=>r.spots.push({x:r.ox+x,y:r.oy+y,act,label});
 const gunInt=mkRoom('guns','Gun shop',260,200,'#1b2a33',0);
 prop(gunInt,40,40,180,18,14,'#3a3348');prop(gunInt,0,0,260,10,44,'#2a2333');prop(gunInt,0,60,10,100,36,'#2a2333');prop(gunInt,250,60,10,100,36,'#2a2333');
@@ -264,12 +266,12 @@ const home=mkRoom('home','Safehouse',260,200,'#1e1a2c',3);
 prop(home,20,20,60,80,10,'#3b3355');prop(home,150,30,80,26,12,'#4a2f3a');prop(home,150,0,80,6,30,'#121018');
 spot(home,95,60,'sleep','Sleep (heal, save, lose the cops)');spot(home,200,130,'board','Open the heist board');
 const casino=mkRoom('casino','Lucky Palms Casino',640,460,'#3a1030',4);
-prop(casino,150,40,120,44,11,'#145a3a');
+tableProp(casino,150,40,120,44,11,'#145a3a');
 for(let i=0;i<6;i++)prop(casino,8,40+i*30,22,26,30,'#5a2a6e');
 for(const y of[230,260])prop(casino,8,y,22,26,30,'#3a1f12');
-prop(casino,596,60,26,170,16,'#3b2416');prop(casino,270,170,80,60,11,'#145a3a');prop(casino,400,150,80,50,11,'#1d2a5a');
-prop(casino,150,290,130,44,11,'#145a3a');prop(casino,500,220,90,40,36,'#0f2a1a');prop(casino,40,380,70,50,40,'#2a1a3e');
-prop(casino,480,350,64,30,11,'#145a3a');prop(casino,570,350,50,40,11,'#145a3a');
+prop(casino,596,60,26,170,16,'#3b2416');tableProp(casino,270,170,80,60,11,'#145a3a');tableProp(casino,400,150,80,50,11,'#1d2a5a');
+tableProp(casino,150,290,130,44,11,'#145a3a');prop(casino,500,220,90,40,36,'#0f2a1a');prop(casino,40,380,70,50,40,'#2a1a3e');
+tableProp(casino,480,350,64,30,11,'#145a3a');tableProp(casino,570,350,50,40,11,'#145a3a');
 prop(casino,470,330,156,110,8,'#2a1438',false);
 prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop(casino,462,322,164,2,16,'#e0b84a',false);prop(casino,462,322,2,118,16,'#e0b84a',false);
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
@@ -831,7 +833,7 @@ function leaveCar(force){
 
 // ---------- gun shop ----------
 function openShop(){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';$('shop').hidden=false;renderShop();setTimeout(()=>$('shopClose').focus(),0)}
-function closeShop(){if(state!=='shop')return;bjLeave();state='play';$('shop').hidden=true;$('bj').hidden=true;document.querySelectorAll('.gm').forEach(e=>e.hidden=true);cv.focus&&cv.focus()}
+function closeShop(){if(state!=='shop')return;bjLeave();tableK=1;state='play';$('shop').hidden=true;$('bj').hidden=true;document.querySelectorAll('.gm').forEach(e=>e.hidden=true);cv.focus&&cv.focus()}
 function equip(id){if(owned[id]){weap=id;if(state==='shop')renderShop()}}
 function cycleWeapon(){const list=WEAPONS.filter(w=>owned[w.id]);const i=list.findIndex(w=>w.id===weap);equip(list[(i+1)%list.length].id)}
 function prevWeapon(){const list=WEAPONS.filter(w=>owned[w.id]);const i=list.findIndex(w=>w.id===weap);equip(list[(i-1+list.length)%list.length].id)}
@@ -982,6 +984,7 @@ function detonate(){if(!stickies.length||state==='menu')return;const pts=[];for(
 // ---------- blackjack ----------
 const SUITS=['♠','♥','♦','♣'],RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const BJMIN=10,BJMAX=5000,BJCUT=234,BJN={hit:'Hit',stand:'Stand',double:'Double',split:'Split',surr:'Surrender'};
+let tableK=1;
 // Basic strategy: dealer stands on all 17s, double on any two cards, split up to 3 times, late surrender.
 // Columns are dealer upcards 2..A. H hit, S stand, D double else hit, d double else stand, R surrender else hit, P split.
 const BJHARD={9:'HDDDDHHHHH',10:'DDDDDDDDHH',11:'DDDDDDDDDH',12:'HHSSSHHHHH',13:'SSSSSHHHHH',14:'SSSSSHHHHH',15:'SSSSSHHHRH',16:'SSSSSHHRRR'};
@@ -1065,6 +1068,7 @@ function bjHandEl(h,i,n){const b=document.createElement('div');b.className='bjHa
 function bjRender(){
   const ph=bj.ph,r=ph==='bet'?null:bj.r,hide=!bj.open&&(ph==='play'||ph==='ins'||ph==='reveal');
   if(!bj.counting)$('bjCash').textContent=money(me.cash);
+  $('bjLim').textContent=`${money(BJMIN)} to ${money(BJMAX*tableK)}`;$('bjT').textContent=tableK>1?'High-limit blackjack':'Blackjack';
   $('bjLeft').textContent=bj.sh.used>=BJCUT?'Cut card out, reshuffle next hand':`${BJCUT-bj.sh.used} cards to the cut`;
   $('bjShoe').classList.toggle('cut',bj.sh.used>=BJCUT);
   const D=$('bjD');D.replaceChildren();if(r)r.d.forEach((c,i)=>D.appendChild(bjShow(c,hide&&i===1)));
@@ -1077,7 +1081,7 @@ function bjRender(){
   $('bjMsg').textContent=bj.msg;
   const Bt=$('bjBtns');Bt.replaceChildren();const cash=me.cash;
   const btn=(t,fn,dis,cls,a)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=!!dis||!!bj.busy;if(cls)b.className=cls;if(a){b.dataset.a=a;if(a===hintA)b.classList.add('hint')}b.onclick=()=>fn(b);Bt.appendChild(b);return b};
-  if(ph==='bet'){for(const v of[10,50,100,500])btn('+$'+v,b=>bjChip(v,b),bj.bet+v>Math.min(BJMAX,cash),'chip');btn('Clear',()=>{bj.bet=0;bjRender()},!bj.bet);btn(`Deal ${money(bj.bet)}`,bjDeal,bj.bet<BJMIN||bj.bet>cash,'go')}
+  if(ph==='bet'){for(const v of[10,50,100,500])btn('+$'+v,b=>bjChip(v,b),bj.bet+v>Math.min(BJMAX*tableK,cash),'chip');btn('Clear',()=>{bj.bet=0;bjRender()},!bj.bet);btn(`Deal ${money(bj.bet)}`,bjDeal,bj.bet<BJMIN||bj.bet>cash,'go')}
   else if(ph==='ins'){const a=Math.floor(r.h[0].bet/2);btn(`Insurance ${money(a)}`,()=>bjIns(1),a>cash,'chip');btn('No insurance',()=>bjIns(0))}
   else if(ph==='play'){const h=r.h[r.i],ok=h.c.length===2,pr=cash>=h.bet;
     btn('Hit',()=>bjAct('hit'),false,'go','hit');btn('Stand',()=>bjAct('stand'),false,'','stand');
@@ -1091,7 +1095,7 @@ function bjChip(v,b){if(bj.ph!=='bet')return;const f=b.getBoundingClientRect();b
   const s=$('bjP').querySelector('.bjSpot');if(!s)return;const t=s.getBoundingClientRect(),el=chipEl(v);
   el.style.cssText=`position:fixed;z-index:9;left:${f.left}px;top:${f.top}px`;document.body.append(el);fly(el,f,t,320).onfinish=()=>el.remove();noise(.04,6000,.06)}
 async function bjDeal(){
-  if(bj.ph!=='bet'||bj.busy||bj.bet<BJMIN||bj.bet>BJMAX||bj.bet>me.cash)return;
+  if(bj.ph!=='bet'||bj.busy||bj.bet<BJMIN||bj.bet>BJMAX*tableK||bj.bet>me.cash)return;
   if(bj.sh.used>=BJCUT)bj.sh=bjNewShoe();
   bj.busy=1;me.cash-=bj.bet;bj.last=bj.bet;bj.open=0;bj.r=bjNewRound(bj.bet,bjDraw);bj.ph='play';bj.msg='';
   if(bj.r.d[0].r==='A'){bj.ph='ins';bj.msg='Dealer shows an ace. Insurance pays 2 to 1.'}
@@ -1126,7 +1130,7 @@ function bjFlights(r){const rk=$('bjRack').getBoundingClientRect(),sp=$('bj').qu
     else if(h.win===0){fly(st,st.getBoundingClientRect(),rk,650,150);st.animate([{opacity:1},{opacity:0}],{duration:650,delay:150,fill:'forwards'})}})}
 // closing the table mid-hand stands every hand and pays out at once
 function bjLeave(){if(bj.ph!=='play'&&bj.ph!=='ins')return;const r=bj.r;for(const h of r.h)h.done=1;bj.open=1;bjDealer(r,bjDraw);me.cash+=bjPay(r);bj.ph='done';bj.busy=0;bj.counting=0;bj.bet=bj.last;saveArsenal()}
-function openBJ(){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';if(bj.ph==='bet')bj.bet=Math.min(bj.bet,me.cash);$('bj').hidden=false;bjRender()}
+function openBJ(k=1){tableK=k;try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';if(bj.ph==='bet')bj.bet=Math.min(bj.bet,BJMAX*k,me.cash);$('bj').hidden=false;bjRender()}
 $('bjClose').addEventListener('click',()=>closeShop());
 $('bjHintT').addEventListener('click',()=>{bj.hint=bj.hint?0:1;bjRender()});
 if(DBG)Object.defineProperties(DBG,{bj:{get:()=>bj}});
@@ -1140,15 +1144,15 @@ function endLap(){if(!lap)return;lap=null;state='play';me.y=club.oy+262;me.hp=Ma
 function openModal(id){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';$(id).hidden=false}
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeShop()));
 function mkBtn(parent,label,fn,cls,dis){const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.addEventListener('click',fn);parent.appendChild(b);return b}
-function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();return true}
+function casinoAct(p){if(p.act==='roulette'){tableK=1;openModal('roul');renderRoul();return true}
   if(p.act==='wheel'){openLucky();return true}
   if(p.act==='rocket'){openRocket();return true}
   if(p.act==='poker'){openTCP();return true}
   if(p.act==='horse'){openHorses();return true}
-  if(p.act==='hlbj'){if(hlGate())openBJ();return true}
-  if(p.act==='hlro'){if(hlGate()){openModal('roul');renderRoul()}return true}
-  if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
-  if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
+  if(p.act==='hlbj'){if(hlGate())openBJ(10);return true}
+  if(p.act==='hlro'){if(hlGate()){tableK=10;openModal('roul');renderRoul()}return true}
+  if(p.act==='slots'){tableK=1;openModal('slots');casinoOpenSlots();return true}
+  if(p.act==='slots7'){tableK=1;openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
 // ---------- roulette ----------
 const RO_ORDER=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
@@ -1211,14 +1215,15 @@ const RO_CELL={};
  for(const[k,l]of[['c3','2:1'],['c2','2:1'],['c1','2:1']])outBtn($('rCols'),k,l)}
 const roTotal=()=>Object.values(ro.bets).reduce((a,b)=>a+b,0);
 function roBet(k){if(ro.spinning||ro.sw)return;if(me.cash<ro.chip){ro.msg='Not enough cash for that chip.';renderRoul();return}
-  if(roTotal()+ro.chip>RO_MAX){ro.msg='Table limit is $10,000 a spin.';renderRoul();return}
+  if(roTotal()+ro.chip>RO_MAX*tableK){ro.msg=`Table limit is ${money(RO_MAX*tableK)} a spin.`;renderRoul();return}
   me.cash-=ro.chip;ro.bets[k]=(ro.bets[k]||0)+ro.chip;noise(.04,6000,.06);ro.msg='';renderRoul()}
 // right-click takes the selected chip value back from a spot
 function roPull(k){if(ro.spinning||ro.sw||!ro.bets[k])return;const a=Math.min(ro.chip,ro.bets[k]);ro.bets[k]-=a;me.cash+=a;if(!ro.bets[k])delete ro.bets[k];noise(.03,4000,.05);renderRoul()}
 function roClear(){if(ro.spinning||ro.sw)return;for(const k in ro.bets)me.cash+=ro.bets[k];ro.bets={};renderRoul()}
 function roRebet(){if(!ro.lastBets||ro.spinning||ro.sw)return;roClear();const tot=Object.values(ro.lastBets).reduce((a,b)=>a+b,0);if(tot>me.cash){ro.msg='Not enough cash to repeat.';renderRoul();return}me.cash-=tot;ro.bets={...ro.lastBets};renderRoul()}
-function roDouble(){if(ro.spinning||ro.sw)return;const tot=roTotal();if(!tot)return;if(tot*2>RO_MAX){ro.msg='Table limit is $10,000 a spin.';renderRoul();return}if(tot>me.cash){ro.msg='Not enough cash to double.';renderRoul();return}me.cash-=tot;for(const k in ro.bets)ro.bets[k]*=2;renderRoul()}
+function roDouble(){if(ro.spinning||ro.sw)return;const tot=roTotal();if(!tot)return;if(tot*2>RO_MAX*tableK){ro.msg=`Table limit is ${money(RO_MAX*tableK)} a spin.`;renderRoul();return}if(tot>me.cash){ro.msg='Not enough cash to double.';renderRoul();return}me.cash-=tot;for(const k in ro.bets)ro.bets[k]*=2;renderRoul()}
 function roSpin(){if(ro.spinning)return;if(!roTotal()){ro.msg='Place a bet first.';renderRoul();return}
+  if(roTotal()>RO_MAX*tableK){ro.msg=`Table limit is ${money(RO_MAX*tableK)} a spin.`;renderRoul();return}
   ro.spinning=true;ro.lastBets={...ro.bets};ro.msg='No more bets...';renderRoul();noise(1.4,900,.08);
   // decide the pocket first, then animate the wheel and ball to end with that pocket under the marker at the top
   const n=Math.floor(rand()*37),i=RO_ORDER.indexOf(n),w0=ro.a,dW=TAU*3+md(-i*TAU/37-w0),b0=-Math.PI/2+(rand()-.5)*.6*TAU/37,dB=TAU*6,T=reduced?1200:5000,t0=performance.now();
@@ -1251,7 +1256,7 @@ const cellK=n=>n===0?'n0':'n'+n;
 function renderRoul(){
   const tot=roTotal();
   $('rMsg').textContent=ro.msg;
-  if(!ro.sw){$('rCash').textContent=`Cash ${money(me.cash)}`;roChips()}
+  if(!ro.sw){$('rCash').textContent=`Cash ${money(me.cash)}  Limit ${money(RO_MAX*tableK)}`;roChips()}
   const H=$('rHist');H.replaceChildren();
   for(const n of ro.hist.slice(0,15)){const e=document.createElement('span');e.className='rh '+(n===0?'g':REDS.has(n)?'r':'k');e.textContent=n;H.appendChild(e)}
   const cnt=Array(37).fill(0);for(const n of ro.hist)cnt[n]++;
@@ -1496,8 +1501,6 @@ if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7
 
 // ---------- casino games ----------
 // High-limit room in the VIP area. Players need $100,000 in cash (or VIP, once a later ticket adds it).
-// ponytail: the 10x limits are not wired. openBJ() and roBet()/roSpin() take no limit, so both spots use the normal table limits.
-// Add a one-line limit multiplier hook in the blackjack and roulette sections, then pass it from here.
 const HL_MIN=100000;
 function hlGate(){if(me.cash>=HL_MIN||me.vip)return true;feed(`High-limit tables need ${fmtCash(HL_MIN)} in cash`);return false}
 const fmtCash=n=>'$'+Math.round(n).toLocaleString('en-US');
@@ -1505,9 +1508,14 @@ const fmtCash=n=>'$'+Math.round(n).toLocaleString('en-US');
 const LW=[['$500','c',500,14],['RP 100','r',100,11],['$1,000','c',1000,11],['Chips $2,000','h',2000,7],['$500','c',500,14],['RP 250','r',250,7],['$2,500','c',2500,6],['Mystery','m',0,5],['$1,000','c',1000,8],['$5,000','c',5000,3],['RP 500','r',500,3],['Chips $5,000','h',5000,2],['$1,000','c',1000,2],['$500','c',500,1],['RP 100','r',100,1],['Mystery','m',0,1],['$2,500','c',2500,1],['Chips $2,000','h',2000,1],['$50,000','c',50000,1],['JACKPOT $250,000','j',250000,1]];
 const LWC={c:'#1f7a48',r:'#2b6fd6',h:'#c2306e',m:'#6a3bb8',j:'#ffc94a'};
 const lwDay=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-let lwLast=(()=>{try{const v=localStorage.getItem('pr3d-wheel');return typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:''}catch(e){return ''}})();
+let lwLast='';
+// Reads the saved spin day again, so a spin made in another tab counts here too.
+function lwRead(){try{const v=localStorage.getItem('pr3d-wheel');lwLast=typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:''}catch(e){}}
+lwRead();
 // Picks a segment index by weight. Pure: no payout here.
 function spinWheel(){const tot=LW.reduce((a,s)=>a+s[3],0);let r=rand()*tot;for(let i=0;i<LW.length;i++){r-=LW[i][3];if(r<0)return i}return LW.length-1}
+// Average cash per spin over n seeded spins. Cash, chips and the jackpot count. RP and mystery do not.
+function wheelValue(n){const keep=rand;rand=seeded(6604);let s=0;try{for(let i=0;i<n;i++){const[,k,v]=LW[spinWheel()];if(k==='c'||k==='h'||k==='j')s+=v}}finally{rand=keep}return s/n}
 // RP is paid through gainXP, which only runs in play. The modal sets state to shop, so switch it for the call.
 function casinoRP(n,why){const s=state;state='play';try{gainXP(n,why)}finally{state=s}}
 const lwC=$('lwc'),lwG=lwC.getContext('2d'),LWR=180,LWX=210;
@@ -1516,9 +1524,11 @@ function lwDraw(){const g=lwG,seg=TAU/LW.length;g.setTransform(1,0,0,1,0,0);g.cl
   g.fillStyle='#2a1038';g.beginPath();g.arc(0,0,LWR+14,0,TAU);g.fill();
   g.save();g.rotate(lwS.a);
   for(let i=0;i<LW.length;i++){const s0=i*seg-Math.PI/2,[l,k]=LW[i];g.fillStyle=LWC[k];g.beginPath();g.moveTo(0,0);g.arc(0,0,LWR,s0,s0+seg);g.closePath();g.fill();
-    g.save();g.rotate(s0+seg/2);g.fillStyle=k==='j'?'#2a0a14':'#fff';g.font='700 13px "Chakra Petch",sans-serif';g.textAlign='right';g.textBaseline='middle';g.fillText(l.replace('JACKPOT $250,000','JACKPOT'),LWR-12,0);g.restore()}
+}
   for(let i=0;i<LW.length;i++){const a=i*seg-Math.PI/2;g.fillStyle='#fff3c4';g.beginPath();g.arc(Math.cos(a)*LWR,Math.sin(a)*LWR,3.5,0,TAU);g.fill()}
   g.restore();
+  // labels sit outside the spin transform, each turned to its on-screen angle, so none reads upside down
+  for(let i=0;i<LW.length;i++){const m=i*seg-Math.PI/2+seg/2+lwS.a,flip=Math.cos(m)<0,[l,k]=LW[i];g.save();g.rotate(flip?m+Math.PI:m);g.fillStyle=k==='j'?'#2a0a14':'#fff';g.font='700 16px "Chakra Petch",sans-serif';g.textAlign=flip?'left':'right';g.textBaseline='middle';g.fillText(l.replace('JACKPOT $250,000','JACKPOT'),flip?-(LWR-12):LWR-12,0);g.restore()}
   g.strokeStyle='#ffc94a';g.lineWidth=6;g.beginPath();g.arc(0,0,LWR+4,0,TAU);g.stroke();
   g.fillStyle='#ffc94a';g.beginPath();g.arc(0,0,22,0,TAU);g.fill();g.fillStyle='#2a1038';g.beginPath();g.arc(0,0,8,0,TAU);g.fill();
   g.save();g.translate(0,-LWR-12);g.rotate(lwS.kick*.35);g.fillStyle='#fff';g.beginPath();g.moveTo(-14,-16);g.lineTo(14,-16);g.lineTo(0,10);g.closePath();g.fill();g.restore()}
@@ -1530,17 +1540,17 @@ function lwLoop(){lwS.raf=0;const now=performance.now();
   if(idx!==lwS.tick){if(lwS.tick>=0)tone('square',1500,.03,.05);lwS.tick=idx;lwS.kick=1}
   lwS.kick*=.86;lwDraw();
   if(lwS.spin||lwS.kick>.01)lwS.raf=requestAnimationFrame(lwLoop);else{lwBtn()}}
-function lwSpin(){if(lwS.spin)return;if(lwLast===lwDay()){lwMsg('You already spun today. Come back tomorrow.');lwBtn();return}
+function lwSpin(){if(lwS.spin)return;lwRead();if(lwLast===lwDay()){lwMsg('You already spun today. Come back tomorrow.');lwBtn();return}
   // Pay once, before the wheel turns, and mark the day so a reload cannot spin again.
-  const i=spinWheel(),[l,k,v]=LW[i];lwLast=lwDay();try{localStorage.setItem('pr3d-wheel',lwLast)}catch(e){}
-  if(k==='r')casinoRP(v,'Lucky Wheel');else if(k==='m'){for(const w of WEAPONS)if(owned[w.id]&&w.ammoAmt)ammo[w.id]=(ammo[w.id]||0)+w.ammoAmt}else me.cash+=v;
+  const i=spinWheel(),[l,k,v]=LW[i];let mAm=0;lwLast=lwDay();try{localStorage.setItem('pr3d-wheel',lwLast)}catch(e){}
+  if(k==='r')casinoRP(v,'Lucky Wheel');else if(k==='m'){for(const w of WEAPONS)if(owned[w.id]&&w.ammoAmt){ammo[w.id]=(ammo[w.id]||0)+w.ammoAmt;mAm++}}else me.cash+=v;
   saveArsenal();
   const seg=TAU/LW.length,base=((-(i+.5)*seg-lwS.a)%TAU+TAU)%TAU,jit=(rand()-.5)*seg*.6;
   lwS.from=lwS.a;lwS.to=lwS.a+6*TAU+base+jit;lwS.t0=performance.now();lwS.dur=5200;lwS.spin=true;lwS.tick=-1;
   lwMsg('Good luck...');lwBtn();if(!lwS.raf)lwS.raf=requestAnimationFrame(lwLoop);
   setTimeout(()=>{if(k==='j'){showBig('JACKPOT','#ffc94a','+'+fmtCash(v),3);jingle('level')}else if(k!=='m')jingle('pass');
-    const won=k==='r'?`${v} RP`:k==='m'?'ammo for every gun you own':fmtCash(v)+(k==='h'?' in chips':'');lwMsg(`Won ${won}`);feed(`Lucky Wheel: won ${won}`);if(k==='j')noise(.5,6000,.3)},5300)}
-function openLucky(){openModal('lwheel');lwMsg(lwLast===lwDay()?'Your free spin for today is gone. Come back tomorrow.':'One free spin every real day. Good luck.');lwBtn();lwDraw();$('lwGo').focus()}
+    const won=k==='r'?`${v} RP`:k==='m'?(mAm?`ammo for ${mAm} gun${mAm>1?'s':''}`:'no ammo, since you own no gun that takes it'):fmtCash(v)+(k==='h'?' in chips':'');lwMsg(`Won ${won}`);feed(`Lucky Wheel: won ${won}`);if(k==='j')noise(.5,6000,.3)},5300)}
+function openLucky(){lwRead();openModal('lwheel');lwMsg(lwLast===lwDay()?'Your free spin for today is gone. Come back tomorrow.':'One free spin every real day. Good luck.');lwBtn();lwDraw();$('lwGo').focus()}
 $('lwGo').addEventListener('click',lwSpin);
 
 // ---------- Rocket (crash game) ----------
@@ -1548,7 +1558,7 @@ $('lwGo').addEventListener('click',lwSpin);
 // The host (the lowest peer id among players with the modal open, or this client alone) picks the crash point
 // and publishes it as rk only once the flight starts, so nobody can bet on a known result.
 // Bets and cash-outs stay local. A flight that would pass the slot end is cut off there (above about 2000x).
-const RKG={slot:45000,win:8000,k:.2,amt:100,hist:[],hostId:-1,hostCp:0,bet:null,fly:null,last:'',open:false,raf:0,lt:0,cam:{x:8,y:2},parts:[],boomId:-1,histId:-1};
+const RKG={slot:45000,win:8000,k:.2,amt:100,hist:[],hostId:-1,hostCp:0,soloId:-1,soloCp:0,bet:null,fly:null,last:'',open:false,raf:0,lt:0,cam:{x:8,y:2},parts:[],boomId:-1,histId:-1};
 const rkS=now=>{const id=Math.floor(now/RKG.slot);return{id,start:id*RKG.slot+RKG.win}};
 const rkMult=t=>Math.floor(Math.exp(RKG.k*Math.max(0,t))*100+1e-9)/100;
 // Crash point = 0.96/(1-u) floored to two decimals, minimum 1.00 (4 percent house edge).
@@ -1561,8 +1571,12 @@ function rkParse(v){if(!Array.isArray(v))return null;const id=Math.floor(num(v[0
 function rkAmHost(){if(!room||!myPeer)return true;for(const[p,r]of remotes)if(r.rk&&p<myPeer)return false;return true}
 // The flight for a slot: a host's published flight wins, otherwise this client's own (if it is the host).
 function rkFlight(id,start){
+  if(RKG.soloId===id)return{id,start,cp:RKG.soloCp,mine:false};
   for(const r of remotes.values())if(r.rk&&r.rk.id===id)return{id,start:r.rk.start,cp:r.rk.cp,mine:false};
-  if(!rkAmHost())return null;
+  if(!rkAmHost()){
+    // Stall guard: no host flight 3 s after the start, so this client runs the round alone. Never published.
+    if(Date.now()<start+3000)return null;
+    RKG.soloId=id;RKG.soloCp=rocketCP();return{id,start,cp:RKG.soloCp,mine:false}}
   if(RKG.hostId!==id){RKG.hostId=id;RKG.hostCp=rocketCP()}
   return{id,start,cp:RKG.hostCp,mine:true}}
 // Presence field. Only the host publishes a flight, and only once it has started.
@@ -1602,8 +1616,8 @@ function rkDraw(now,dt,st){const g=rkG,fl=RKG.fly&&RKG.fly.id===rkS(now).id&&now
   for(const p of RKG.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96;p.l-=dt*1.4}
   RKG.parts=RKG.parts.filter(p=>p.l>0).slice(-200);
   g.save();for(const p of RKG.parts){g.globalAlpha=Math.max(0,p.l);g.fillStyle=p.c||'#ffc94a';g.beginPath();g.arc(p.x,p.y,2.5+p.l*2,0,TAU);g.fill()}g.restore();
-  g.save();g.translate(hx,hy);g.rotate(ang);g.scale(1.45,1.45);
-  if(fl&&!st.crashed){const L=12+Math.random()*8;g.fillStyle='#ffc94a';g.beginPath();g.moveTo(-14,-6);g.lineTo(-14-L,0);g.lineTo(-14,6);g.fill()}
+  g.save();g.translate(hx,hy);g.rotate(ang);g.scale(4.2,4.2);
+  if(fl&&!st.crashed){const L=20+Math.random()*12,fg=g.createLinearGradient(-14,0,-14-L,0);fg.addColorStop(0,'#fff3b8');fg.addColorStop(.35,'#ffc94a');fg.addColorStop(1,'rgba(255,62,165,0)');g.fillStyle=fg;g.beginPath();g.moveTo(-12,-7);g.quadraticCurveTo(-14-L*.6,-5,-14-L,0);g.quadraticCurveTo(-14-L*.6,5,-12,7);g.closePath();g.fill()}
   g.fillStyle=fl&&st.crashed?'#6a6470':'#f3ecff';g.beginPath();g.moveTo(20,0);g.quadraticCurveTo(4,-9,-14,-8);g.lineTo(-14,8);g.quadraticCurveTo(4,9,20,0);g.fill();
   g.fillStyle='#ff3ea5';g.beginPath();g.moveTo(-8,-8);g.lineTo(-18,-16);g.lineTo(-14,-4);g.fill();g.beginPath();g.moveTo(-8,8);g.lineTo(-18,16);g.lineTo(-14,4);g.fill();
   g.fillStyle='#29e6d6';g.beginPath();g.arc(4,0,3.5,0,TAU);g.fill();g.restore();
@@ -1661,7 +1675,7 @@ function tcpRender(){
   const cards=(arr,down,fly)=>arr.map((c,i)=>tcpCard(c,down(i),fly?fly+i*160:0));
   $('tcpD').replaceChildren(...cards(tcp.d,i=>!done,0));$('tcpP').replaceChildren(...cards(tcp.p,()=>false,0));
   for(const[id,v,arr]of[['tcpAnte',tcp.ante,[10,50,100,500]],['tcpPP',tcp.pp,[0,10,25,50]]]){const R=$(id);R.replaceChildren();
-    for(const x of arr){const b=document.createElement('button');b.type='button';b.className='b chip'+(x===v?' on':'');b.textContent=x?'$'+x:'Off';b.disabled=tcp.phase!=='bet';b.addEventListener('click',()=>{if(id==='tcpAnte')tcp.ante=x;else tcp.pp=x;tcpRender()});R.appendChild(b)}}
+    for(const x of arr){const b=document.createElement('button');b.type='button';b.className='cb c'+x+(x===v?' on':'');b.textContent=x?'$'+x:'Off';b.disabled=tcp.phase!=='bet';b.addEventListener('click',()=>{if(id==='tcpAnte')tcp.ante=x;else tcp.pp=x;tcpRender()});R.appendChild(b)}}
   const A=$('tcpAct');A.replaceChildren();
   const btn=(t,fn,dis,cls)=>{const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=t;b.disabled=!!dis;b.addEventListener('click',fn);A.appendChild(b)};
   if(tcp.phase==='bet')btn(`Deal ($${tcp.ante+tcp.pp})`,tcpDeal,tcp.ante<=0||me.cash<tcp.ante+tcp.pp,'go');
@@ -1714,16 +1728,28 @@ function hrSettle(){const o=HRS.order,win=o[0],top=o.slice(0,2);let pay=0,stake=
   HRS.bets=[];if(net>0)jingle('pass');hrCard();hrRender()}
 // Position along the track, 0 at the gate and 1 at the line. A small wave makes the horses swap places mid-race.
 function hrPos(i,t){const x=t/HRS.T[i];if(x>=1)return 1;const n=Math.sin(t*(1.1+i*.23)+i*1.7)*.05*x*(1-x)*4;return Math.max(0,Math.min(1,x+n))}
-function hrHorse(g,x,y,c,n,ph,moving){const bob=Math.abs(Math.sin(ph*2))*2.4,sw=moving?Math.sin(ph)*.75:0;y-=bob;
-  g.save();g.translate(x,y);g.scale(1.2,1.2);g.lineCap='round';g.strokeStyle='#2a1a10';g.lineWidth=3.2;
-  const leg=(bx,by,a)=>{g.beginPath();g.moveTo(bx,by);g.lineTo(bx+Math.sin(a)*10,by+Math.cos(a)*10);g.stroke()};
-  g.strokeStyle='#3a2212';leg(-13,-4,sw);leg(-8,-4,-sw*.9);leg(11,-4,-sw*.9);leg(15,-4,sw);
-  g.fillStyle='#d08f55';g.strokeStyle='#2a1a10';g.lineWidth=1.4;g.beginPath();g.ellipse(0,-10,19,8.5,0,0,TAU);g.fill();g.stroke();
-  g.beginPath();g.moveTo(10,-14);g.lineTo(22,-30);g.lineTo(29,-25);g.lineTo(18,-7);g.closePath();g.fill();g.stroke();
-  g.beginPath();g.ellipse(27,-25,7.5,5.2,-.35,0,TAU);g.fill();g.stroke();
-  g.beginPath();g.moveTo(-17,-12);g.quadraticCurveTo(-32,-16+sw*5,-27,-2);g.lineTo(-18,-7);g.closePath();g.fill();g.stroke();
-  g.fillStyle=c;g.fillRect(-7,-24,14,8);g.beginPath();g.arc(2,-29,4.5,0,TAU);g.fill();
-  g.fillStyle='#16121f';g.beginPath();g.arc(-2,-14,6.5,0,TAU);g.fill();g.fillStyle='#fff';g.font='700 9px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(String(n),-2,-13.5);
+// Side view, facing the finish. Legs run a gallop cycle while moving. The jockey wears the horse's colour.
+const HR_COAT=['#8a4a22','#4a2a18','#c9c1b0','#6b3a1e','#a0703c','#2a1a12'];
+function hrHorse(g,x,y,c,n,ph,moving){const k=moving?1:0,bob=k*Math.abs(Math.sin(ph*2))*1.6,coat=HR_COAT[(n-1)%6],dark='#1a1008',L=20;
+  const leg=(hx,p,col)=>{const a=k*Math.sin(p)*.7,fx=hx+Math.sin(a)*L*.8,fy=-20+Math.cos(a)*L;g.strokeStyle=col;g.lineWidth=3.2;g.beginPath();g.moveTo(hx,-20);g.lineTo(fx,fy);g.stroke();g.fillStyle=dark;g.fillRect(fx-2.5,-2.2,5,2.2)};
+  g.save();g.translate(x,y-bob);g.scale(.72,.72);g.lineCap='round';g.lineJoin='round';
+  leg(-14,ph+Math.PI+.5,'#2a1a10');leg(8,ph+.5,'#2a1a10');
+  g.strokeStyle=dark;g.lineWidth=3;g.beginPath();g.moveTo(-18,-30);g.quadraticCurveTo(-36,-30+k*Math.sin(ph)*3,-32,-12);g.stroke();
+  g.fillStyle=coat;g.strokeStyle=dark;g.lineWidth=1.2;
+  g.beginPath();g.ellipse(-1,-28,19,8.5,-.08,0,TAU);g.fill();g.stroke();
+  g.beginPath();g.moveTo(8,-34);g.lineTo(22,-50);g.lineTo(30,-46);g.lineTo(18,-25);g.closePath();g.fill();g.stroke();
+  g.beginPath();g.ellipse(31,-44,7.5,4.6,-.7,0,TAU);g.fill();g.stroke();
+  g.beginPath();g.moveTo(22,-49);g.lineTo(23.5,-57);g.lineTo(27,-50);g.closePath();g.fill();g.stroke();
+  g.strokeStyle=dark;g.lineWidth=2.6;g.beginPath();g.moveTo(10,-35);g.lineTo(22,-50);g.stroke();
+  g.fillStyle='#fff';g.beginPath();g.arc(28,-46,1.1,0,TAU);g.fill();
+  leg(-12,ph+2.4,coat);leg(4,ph,coat);
+  g.fillStyle=c;g.beginPath();g.moveTo(-7,-34);g.lineTo(6,-34);g.lineTo(6,-25);g.lineTo(-7,-25);g.closePath();g.fill();
+  g.fillStyle='#fff';g.font='700 7px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(String(n),-0.5,-29.5);
+  g.fillStyle=c;g.beginPath();g.moveTo(-5,-38);g.lineTo(2,-46);g.lineTo(9,-43);g.lineTo(0,-34);g.closePath();g.fill();
+  g.strokeStyle=c;g.lineWidth=2.6;g.beginPath();g.moveTo(6,-43);g.lineTo(16,-37);g.stroke();
+  g.strokeStyle='#f3ecff';g.lineWidth=2.4;g.beginPath();g.moveTo(-3,-35);g.lineTo(3,-24);g.stroke();
+  g.fillStyle='#e0b48f';g.beginPath();g.arc(10,-49,3.6,0,TAU);g.fill();
+  g.fillStyle=c;g.beginPath();g.arc(10,-49.5,4,Math.PI,0);g.fill();
   g.restore()}
 function hrDraw(now){const g=hrG,run=HRS.run,t=run?(now-HRS.t0)/1000:0;g.setTransform(1,0,0,1,0,0);
   const sky=g.createLinearGradient(0,0,0,70);sky.addColorStop(0,'#0b0a16');sky.addColorStop(1,'#241a14');g.fillStyle=sky;g.fillRect(0,0,HRW,70);
@@ -1736,7 +1762,7 @@ function hrDraw(now){const g=hrG,run=HRS.run,t=run?(now-HRS.t0)/1000:0;g.setTran
   g.strokeStyle='rgba(255,255,255,.45)';g.lineWidth=1.5;g.setLineDash([10,8]);for(let k=0;k<=6;k++){g.beginPath();g.moveTo(0,78+k*lane);g.lineTo(HRW,78+k*lane);g.stroke()}g.setLineDash([]);
   g.fillStyle='#e8e0d0';g.fillRect(HRX0-10,78,4,HRH-78);
   for(let i=0;i<8;i++){g.fillStyle=i%2?'#111':'#f3ecff';g.fillRect(HRX1+4,78+i*(HRH-78)/8,10,(HRH-78)/8)}
-  for(let i=0;i<6;i++){const y=78+lane*(i+.5),x=HRX0+(run||L0?hrPos(i,t):0)*(HRX1-HRX0);hrHorse(g,x,y,HR_COL[i],i+1,t*(6+i*.3)+i,run&&x<HRX1)}
+  for(let i=0;i<6;i++){const y=78+lane*(i+.5),x=HRX0+(run||L0?hrPos(i,t):0)*(HRX1-HRX0);hrHorse(g,x,y+12,HR_COL[i],i+1,t*(6+i*.3)+i,run&&x<HRX1)}
   g.textAlign='left';g.textBaseline='middle';g.font='700 13px "Chakra Petch",sans-serif';
   for(let i=0;i<6;i++){g.fillStyle='rgba(255,255,255,.9)';g.fillText(`${i+1}  ${HR_NAMES[i]}`,8,78+lane*(i+.5))}
   g.fillStyle='#ffc94a';g.textAlign='right';g.font='700 16px "Chakra Petch",sans-serif';g.fillText(run?`${Math.min(20,t).toFixed(1)} s`:'Ready',HRW-10,HRH-10)}
@@ -1758,7 +1784,7 @@ function openHorses(){openModal('horses');if(!HRS.p.length)hrCard();hrRender();h
 // Test helpers: the same draw and payout rules with a seeded rand. Win and place each return about 0.9.
 function horseRTP(n){const keep=rand;rand=seeded(3307);let ret=0;try{const p=hrProbs(HR_BASE),D=hrOdds(p).D;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p)[0]===h)ret+=D[h]}}finally{rand=keep}return ret/n}
 function horsePlaceRTP(n){const keep=rand;rand=seeded(3308);let ret=0;try{const p=hrProbs(HR_BASE),Dp=hrOdds(p).Dp;for(let i=0;i<n;i++){const h=i%6;if(horsePick(p).slice(0,2).includes(h))ret+=Dp[h]}}finally{rand=keep}return ret/n}
-if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel},rocketRTP:{get:()=>rocketRTP},pokerRTP:{get:()=>pokerRTP},horseRTP:{get:()=>horseRTP},horsePlaceRTP:{get:()=>horsePlaceRTP},rkS:{get:()=>rkS},RKG:{get:()=>RKG}});
+if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel},wheelValue:{get:()=>wheelValue},rocketRTP:{get:()=>rocketRTP},pokerRTP:{get:()=>pokerRTP},horseRTP:{get:()=>horseRTP},horsePlaceRTP:{get:()=>horsePlaceRTP},rkS:{get:()=>rkS},drawCalls:{get:()=>renderer.info.render.calls}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
@@ -3018,6 +3044,9 @@ function barkSprite(){const s=new THREE.Sprite(new THREE.SpriteMaterial({transpa
 
 // doors and interiors
 const rgbaOf=(hex,a)=>{const n=parseInt(hex.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
+// slot screens: one lit canvas per colour, shared by every machine of that colour
+const scrMats={};
+function screenMat(c){return scrMats[c]||(scrMats[c]=new THREE.MeshBasicMaterial({map:canvasTex(96,68,(g)=>{g.fillStyle='#07040c';g.fillRect(0,0,96,68);g.fillStyle=c;g.shadowColor=c;g.shadowBlur=10;for(let i=0;i<3;i++)g.fillRect(12+i*26,22,18,24);g.fillRect(8,6,80,4)})}))}
 function signTex(text,col){return canvasTex(512,128,(g)=>{g.fillStyle='#0b0814';g.fillRect(0,0,512,128);g.strokeStyle=col;g.lineWidth=8;g.strokeRect(6,6,500,116);g.font=(text.length>10?'50px':'62px')+' Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle=col;g.shadowColor=col;g.shadowBlur=18;g.fillText(text.toUpperCase(),256,68)})}
 {const signs={};
  for(const d of DOORS){
@@ -3037,7 +3066,7 @@ for(const r of INT){
   for(const[x,z,w,dd]of[[cx,r.oy-t/2,r.w+2*t,t],[cx,r.oy+r.h+t/2,r.w+2*t,t],[r.ox-t/2,cz,t,r.h],[r.ox+r.w+t/2,cz,t,r.h]]){const m=new THREE.Mesh(box(w,72,dd),wm);m.position.set(x,36,z);scene.add(m)}
   const ce=new THREE.Mesh(new THREE.PlaneGeometry(r.w,r.h),M.black);ce.rotation.x=Math.PI/2;ce.position.set(cx,72,cz);scene.add(ce);
   for(let i=1;i<=2;i++){const st=new THREE.Mesh(box(Math.round(r.w*.6),1,4),new THREE.MeshBasicMaterial({color:r===club?'#ff3ea5':r===casino?'#ffc94a':'#fff1d6'}));st.position.set(cx,70,r.oy+r.h*i/3);scene.add(st)}
-  for(const p of r.props){const m=new THREE.Mesh(box(p.w,p.ht,p.h),lam(p.col));m.position.set(p.x+p.w/2,p.ht/2,p.y+p.h/2);scene.add(m)}
+  for(const p of r.props){if(p.tbl)continue;const m=new THREE.Mesh(box(p.w,p.ht,p.h),lam(p.col));m.position.set(p.x+p.w/2,p.ht/2,p.y+p.h/2);scene.add(m)}
   const ex=new THREE.Mesh(new THREE.PlaneGeometry(26,40),new THREE.MeshBasicMaterial({color:'#29e6d6',transparent:true,opacity:.5}));ex.position.set(r.exit.x,20,r.oy+r.h-.5);ex.rotation.y=Math.PI;scene.add(ex);
   const er=new THREE.Mesh(new THREE.RingGeometry(10,13,28),new THREE.MeshBasicMaterial({color:'#29e6d6',side:THREE.DoubleSide}));er.rotation.x=-Math.PI/2;er.position.set(r.exit.x,.6,r.exit.y);scene.add(er);shopRings.push(er);
   for(const p of r.spots){const sr=new THREE.Mesh(new THREE.RingGeometry(9,12,28),new THREE.MeshBasicMaterial({color:'#ffc94a',side:THREE.DoubleSide}));sr.rotation.x=-Math.PI/2;sr.position.set(p.x,.6,p.y);scene.add(sr);shopRings.push(sr)}
@@ -3068,7 +3097,7 @@ let roul=null,clubBall=null;
  const pd=personMesh('#111018','#e0b48f',false);pd.position.set(ox+215,0,oy+270);pd.rotation.y=-Math.PI/2;scene.add(pd);intAnim.push({m:pd,kind:'bob',ph:6});
  const rd=personMesh('#2a1a3e','#c98b6b',false);rd.position.set(ox+310,0,oy+150);rd.rotation.y=-Math.PI/2;scene.add(rd);intAnim.push({m:rd,kind:'bob',ph:7});
  const bar=personMesh('#1d1830','#8d5a3b',false);bar.position.set(ox+578,0,oy+145);bar.rotation.y=Math.PI/2;scene.add(bar);intAnim.push({m:bar,kind:'bob',ph:4});
- for(const[y,c]of[[53,'#ff3ea5'],[83,'#29e6d6'],[113,'#ffc94a'],[143,'#ff3ea5'],[173,'#29e6d6'],[203,'#ffc94a'],[243,'#ffd84a'],[273,'#ffd84a']]){const sc=new THREE.Mesh(new THREE.PlaneGeometry(14,10),new THREE.MeshBasicMaterial({color:c}));sc.position.set(ox+30.2,22,oy+y);sc.rotation.y=Math.PI/2;scene.add(sc)}
+ for(const[y,c]of[[53,'#ff3ea5'],[83,'#29e6d6'],[113,'#ffc94a'],[143,'#ff3ea5'],[173,'#29e6d6'],[203,'#ffc94a'],[243,'#ffd84a'],[273,'#ffd84a']]){const sc=new THREE.Mesh(new THREE.PlaneGeometry(14,10),screenMat(c));sc.position.set(ox+30.2,22,oy+y);sc.rotation.y=Math.PI/2;scene.add(sc)}
  for(let i=0;i<3;i++){const g=personMesh(SHIRT[(i+2)%SHIRT.length],PEDCOL[(i+1)%PEDCOL.length],false);g.position.set(ox+44,0,oy+[80,160,262][i]);g.rotation.y=Math.PI;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i*1.7})}
  for(let i=0;i<2;i++){const g=personMesh(SHIRT[(i+4)%SHIRT.length],PEDCOL[(i+3)%PEDCOL.length],false);g.position.set(ox+410+i*34,0,oy+262);g.rotation.y=Math.PI/2;scene.add(g);intAnim.push({m:g,kind:'bob',ph:i})}
  const glowAt=(x,y,w,h,c)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),additive(glowTex(c)));m.rotation.x=-Math.PI/2;m.position.set(ox+x,.5,oy+y);scene.add(m)};
@@ -3086,6 +3115,27 @@ let roul=null,clubBall=null;
  const rs=new THREE.Mesh(new THREE.PlaneGeometry(56,24),new THREE.MeshBasicMaterial({color:'#2a0f4a'}));rs.position.set(casino.ox+440,30,casino.oy+202);scene.add(rs);
  const hs=new THREE.Mesh(new THREE.PlaneGeometry(80,16),new THREE.MeshBasicMaterial({color:'#3dd68c'}));hs.position.set(casino.ox+545,30,casino.oy+262);scene.add(hs);
  const vs=new THREE.Mesh(new THREE.PlaneGeometry(60,20),new THREE.MeshBasicMaterial({map:signTex('VIP','#ffc94a'),transparent:true}));vs.position.set(casino.ox+545,34,casino.oy+323);vs.rotation.y=Math.PI;scene.add(vs)}
+// Casino look with no real lights (a real light slows every lit material in the scene). Emissive panels,
+// neon trim, a diamond carpet and felt tables are plain materials and canvas textures, merged at boot.
+{const ox=casino.ox,oy=casino.oy,cw=casino.w,ch=casino.h;
+ const carpet=canvasTex(256,256,(g)=>{g.fillStyle='#2a0f22';g.fillRect(0,0,256,256);
+   for(const[cx,cy]of[[0,0],[256,0],[0,256],[256,256],[128,128]]){g.beginPath();g.moveTo(cx,cy-62);g.lineTo(cx+62,cy);g.lineTo(cx,cy+62);g.lineTo(cx-62,cy);g.closePath();g.fillStyle='#8a6a1e';g.fill();
+     g.beginPath();g.moveTo(cx,cy-46);g.lineTo(cx+46,cy);g.lineTo(cx,cy+46);g.lineTo(cx-46,cy);g.closePath();g.fillStyle='#5a1640';g.fill();
+     g.fillStyle='#ffc94a';g.beginPath();g.arc(cx,cy,5,0,TAU);g.fill()}});
+ carpet.wrapS=carpet.wrapT=THREE.RepeatWrapping;carpet.repeat.set(cw/128,ch/128);
+ const cp=new THREE.Mesh(new THREE.PlaneGeometry(cw,ch),new THREE.MeshLambertMaterial({map:carpet}));cp.rotation.x=-Math.PI/2;cp.position.set(ox+cw/2,.4,oy+ch/2);scene.add(cp);
+ const ceil=canvasTex(512,360,(g)=>{g.fillStyle='#24102e';g.fillRect(0,0,512,360);
+   g.strokeStyle='rgba(255,201,74,.5)';g.lineWidth=5;for(let i=1;i<4;i++){g.beginPath();g.moveTo(i*128,0);g.lineTo(i*128,360);g.stroke()}
+   for(let j=1;j<3;j++){g.beginPath();g.moveTo(0,j*120);g.lineTo(512,j*120);g.stroke()}
+   g.fillStyle='#fff0c4';g.shadowColor='#ffb85c';g.shadowBlur=28;for(const[x,y]of[[96,60],[416,60],[96,300],[416,300]])g.fillRect(x-36,y-16,72,32)});
+ const cl=new THREE.Mesh(new THREE.PlaneGeometry(cw,ch),new THREE.MeshBasicMaterial({map:ceil}));cl.rotation.x=Math.PI/2;cl.position.set(ox+cw/2,71.5,oy+ch/2);scene.add(cl);
+ const pink=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),cyan=new THREE.MeshBasicMaterial({color:'#29e6d6'});
+ const trim=(m,x,y,z,w,h,d)=>{const t=new THREE.Mesh(box(w,h,d),m);t.position.set(x,y,z);scene.add(t)};
+ for(const y of[5,64]){trim(pink,ox+cw/2,y,oy+.8,cw,2.6,1.2);trim(cyan,ox+.8,y,oy+ch/2,1.2,2.6,ch);trim(pink,ox+cw-.8,y,oy+ch/2,1.2,2.6,ch)}
+ for(const p of casino.props)if(p.tbl){const cx=p.x+p.w/2,cz=p.y+p.h/2,top=p.ht,felt=p.col==='#1d2a5a'?'#2a4a8c':'#1f7a48';
+   const rim=new THREE.Mesh(box(p.w,2.4,p.h),lam('#6b4426'));rim.position.set(cx,top-1.2,cz);scene.add(rim);
+   const fm=new THREE.Mesh(box(p.w-8,.6,p.h-8),lam(felt));fm.position.set(cx,top+.3,cz);scene.add(fm);
+   for(const[dx,dz]of[[-1,-1],[1,-1],[-1,1],[1,1]]){const lg=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,top-2.4,6),lam('#3a2212'));lg.position.set(cx+dx*(p.w/2-6),(top-2.4)/2,cz+dz*(p.h/2-6));scene.add(lg)}}}
 const bankFx={lasers:[],door:null,gold:null};
 {const L=bankL,S=bankS,V=bankV;
  for(const[x,y]of[[150,120],[290,120],[150,220],[290,220]]){const c=new THREE.Mesh(new THREE.CylinderGeometry(7,7,72,12),lam('#cfc8b8'));c.position.set(L.ox+x,36,L.oy+y);scene.add(c)}
