@@ -1859,7 +1859,7 @@ function start(data){
   seedWorld();staticBatch();
   if(data&&data.playing){$('start').hidden=true;state='play';if(isTouch)$('touch').hidden=false}
   let last=performance.now();
-  const loop=now=>{const raw=(now-last)/1000;let dt=Math.min(.033,raw);last=now;perfTick(raw);if(wheelOpen)dt*=.25;
+  const loop=now=>{const raw=(now-last)/1000;let dt=clamp(raw,0,.033);last=now;perfTick(raw);if(wheelOpen)dt*=.25;
     try{update(dt);render(dt);drawMini();ui(dt);soundStep(dt)}catch(err){console.error(err)}
     requestAnimationFrame(loop)};
   requestAnimationFrame(loop);

@@ -3,7 +3,8 @@
 // --keys runs left to right after the start screen: Code*seconds holds a key (KeyW, Space, ShiftLeft...), KeyW+ShiftLeft*2 holds both,
 // a bare Code taps it, click*seconds holds the left mouse button on the canvas, wait*seconds idles.
 // The page loads with ?debug, so --pre (runs right after the start screen) and --eval (runs at the end) can use window.__pr.
-// Exits 1 if anything was logged as an error. Needs Node 22+ and Google Chrome.
+// Exits 1 if anything was logged as an error. Needs Node 22+ and Google Chrome. Uses the GPU (about 60 fps);
+// SMOKE_SW=1 forces software rendering, which runs near 6 fps, so game time then moves at about a fifth of real time.
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -34,7 +35,7 @@ const chromeBin = process.env.CHROME || ['/Applications/Google Chrome.app/Conten
 const profile = await mkdtemp(join(tmpdir(), 'pr-smoke-'));
 const [w, h] = o.size.split('x').map(Number);
 const chrome = spawn(chromeBin, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, `--window-size=${w},${h}`,
-  '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+  ...(process.env.SMOKE_SW ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']), '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
 let port;
 for (let i = 0; i < 100 && !port; i++) { await sleep(0.1); try { port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; } catch {} }
 const page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page');
