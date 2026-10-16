@@ -152,6 +152,13 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #lwheel h2{color:var(--gold);text-shadow:0 0 16px rgba(255,201,74,.45)}
 #lwWrap{width:min(100%,380px);margin:0 auto}
 #lwc{display:block;width:100%;height:auto;aspect-ratio:1}
+#lrocket .card{background:radial-gradient(ellipse at 50% 0%,#2a1050,#0a0618 75%);border-color:rgba(41,230,214,.5)}
+#lrocket h2{font-family:var(--display);color:#29e6d6;text-shadow:0 0 16px rgba(41,230,214,.45)}
+#rkWrap{width:100%}
+#rkc{display:block;width:100%;height:auto;aspect-ratio:640/360;border-radius:12px;box-shadow:0 0 30px rgba(41,230,214,.25)}
+#rkChips button.on{outline:3px solid var(--cyan);outline-offset:1px}
+#rkHist{gap:6px}
+.rkh{padding:3px 9px;border-radius:999px;font:700 12px var(--body);color:#fff;font-variant-numeric:tabular-nums}
 #brief .card{background:linear-gradient(180deg,#1d1724,#0f0c17);border-color:rgba(255,201,74,.5)}
 #brief p{margin:0;line-height:1.55;color:#d8d0ea;max-width:62ch}
 .steps{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}

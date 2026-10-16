@@ -215,7 +215,7 @@ prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,440,232,'rocket','Play Rocket (crash game)');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -896,6 +896,7 @@ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',
 function mkBtn(parent,label,fn,cls,dis){const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.addEventListener('click',fn);parent.appendChild(b);return b}
 function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();return true}
   if(p.act==='wheel'){openLucky();return true}
+  if(p.act==='rocket'){openRocket();return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
   if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
@@ -1198,6 +1199,88 @@ function lwSpin(){if(lwS.spin)return;if(lwLast===lwDay()){lwMsg('You already spu
 function openLucky(){openModal('lwheel');lwMsg(lwLast===lwDay()?'Your free spin for today is gone. Come back tomorrow.':'One free spin every real day. Good luck.');lwBtn();lwDraw();$('lwGo').focus()}
 $('lwGo').addEventListener('click',lwSpin);
 if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel}});
+
+// ---------- Rocket (crash game) ----------
+// Launches run on a shared clock. Each 45 s slot opens with 8 s of betting, then the rocket flies.
+// The host (the lowest peer id among players with the modal open, or this client alone) picks the crash point
+// and publishes it as rk only once the flight starts, so nobody can bet on a known result.
+// Bets and cash-outs stay local. A flight that would pass the slot end is cut off there (above about 2000x).
+const RKG={slot:45000,win:8000,k:.2,amt:100,hist:[],hostId:-1,hostCp:0,bet:null,fly:null,last:'',open:false,raf:0,lt:0,cam:{x:8,y:2},parts:[],boomId:-1,histId:-1};
+const rkS=now=>{const id=Math.floor(now/RKG.slot);return{id,start:id*RKG.slot+RKG.win}};
+const rkMult=t=>Math.floor(Math.exp(RKG.k*Math.max(0,t))*100+1e-9)/100;
+// Crash point = 0.96/(1-u) floored to two decimals, minimum 1.00 (4 percent house edge).
+function rocketCP(){return Math.max(1,Math.floor(.96/(1-rand())*100)/100)}
+// Cash out at 2x every round. Seeded so the result repeats.
+function rocketRTP(n){const keep=rand;rand=seeded(4711);let won=0;try{for(let i=0;i<n;i++)if(rocketCP()>=2)won+=2}finally{rand=keep}return won/n}
+// Other players' rk: null when their modal is closed, otherwise {id,start,cp}. id 0 means open with no flight yet.
+function rkParse(v){if(!Array.isArray(v))return null;const id=Math.floor(num(v[0])),st=num(v[1]),cp=num(v[2]);
+  if(id<=0||!(cp>=1)||cp>1e6||st!==id*RKG.slot+RKG.win)return{id:0,start:0,cp:0};return{id,start:st,cp}}
+function rkAmHost(){if(!room||!myPeer)return true;for(const[p,r]of remotes)if(r.rk&&p<myPeer)return false;return true}
+// The flight for a slot: a host's published flight wins, otherwise this client's own (if it is the host).
+function rkFlight(id,start){
+  for(const r of remotes.values())if(r.rk&&r.rk.id===id)return{id,start:r.rk.start,cp:r.rk.cp,mine:false};
+  if(!rkAmHost())return null;
+  if(RKG.hostId!==id){RKG.hostId=id;RKG.hostCp=rocketCP()}
+  return{id,start,cp:RKG.hostCp,mine:true}}
+// Presence field. Only the host publishes a flight, and only once it has started.
+function rkMine(){if(!RKG.open)return null;const now=Date.now(),s=rkS(now),f=rkFlight(s.id,s.start);return f&&f.mine&&now>=s.start?[s.id,s.start,f.cp]:[0,0,0]}
+// Pays the bet's cash-out at the current multiplier. Only while flying, and never after the crash.
+function rkOut(now){const b=RKG.bet,fl=RKG.fly;if(!b||b.cashed||!fl||fl.id!==b.id)return;const t=(now-fl.start)/1000;if(t<0)return;
+  const end=Math.min(Math.log(fl.cp)/RKG.k,(RKG.slot-RKG.win)/1000);if(t>=end)return;
+  const m=rkMult(t),pay=Math.floor(Math.round(b.amt*m*100)/100);b.cashed=m;me.cash+=pay;saveArsenal();RKG.last=`Cashed out at ${m.toFixed(2)}x: +${fmtCash(pay-b.amt)}`}
+function rkPlace(){const now=Date.now(),s=rkS(now),amt=RKG.amt;if(now>=s.start){RKG.last='Bets are closed. Wait for the next launch.';return}
+  if(RKG.bet){RKG.last='You already have a bet on this launch.';return}
+  if(me.cash<amt){RKG.last='Not enough cash for that bet.';return}
+  me.cash-=amt;RKG.bet={id:s.id,amt,cashed:0};saveArsenal();RKG.last=`Bet ${fmtCash(amt)} placed. Cash out before it crashes.`}
+function rkSettle(now){const b=RKG.bet,s=rkS(now),f=rkFlight(s.id,s.start);if(f)RKG.fly=f;const fl=RKG.fly;
+  if(b&&b.id<s.id){if(!b.cashed)RKG.last=`Crashed. Lost ${fmtCash(b.amt)}.`;RKG.bet=null}
+  if(!fl||fl.id!==s.id||now<fl.start)return null;
+  const tc=Math.log(fl.cp)/RKG.k,end=Math.min(tc,(RKG.slot-RKG.win)/1000),t=(now-fl.start)/1000,crashed=t>=end,cm=tc>end?rkMult(end):fl.cp;
+  if(crashed&&RKG.histId!==fl.id){RKG.histId=fl.id;RKG.hist.unshift(cm);if(RKG.hist.length>10)RKG.hist.length=10;RKG.histDirty=true;
+    if(b&&b.id===fl.id&&!b.cashed){RKG.last=`Crashed at ${cm.toFixed(2)}x. Lost ${fmtCash(b.amt)}.`;RKG.bet=null}}
+  return{cm,crashed,t:Math.min(t,end)}}
+const rkC=$('rkc'),rkG=rkC.getContext('2d'),RKW=640,RKH=360;
+function rkDraw(now,dt,st){const g=rkG,fl=RKG.fly&&RKG.fly.id===rkS(now).id&&now>=RKG.fly.start?RKG.fly:null,cam=RKG.cam;
+  const t=st?st.t:0,cm=st?(st.crashed?st.cm:rkMult(t)):1;
+  cam.x+=(Math.max(8,t*1.15)-cam.x)*Math.min(1,dt*3);cam.y+=(Math.max(2,cm*1.15)-cam.y)*Math.min(1,dt*3);
+  const X=v=>56+v/cam.x*(RKW-80),Y=m=>RKH-34-(m-1)/(cam.y-1)*(RKH-64);
+  g.setTransform(1,0,0,1,0,0);const bg=g.createLinearGradient(0,0,0,RKH);bg.addColorStop(0,'#0c0a1f');bg.addColorStop(1,'#2a1040');g.fillStyle=bg;g.fillRect(0,0,RKW,RKH);
+  g.strokeStyle='rgba(255,255,255,.08)';g.lineWidth=1;g.font='600 12px "Chakra Petch",sans-serif';g.fillStyle='rgba(230,220,255,.6)';g.textAlign='left';g.textBaseline='middle';
+  for(let i=1;i<=5;i++){const m=1+(cam.y-1)*i/5;g.beginPath();g.moveTo(56,Y(m));g.lineTo(RKW-24,Y(m));g.stroke();g.fillText(m.toFixed(2)+'x',8,Y(m))}
+  const sx=Math.max(1,Math.ceil(cam.x/8));for(let s=0;s<=cam.x;s+=sx){g.beginPath();g.moveTo(X(s),24);g.lineTo(X(s),RKH-34);g.stroke();g.fillText(s+'s',X(s)-6,RKH-14)}
+  let hx=70,hy=RKH-60,ang=-Math.PI/4;
+  if(fl){const n=Math.max(2,Math.ceil(t*30));g.beginPath();for(let i=0;i<=n;i++){const tt=t*i/n,px=X(tt),py=Y(rkMult(tt));i?g.lineTo(px,py):g.moveTo(px,py)}
+    const ln=g.createLinearGradient(56,0,RKW,0);ln.addColorStop(0,'#29e6d6');ln.addColorStop(1,st.crashed?'#ff4b4b':'#ff3ea5');
+    g.lineWidth=5;g.strokeStyle=ln;g.shadowColor=st.crashed?'#ff4b4b':'#ff3ea5';g.shadowBlur=18;g.stroke();g.shadowBlur=0;
+    g.lineTo(X(t),RKH-34);g.lineTo(56,RKH-34);g.closePath();g.fillStyle='rgba(255,62,165,.12)';g.fill();
+    hx=X(t);hy=Y(cm);ang=Math.atan2(Y(rkMult(Math.max(0,t-.1)))-hy,hx-X(Math.max(0,t-.1)));if(!(Math.abs(ang)<=Math.PI))ang=-Math.PI/4}
+  if(fl&&!st.crashed&&Math.random()<.9)RKG.parts.push({x:hx,y:hy,vx:-Math.cos(ang)*(50+Math.random()*60)+(Math.random()-.5)*30,vy:-Math.sin(ang)*(50+Math.random()*60)+(Math.random()-.5)*30,l:1});
+  if(fl&&st.crashed&&RKG.boomId!==fl.id){RKG.boomId=fl.id;for(let i=0;i<46;i++){const a=Math.random()*TAU,v=60+Math.random()*180;RKG.parts.push({x:hx,y:hy,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:1,c:Math.random()<.5?'#ff4b4b':'#ffc94a'})}}
+  for(const p of RKG.parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96;p.l-=dt*1.4}
+  RKG.parts=RKG.parts.filter(p=>p.l>0).slice(-200);
+  g.save();for(const p of RKG.parts){g.globalAlpha=Math.max(0,p.l);g.fillStyle=p.c||'#ffc94a';g.beginPath();g.arc(p.x,p.y,2.5+p.l*2,0,TAU);g.fill()}g.restore();
+  g.save();g.translate(hx,hy);g.rotate(ang);g.scale(1.45,1.45);
+  if(fl&&!st.crashed){const L=12+Math.random()*8;g.fillStyle='#ffc94a';g.beginPath();g.moveTo(-14,-6);g.lineTo(-14-L,0);g.lineTo(-14,6);g.fill()}
+  g.fillStyle=fl&&st.crashed?'#6a6470':'#f3ecff';g.beginPath();g.moveTo(20,0);g.quadraticCurveTo(4,-9,-14,-8);g.lineTo(-14,8);g.quadraticCurveTo(4,9,20,0);g.fill();
+  g.fillStyle='#ff3ea5';g.beginPath();g.moveTo(-8,-8);g.lineTo(-18,-16);g.lineTo(-14,-4);g.fill();g.beginPath();g.moveTo(-8,8);g.lineTo(-18,16);g.lineTo(-14,4);g.fill();
+  g.fillStyle='#29e6d6';g.beginPath();g.arc(4,0,3.5,0,TAU);g.fill();g.restore();
+  const big=fl?(st.crashed?`CRASHED ${cm.toFixed(2)}x`:`${cm.toFixed(2)}x`):RKG.open&&now<rkS(now).start?`LAUNCH IN ${((rkS(now).start-now)/1000).toFixed(1)}s`:'WAITING';
+  g.font='700 44px Bungee,Impact,sans-serif';g.textAlign='right';g.textBaseline='top';g.fillStyle=st&&st.crashed?'#ff4b4b':fl?'#f3ecff':'#ffc94a';g.shadowColor=g.fillStyle;g.shadowBlur=16;g.fillText(big,RKW-20,14);g.shadowBlur=0}
+function rkUI(now){const s=rkS(now),bet=RKG.bet,inWin=now<s.start,fl=RKG.fly&&RKG.fly.id===s.id&&now>=RKG.fly.start,b=$('rkBet'),o=$('rkOut');
+  const msg=RKG.last||(inWin?'Bets are open.':'Launch in progress.');if($('rkMsg').textContent!==msg)$('rkMsg').textContent=msg;
+  b.textContent=bet?'Bet placed':`Bet ${fmtCash(RKG.amt)}`;b.disabled=!inWin||!!bet||me.cash<RKG.amt;
+  const live=bet&&!bet.cashed&&fl;o.textContent=live?`Cash out ${fmtCash(Math.floor(Math.round(bet.amt*rkMult((now-RKG.fly.start)/1000)*100)/100))}`:'Cash out';o.disabled=!live;
+  for(const c of document.querySelectorAll('#rkChips button'))c.classList.toggle('on',c.dataset.v===String(RKG.amt));
+  if(RKG.histDirty){RKG.histDirty=false;const H=$('rkHist');H.replaceChildren();for(const v of RKG.hist){const e=document.createElement('span');e.className='rkh';e.style.background=v<2?'#5a1a2a':'#1a5a3a';e.textContent=v.toFixed(2)+'x';H.appendChild(e)}}}
+function rkLoop(){RKG.raf=0;const now=Date.now();
+  if($('lrocket').hidden){if(RKG.open){RKG.open=false;const b=RKG.bet,fl=RKG.fly;if(b&&!b.cashed&&fl&&fl.id===b.id&&now>=fl.start)rkOut(now);else if(b&&!b.cashed&&now<rkS(now).start){me.cash+=b.amt;RKG.bet=null;saveArsenal()}}return}
+  RKG.open=true;const dt=Math.min(.05,(now-(RKG.lt||now))/1000);RKG.lt=now;
+  const st=rkSettle(now);rkDraw(now,dt,st);rkUI(now);RKG.raf=requestAnimationFrame(rkLoop)}
+function openRocket(){openModal('lrocket');RKG.open=true;RKG.lt=0;rkUI(Date.now());if(!RKG.raf)RKG.raf=requestAnimationFrame(rkLoop);$('rkBet').focus()}
+for(const v of[10,50,100,500,1000]){const b=document.createElement('button');b.type='button';b.className='b chip';b.dataset.v=String(v);b.textContent='$'+v;b.addEventListener('click',()=>{RKG.amt=v});$('rkChips').appendChild(b)}
+$('rkBet').addEventListener('click',rkPlace);
+$('rkOut').addEventListener('click',()=>rkOut(Date.now()));
+if(DBG)Object.defineProperties(DBG,{rocketRTP:{get:()=>rocketRTP},rkS:{get:()=>rkS},RKG:{get:()=>RKG}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
@@ -1558,6 +1641,7 @@ function syncRoom(dt){
     if(!r){r={x:s.x,y:s.y,a:num(s.a),shot:Array.isArray(s.s)?s.s[0]:null,ex:Array.isArray(s.ex)?s.ex[0]:null,fl:s.fl,dmgSeen:null,kMe:null};remotes.set(p.peer,r);feed(`${str(s.n)||'A driver'} rolled into town`)}
     r.tx=clamp(s.x,-50,W+4500);r.ty=clamp(s.y,-50,W+300);r.ta=num(s.a);r.name=str(s.n)||'Driver';r.color=hex(s.c);r.inCar=s.v===1;r.inHeli=s.v===2;r.inJet=s.v===3;r.cc=hex(s.cc,r.color);r.z=clamp(num(s.z),0,900);r.ct=hasCT(s.ct)?s.ct:'sedan';r.hp=clamp(num(s.h,100),0,100);r.dead=s.dd===1;r.w=clamp(num(s.w),0,5);r.lv=clamp(Math.floor(num(s.lv,1)),1,30);
     r.k=s.k&&typeof s.k==='object'?s.k:{};
+    r.rk=rkParse(s.rk);
     if(myPeer){
       const dv=s.d&&typeof s.d==='object'?num(s.d[myPeer]):0;
       if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}else r.dmgSeen=dv;
@@ -1581,7 +1665,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv}).catch(()=>{});
+  room.presence({n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine()}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 

@@ -111,6 +111,15 @@
   <div class="msg" id="lwMsg"></div>
   <div class="row" id="lwAct"><button class="b go" id="lwGo" type="button">Spin (free today)</button></div>
   <button class="b" type="button" data-close>Leave the wheel</button></div></div>
+<div id="lrocket" class="gm" hidden><div class="card" role="dialog" aria-label="Rocket">
+  <h2>Rocket</h2>
+  <p class="tag" style="margin:0;color:#d6fff8">Bet before the launch, cash out before it crashes. Players at the table see the same flight. House edge 4 percent.</p>
+  <div id="rkWrap"><canvas id="rkc" width="640" height="360" aria-label="Rocket flight graph"></canvas></div>
+  <div class="msg" id="rkMsg"></div>
+  <div class="row" id="rkChips"></div>
+  <div class="row" id="rkAct"><button class="b go" id="rkBet" type="button">Bet $100</button><button class="b go" id="rkOut" type="button" disabled>Cash out</button></div>
+  <div class="row" id="rkHist" aria-label="Last crash points"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
 <div id="brief" class="gm" hidden><div class="card" role="dialog" aria-label="Heist board">
   <h2 style="color:var(--gold)">The Union Job</h2><div id="bBody" style="display:flex;flex-direction:column;gap:12px"></div>
   <div class="row" id="bAct"></div><button class="b" type="button" data-close>Close</button></div></div>
