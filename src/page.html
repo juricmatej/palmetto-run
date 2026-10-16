@@ -94,8 +94,8 @@
   <button class="b go" type="button" data-close>Back to the street</button></div></div>
 <div id="bj" hidden>
   <div class="card" role="dialog" aria-label="Blackjack">
-    <div class="bjtop"><h2>Blackjack</h2><div class="shoe" id="bjShoe"><span id="bjLeft"></span></div></div>
-    <p class="tag bjtag">Dealer stands on 17. Blackjack pays 3 to 2. Insurance pays 2 to 1. Cash <b id="bjCash"></b></p>
+    <div class="bjtop"><h2 id="bjT">Blackjack</h2><div class="shoe" id="bjShoe"><span id="bjLeft"></span></div></div>
+    <p class="tag bjtag">Dealer stands on 17. Blackjack pays 3 to 2. Insurance pays 2 to 1. Cash <b id="bjCash"></b>. Limit <b id="bjLim"></b></p>
     <div class="felt">
       <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
       <div class="rack" id="bjRack"></div>
@@ -143,6 +143,42 @@
   <div id="s7Wrap"><canvas id="s7c" aria-label="Neon 7s reels"></canvas></div>
   <div class="msg" id="s7Msg" style="color:#fff"></div><div class="row" id="s7Act"></div>
   <button class="b" type="button" data-close>Leave the machine</button></div></div>
+<div id="lwheel" class="gm" hidden><div class="card" role="dialog" aria-label="Lucky Wheel">
+  <h2>Lucky Wheel</h2>
+  <p class="tag" style="margin:0;color:#e9dcff">One free spin every real day. Cash, RP, chips, a mystery box and a $250,000 jackpot segment.</p>
+  <div id="lwWrap"><canvas id="lwc" width="420" height="420" aria-label="Lucky Wheel"></canvas></div>
+  <div class="msg" id="lwMsg"></div>
+  <div class="row" id="lwAct"><button class="b go" id="lwGo" type="button">Spin (free today)</button></div>
+  <button class="b" type="button" data-close>Leave the wheel</button></div></div>
+<div id="lrocket" class="gm" hidden><div class="card" role="dialog" aria-label="Rocket">
+  <h2>Rocket</h2>
+  <p class="tag" style="margin:0;color:#d6fff8">Bet before the launch, cash out before it crashes. Players at the table see the same flight. House edge 4 percent.</p>
+  <div id="rkWrap"><canvas id="rkc" width="640" height="360" aria-label="Rocket flight graph"></canvas></div>
+  <div class="msg" id="rkMsg"></div>
+  <div class="row" id="rkChips"></div>
+  <div class="row" id="rkAct"><button class="b go" id="rkBet" type="button">Bet $100</button><button class="b go" id="rkOut" type="button" disabled>Cash out</button></div>
+  <div class="row" id="rkHist" aria-label="Last crash points"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="tcp" class="gm" hidden><div class="card" role="dialog" aria-label="Three Card Poker">
+  <h2>Three Card Poker</h2>
+  <p class="tag" style="margin:0;color:#d8ffe8">Dealer qualifies with Queen high. Ante bonus pays on a straight or better. Pair Plus pays on your hand alone. Cash <b id="tcpCash" style="color:var(--gold)"></b></p>
+  <div class="tcpLbl">Dealer<b id="tcpDv"></b></div><div class="tcpHand" id="tcpD"></div>
+  <div class="tcpLbl">You<b id="tcpPv"></b></div><div class="tcpHand" id="tcpP"></div>
+  <div class="msg" id="tcpMsg"></div>
+  <div class="row"><span class="tcpLbl">Ante</span><span class="row" id="tcpAnte"></span></div>
+  <div class="row"><span class="tcpLbl">Pair Plus</span><span class="row" id="tcpPP"></span></div>
+  <div class="row" id="tcpAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="horses" class="gm" hidden><div class="card" role="dialog" aria-label="Horse racing">
+  <h2>Horse racing</h2>
+  <p class="tag" style="margin:0;color:#eaffd6">Six horses, 20 seconds. Win pays on the winner. Place pays when your horse finishes top two. House margin 10 percent. Cash <b id="hrCash" style="color:var(--gold)"></b></p>
+  <div id="hrWrap"><canvas id="hrc" width="640" height="360" aria-label="Race track"></canvas></div>
+  <div class="msg" id="hrMsg"></div>
+  <div id="hrOdds" class="hrOdds"></div>
+  <div class="row"><span class="tcpLbl">Stake</span><span class="row" id="hrChips"></span></div>
+  <div class="row" id="hrAct"></div>
+  <div class="row" id="hrBoard" aria-label="Recent finishes"></div>
+  <button class="b" type="button" data-close>Leave the track</button></div></div>
 <div id="pm" class="gm" hidden><div class="card" role="dialog" aria-label="Place">
   <h2 id="pmT"></h2><p class="tag" id="pmD" style="margin:0"></p>
   <div class="row" id="pmG" style="gap:12px;align-items:flex-start"><canvas id="pmCv" width="320" height="320" hidden></canvas><canvas id="gmCv" width="360" height="300" hidden></canvas><div id="pmB" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"></div></div>
