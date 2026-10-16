@@ -917,7 +917,7 @@ function bjHandEl(h,i,n){const b=document.createElement('div');b.className='bjHa
   const tot=document.createElement('b');tot.className='bjTot';if(h&&h.c.length){const v=bjVal(h.c);tot.textContent=v>21?'Bust':v}
   const sp=document.createElement('div');sp.className='bjSpot';sp.dataset.t=h?'':'Bet here';const amt=h?h.bet:bj.bet;if(amt)sp.appendChild(chipStack(amt));
   const rs=document.createElement('div');rs.className='bjRes';
-  if(h&&h.res){const net=h.win-h.bet;rs.textContent=h.res+(net>0?' +'+money(net):net<0?' -'+money(-net):'');rs.classList.add(net>0?'win':net<0?'lose':'')}
+  if(h&&h.res){const net=h.win-h.bet;rs.textContent=h.res+(net>0?' +'+money(net):net<0?' -'+money(-net):'');if(net)rs.classList.add(net>0?'win':'lose')}
   if(h)b.append(hd);b.append(tot,sp,rs);return b}
 function bjRender(){
   const ph=bj.ph,r=ph==='bet'?null:bj.r,hide=!bj.open&&(ph==='play'||ph==='ins'||ph==='reveal');
