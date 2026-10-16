@@ -148,6 +148,10 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #slOv .t{font:34px var(--display);color:#ffe066;text-shadow:0 0 18px #ff3ea5}
 #slOv .s{font:600 15px var(--body);color:#ffd1ea;max-width:36ch}
 #slots7 .card{background:linear-gradient(180deg,#1b0a2e,#0a0614);border-color:#ffd84a}
+#lwheel .card{background:radial-gradient(ellipse at 50% 15%,#4a1a6e,#16062a 75%);border-color:rgba(255,201,74,.6);text-align:center}
+#lwheel h2{color:var(--gold);text-shadow:0 0 16px rgba(255,201,74,.45)}
+#lwWrap{width:min(100%,380px);margin:0 auto}
+#lwc{display:block;width:100%;height:auto;aspect-ratio:1}
 #brief .card{background:linear-gradient(180deg,#1d1724,#0f0c17);border-color:rgba(255,201,74,.5)}
 #brief p{margin:0;line-height:1.55;color:#d8d0ea;max-width:62ch}
 .steps{display:flex;flex-direction:column;gap:5px;margin:0;padding:0;list-style:none}

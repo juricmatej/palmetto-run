@@ -215,7 +215,7 @@ prop(casino,462,320,6,6,22,'#e0b84a');prop(casino,620,320,6,6,22,'#e0b84a');prop
 spot(casino,210,108,'blackjack','Play blackjack');spot(casino,575,150,'liquor','Whiskey shot ($25, get drunk)');
 spot(store,200,120,'liquor','Bottle of vodka ($25, get drunk)');
 spot(store,160,16,'rob','Rob the register');
-spot(casino,310,255,'roulette','Play roulette');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
+spot(casino,310,255,'roulette','Play roulette');spot(casino,75,345,'wheel','Spin the Lucky Wheel (free each day)');spot(casino,52,110,'slots','Play Candy Cascade slots');spot(casino,52,245,'slots7','Play Neon 7s');
 const bankL=mkRoom('bank1','Union Bank · Lobby',440,320,'#5a554a',5);bankL.bank=true;
 prop(bankL,150,26,140,24,14,'#2a2618');for(let k=0;k<3;k++){prop(bankL,18,80+k*76,48,26,12,'#3b2f22');spot(bankL,96,93+k*76,'desk','Search the office desk');bankL.spots[bankL.spots.length-1].i=k}
 prop(bankL,404,110,30,80,64,'#9a948a');spot(bankL,372,150,'bankUp','Elevator to floor 12 (needs the keycard)');
@@ -895,6 +895,7 @@ function openModal(id){try{document.exitPointerLock&&document.exitPointerLock()}
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeShop()));
 function mkBtn(parent,label,fn,cls,dis){const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.addEventListener('click',fn);parent.appendChild(b);return b}
 function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();return true}
+  if(p.act==='wheel'){openLucky();return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
   if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
@@ -1154,7 +1155,49 @@ addEventListener('keydown',e=>{if(e.repeat||(e.code!=='Space'&&e.code!=='Enter')
 if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino},interact:{get:()=>interact}});
 
 // ---------- casino games ----------
-if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt}});
+const fmtCash=n=>'$'+Math.round(n).toLocaleString('en-US');
+// Lucky Wheel. Each segment is [label, kind, value, weight]; weights sum to 100. The jackpot has weight 1.
+const LW=[['$500','c',500,14],['RP 100','r',100,11],['$1,000','c',1000,11],['Chips $2,000','h',2000,7],['$500','c',500,14],['RP 250','r',250,7],['$2,500','c',2500,6],['Mystery','m',0,5],['$1,000','c',1000,8],['$5,000','c',5000,3],['RP 500','r',500,3],['Chips $5,000','h',5000,2],['$1,000','c',1000,2],['$500','c',500,1],['RP 100','r',100,1],['Mystery','m',0,1],['$2,500','c',2500,1],['Chips $2,000','h',2000,1],['$50,000','c',50000,1],['JACKPOT $250,000','j',250000,1]];
+const LWC={c:'#1f7a48',r:'#2b6fd6',h:'#c2306e',m:'#6a3bb8',j:'#ffc94a'};
+const lwDay=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+let lwLast=(()=>{try{const v=localStorage.getItem('pr3d-wheel');return typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)?v:''}catch(e){return ''}})();
+// Picks a segment index by weight. Pure: no payout here.
+function spinWheel(){const tot=LW.reduce((a,s)=>a+s[3],0);let r=rand()*tot;for(let i=0;i<LW.length;i++){r-=LW[i][3];if(r<0)return i}return LW.length-1}
+// RP is paid through gainXP, which only runs in play. The modal sets state to shop, so switch it for the call.
+function casinoRP(n,why){const s=state;state='play';try{gainXP(n,why)}finally{state=s}}
+const lwC=$('lwc'),lwG=lwC.getContext('2d'),LWR=180,LWX=210;
+let lwS={a:0,from:0,to:0,t0:0,dur:0,spin:false,tick:-1,kick:0,raf:0};
+function lwDraw(){const g=lwG,seg=TAU/LW.length;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,420,420);g.translate(LWX,LWX);
+  g.fillStyle='#2a1038';g.beginPath();g.arc(0,0,LWR+14,0,TAU);g.fill();
+  g.save();g.rotate(lwS.a);
+  for(let i=0;i<LW.length;i++){const s0=i*seg-Math.PI/2,[l,k]=LW[i];g.fillStyle=LWC[k];g.beginPath();g.moveTo(0,0);g.arc(0,0,LWR,s0,s0+seg);g.closePath();g.fill();
+    g.save();g.rotate(s0+seg/2);g.fillStyle=k==='j'?'#2a0a14':'#fff';g.font='700 13px "Chakra Petch",sans-serif';g.textAlign='right';g.textBaseline='middle';g.fillText(l.replace('JACKPOT $250,000','JACKPOT'),LWR-12,0);g.restore()}
+  for(let i=0;i<LW.length;i++){const a=i*seg-Math.PI/2;g.fillStyle='#fff3c4';g.beginPath();g.arc(Math.cos(a)*LWR,Math.sin(a)*LWR,3.5,0,TAU);g.fill()}
+  g.restore();
+  g.strokeStyle='#ffc94a';g.lineWidth=6;g.beginPath();g.arc(0,0,LWR+4,0,TAU);g.stroke();
+  g.fillStyle='#ffc94a';g.beginPath();g.arc(0,0,22,0,TAU);g.fill();g.fillStyle='#2a1038';g.beginPath();g.arc(0,0,8,0,TAU);g.fill();
+  g.save();g.translate(0,-LWR-12);g.rotate(lwS.kick*.35);g.fillStyle='#fff';g.beginPath();g.moveTo(-14,-16);g.lineTo(14,-16);g.lineTo(0,10);g.closePath();g.fill();g.restore()}
+function lwBtn(){const b=$('lwGo');const done=lwLast===lwDay();b.textContent=lwS.spin?'Spinning...':done?'Back tomorrow':'Spin (free today)';b.disabled=lwS.spin||done}
+function lwMsg(t){$('lwMsg').textContent=t}
+function lwLoop(){lwS.raf=0;const now=performance.now();
+  if(lwS.spin){const t=Math.min(1,(now-lwS.t0)/lwS.dur);lwS.a=lwS.from+(lwS.to-lwS.from)*(1-Math.pow(1-t,4));if(t>=1)lwS.spin=false}
+  const idx=Math.floor((((-lwS.a)%TAU)+TAU)%TAU/(TAU/LW.length));
+  if(idx!==lwS.tick){if(lwS.tick>=0)tone('square',1500,.03,.05);lwS.tick=idx;lwS.kick=1}
+  lwS.kick*=.86;lwDraw();
+  if(lwS.spin||lwS.kick>.01)lwS.raf=requestAnimationFrame(lwLoop);else{lwBtn()}}
+function lwSpin(){if(lwS.spin)return;if(lwLast===lwDay()){lwMsg('You already spun today. Come back tomorrow.');lwBtn();return}
+  // Pay once, before the wheel turns, and mark the day so a reload cannot spin again.
+  const i=spinWheel(),[l,k,v]=LW[i];lwLast=lwDay();try{localStorage.setItem('pr3d-wheel',lwLast)}catch(e){}
+  if(k==='r')casinoRP(v,'Lucky Wheel');else if(k==='m'){for(const w of WEAPONS)if(owned[w.id]&&w.ammoAmt)ammo[w.id]=(ammo[w.id]||0)+w.ammoAmt}else me.cash+=v;
+  saveArsenal();
+  const seg=TAU/LW.length,base=((-(i+.5)*seg-lwS.a)%TAU+TAU)%TAU,jit=(rand()-.5)*seg*.6;
+  lwS.from=lwS.a;lwS.to=lwS.a+6*TAU+base+jit;lwS.t0=performance.now();lwS.dur=5200;lwS.spin=true;lwS.tick=-1;
+  lwMsg('Good luck...');lwBtn();if(!lwS.raf)lwS.raf=requestAnimationFrame(lwLoop);
+  setTimeout(()=>{if(k==='j'){showBig('JACKPOT','#ffc94a','+'+fmtCash(v),3);jingle('level')}else if(k!=='m')jingle('pass');
+    const won=k==='r'?`${v} RP`:k==='m'?'ammo for every gun you own':fmtCash(v)+(k==='h'?' in chips':'');lwMsg(`Won ${won}`);feed(`Lucky Wheel: won ${won}`);if(k==='j')noise(.5,6000,.3)},5300)}
+function openLucky(){openModal('lwheel');lwMsg(lwLast===lwDay()?'Your free spin for today is gone. Come back tomorrow.':'One free spin every real day. Good luck.');lwBtn();lwDraw();$('lwGo').focus()}
+$('lwGo').addEventListener('click',lwSpin);
+if(DBG)Object.defineProperties(DBG,{enterInt:{get:()=>enterInt},spinWheel:{get:()=>spinWheel}});
 
 // ---------- Neon 7s ----------
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
