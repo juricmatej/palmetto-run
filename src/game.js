@@ -233,6 +233,77 @@ function fillHills(){
 fillHills();
 let northT=-9;function northWall(){if(time-northT>3){northT=time;feed('Nothing out there but desert')}}
 if(DBG)Object.defineProperties(DBG,{hillLook:{get:()=>look}});
+// roads: polylines in world units. Each is flattened into the heightmap along its own grade-limited profile (flattenRoad), so the ribbons sit on the ground.
+const HILL_ROADS=[
+  {name:'Canyon Road',w:48,pts:[[1060,60],[1060,-420],[1640,-520],[1640,-820],[1200,-900],[1200,-1180],[1900,-1240],[1900,-1500],[2400,-1560],[2400,-1780],[2802,-1900]]},
+  {name:'Ridge Drive',w:44,pts:[[1900,-1500],[1400,-1620],[960,-1690]]},
+  {name:'Mansion Row',w:44,loop:1,pts:[[1900,-260],[2700,-260],[2820,-520],[2300,-620],[1900,-520]]},
+  {name:'Overlook',w:56,pts:[[1200,-950],[1060,-950],[960,-930]]},
+  {name:'Dirt trail',w:22,dirt:1,pts:[[360,-260],[300,-620],[380,-960],[260,-1280],[360,-1600],[240,-1900]]},
+];
+const GRADE=.18; // design grade for flattening; the boot check allows 0.22
+// points every `step` units along a road: [x, y, arc length, unit tangent x, unit tangent y]
+function roadSamples(r,step){const P=r.loop?[...r.pts,r.pts[0]]:r.pts,out=[];let L=0;
+  for(let k=0;k<P.length-1;k++){const[ax,ay]=P[k],dx=P[k+1][0]-ax,dy=P[k+1][1]-ay,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len,n=Math.max(1,Math.ceil(len/step));
+    for(let i=0;i<n;i++){const t=i/n*len;out.push([ax+ux*t,ay+uy*t,L+t,ux,uy])}L+=len}
+  const e=P[P.length-1],l=out[out.length-1];out.push([e[0],e[1],L,l[3],l[4]]);return out}
+// heights along the centreline: base ground, smoothed, then limited to GRADE both ways. A loop runs three laps and keeps the middle one, so the seam joins.
+function roadProfile(r,Q){
+  const n=Q.length,L=r.loop?n-1:n,laps=r.loop?3:1,T=L*laps,len=Q[n-1][2],P=[],S=[];
+  for(let k=0;k<T;k++){const q=Q[k%L];P.push(q);S.push(q[2]+Math.floor(k/L)*len)}
+  const h=P.map(q=>hillBase(q[0],q[1]));
+  for(let it=0;it<3;it++)for(let i=1;i<T-1;i++)h[i]=(h[i-1]+h[i]+h[i+1])/3;
+  for(let i=1;i<T;i++){const l=GRADE*(S[i]-S[i-1]);h[i]=clamp(h[i],h[i-1]-l,h[i-1]+l)}
+  for(let i=T-2;i>=0;i--){const l=GRADE*(S[i+1]-S[i]);h[i]=clamp(h[i],h[i+1]-l,h[i+1]+l)}
+  if(!r.loop)return h;
+  const out=h.slice(L,2*L);out.push(out[0]);return out}
+// the centreline profile: base ground, smoothed, then limited to GRADE both ways. Cells within half the width take the profile, 20 units of blend beyond.
+function flattenRoad(r){
+  const Q=roadSamples(r,8),n=Q.length,h=roadProfile(r,Q);
+  const hw=r.w/2,pad=hw+20;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(const q of Q){x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1])}
+  const i0=Math.max(0,Math.floor((x0-pad-HM.x0)/HM.cell)),i1=Math.min(HM.gw-1,Math.ceil((x1+pad-HM.x0)/HM.cell)),j0=Math.max(0,Math.floor((y0-pad-HM.y0)/HM.cell)),j1=Math.min(HM.gh-1,Math.ceil((y1+pad-HM.y0)/HM.cell));
+  const at=s=>{let lo=0,hi=n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(Q[m][2]<=s)lo=m;else hi=m}const t=clamp((s-Q[lo][2])/Math.max(1e-6,Q[hi][2]-Q[lo][2]),0,1);return h[lo]+(h[hi]-h[lo])*t};
+  for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const x=HM.x0+i*HM.cell,y=HM.y0+j*HM.cell;
+    let best=1e9,bs=0;
+    for(let k=0;k<n-1;k++){const ax=Q[k][0],ay=Q[k][1],dx=Q[k+1][0]-ax,dy=Q[k+1][1]-ay,L2=dx*dx+dy*dy,t=L2?clamp(((x-ax)*dx+(y-ay)*dy)/L2,0,1):0,d=Math.hypot(ax+dx*t-x,ay+dy*t-y);
+      if(d<best){best=d;bs=Q[k][2]+(Q[k+1][2]-Q[k][2])*t}}
+    if(best>pad)continue;
+    const k=j*HM.gw+i,tg=at(bs),w=clamp((best-hw)/20,0,1);
+    HM.a[k]=best<=hw?tg:tg+(HM.a[k]-tg)*w*w*(3-2*w)}
+  let gmax=0;for(let k=1;k<n;k++){const d=Q[k][2]-Q[k-1][2];if(d>1e-6)gmax=Math.max(gmax,Math.abs(groundZ(Q[k][0],Q[k][1])-groundZ(Q[k-1][0],Q[k-1][1]))/d)}
+  if(gmax>.22)console.error(`hills: ${r.name} grade ${gmax.toFixed(3)}, max 0.22`);
+  r.len=Q[n-1][2];r.grade=gmax;
+}
+for(const r of HILL_ROADS)flattenRoad(r);rebuildRaised();
+if(DBG)Object.defineProperties(DBG,{hillRoads:{get:()=>HILL_ROADS.length},roadGrades:{get:()=>HILL_ROADS.map(r=>[r.name,Math.round(r.len),+r.grade.toFixed(3)])}});
+// ribbons: asphalt, a dirt strip, dashed centre line, guard rails and reflective posts. All follow the heightmap at each edge (+0.3).
+function roadMeshes(){
+  const ROAD_TEX=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#24222c';g.fillRect(0,0,w,h);grit(g,w,h,8000,41,.07)});ROAD_TEX.wrapS=ROAD_TEX.wrapT=THREE.RepeatWrapping;
+  const DIRT_TEX=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#6b5a3e';g.fillRect(0,0,w,h);grit(g,w,h,9000,43,.14)});DIRT_TEX.wrapS=DIRT_TEX.wrapT=THREE.RepeatWrapping;
+  const asph=[],dirt=[],dash=[],rail=[],posts=[];
+  const geo=arr=>{const k=arr.length/5,p=new Float32Array(k*3),u=new Float32Array(k*2);for(let i=0;i<k;i++){p[i*3]=arr[i*5];p[i*3+1]=arr[i*5+1];p[i*3+2]=arr[i*5+2];u[i*2]=arr[i*5+3];u[i*2+1]=arr[i*5+4]}
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(p,3));g.setAttribute('uv',new THREE.BufferAttribute(u,2));g.computeVertexNormals();return g};
+  for(const r of HILL_ROADS){
+    const S=roadSamples(r,4),n=S.length,hw=r.w/2,lin=r.dirt?dirt:asph;
+    const E=S.map(([x,y,s,ux,uy])=>({x,y,s,ux,uy,nx:-uy,ny:ux,l:[x-uy*hw,y+ux*hw],r:[x+uy*hw,y-ux*hw]}));
+    const zz=p=>groundZ(p[0],p[1])+.3;
+    for(let i=0;i<n-1;i++){const a=E[i],b=E[i+1];
+      const q=[[a.l,0,a.s],[a.r,1,a.s],[b.l,0,b.s],[b.r,1,b.s]].map(([p,u,s])=>[p[0],zz(p),p[1],u,s/40]);
+      lin.push(...q[0],...q[1],...q[2],...q[1],...q[3],...q[2]);
+      if(!r.dirt&&Math.floor(a.s/8)%2===0){const h=.36,c=[[a.x+a.nx*.5,a.y+a.ny*.5],[a.x-a.nx*.5,a.y-a.ny*.5],[b.x+b.nx*.5,b.y+b.ny*.5],[b.x-b.nx*.5,b.y-b.ny*.5]];
+        for(const[p,u,v]of[[c[0],0,0],[c[1],1,0],[c[2],0,1],[c[1],1,0],[c[3],1,1],[c[2],0,1]])dash.push(p[0],groundZ(p[0],p[1])+h,p[1],u,v)}}
+    if(r.dirt)continue;
+    for(const sg of[1,-1]){const f=[],P=(e,hg)=>{const x=e.x+e.nx*sg*(hw+.6),z=e.y+e.ny*sg*(hw+.6);return[x,groundZ(x,z)+hg,z]};
+      for(let i=0;i<n;i++){const e=E[i],k0=Math.max(0,i-3),k1=Math.min(n-1,i+3),turn=wrap(Math.atan2(E[k1].uy,E[k1].ux)-Math.atan2(E[k0].uy,E[k0].ux));
+        const drop=groundZ(e.x+e.nx*sg*(hw+5),e.y+e.ny*sg*(hw+5))<groundZ(e.x,e.y)-2.5;f.push(drop||turn*sg<-.12)}
+      for(let i=0;i<n-1;i++){if(!f[i]||!f[i+1])continue;const a=E[i],b=E[i+1],p0=P(a,.5),p1=P(b,.5),t0=P(a,1.5),t1=P(b,1.5);
+        rail.push(...p0,0,0,...p1,0,0,...t1,0,0,...p0,0,0,...t1,0,0,...t0,0,0)}
+      for(let i=0;i<n;i+=3)if(f[i])posts.push(P(E[i],.7))}}
+  const roadM=new THREE.MeshLambertMaterial({map:ROAD_TEX,side:THREE.DoubleSide}),dirtM=new THREE.MeshLambertMaterial({map:DIRT_TEX,side:THREE.DoubleSide}),railM=new THREE.MeshLambertMaterial({color:'#aab4c6',side:THREE.DoubleSide});
+  const pm=new THREE.InstancedMesh(new THREE.BoxGeometry(.5,1.6,.5),new THREE.MeshLambertMaterial({color:'#f0e2b0',emissive:'#7a5f22'}),posts.length);
+  posts.forEach((p,i)=>inst(pm,i,p[0],p[1],p[2]));pm.frustumCulled=false;
+  const lineM=new THREE.MeshBasicMaterial({color:'#e8d27a',side:THREE.DoubleSide});
+  return[new THREE.Mesh(geo(asph),roadM),new THREE.Mesh(geo(dirt),dirtM),new THREE.Mesh(geo(dash),lineM),new THREE.Mesh(geo(rail),railM),pm]}
 // one mesh per 400 units of y: vertex colours by slope (dry grass, rock on steep faces, bare earth on the flat verge), normals from the heightmap so the bands join without seams
 const HC={verge:new THREE.Color('#4d4a3e'),g1:new THREE.Color('#7d8a3a'),g2:new THREE.Color('#9a8448'),r1:new THREE.Color('#6e655c'),r2:new THREE.Color('#857b70')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
 function hillMeshes(){
@@ -249,7 +320,7 @@ function hillMeshes(){
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
     out.push(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:det})))}
-  return out}
+  return out.concat(roadMeshes())}
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
