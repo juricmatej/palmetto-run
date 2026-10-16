@@ -1,5 +1,6 @@
 // Plays the built game in headless Chrome and reports every console error and uncaught exception.
 //   node scripts/smoke.mjs [--secs 8] [--pre "js"] [--keys "KeyW*2,KeyE,wait*1"] [--eval "js"] [--shot out.png] [--size 1280x800]
+// --secs is the play time after the start screen; --eval runs as soon as it is used up.
 // --keys runs left to right after the start screen: Code*seconds holds a key (KeyW, Space, ShiftLeft...), KeyW+ShiftLeft*2 holds both,
 // a bare Code taps it, click*seconds holds the left mouse button on the canvas, wait*seconds idles.
 // The page loads with ?debug, so --pre (runs right after the start screen) and --eval (runs at the end) can use window.__pr.
@@ -69,7 +70,7 @@ for (const step of o.keys.split(',').map((s) => s.trim()).filter(Boolean)) {
   else if (code === 'click') { await mouse('mousePressed'); await sleep(s); await mouse('mouseReleased'); }
   else { const codes = code.split('+'); for (const c of codes) await key('rawKeyDown', c); await sleep(s); for (const c of codes) await key('keyUp', c); }
 }
-await sleep(Math.max(0.5, Number(o.secs) - spent));
+await sleep(Math.max(0, Number(o.secs) - spent));
 console.log('playing:', await js(`document.getElementById('start').hidden`));
 for (const e of o.eval) console.log(`eval ${e} =>`, JSON.stringify(await js(e)));
 if (o.shot) { const r = await cdp('Page.captureScreenshot', { format: 'png' }); await writeFile(o.shot, Buffer.from(r.result.data, 'base64')); console.log('screenshot:', o.shot); }
