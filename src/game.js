@@ -262,6 +262,8 @@ lmSolid(1880,4528,24,16,7,'stall');lmSolid(2290,4528,24,16,7,'stall');
 addShape({kind:'plateau',x:2040,y:3360,w:260,d:260,h:6,slope:6});
 addShape({kind:'bowl',x:1990,y:3290,r:50,depth:4});
 addShape({kind:'bowl',x:2095,y:3420,r:40,depth:4});
+addShape({kind:'ramp',x:2140,y:3240,a:Math.PI/2,len:26,w:30,h:12}); // quarter pipe, facing south
+addShape({kind:'ramp',x:2140,y:3480,a:-Math.PI/2,len:26,w:30,h:12}); // quarter pipe, facing north
 lmSolid(2100,3204,80,4,10,'wall');  // north wall, graffiti on its south face
 lmSolid(1884,3300,4,80,10,'wall');  // west wall, graffiti on its east face
 // (trees, benches and lamps: see landmarkMeshes)
@@ -3159,7 +3161,7 @@ function landmarkMeshes(){
   // skate park: graffiti on the wall faces and two rails across the deck
   {const g1=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[0]);g1.position.set(2140,groundZ(2140,3206)+5,3208.3);scene.add(g1);
    const g2=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[2]);g2.rotation.y=Math.PI/2;g2.position.set(1888.3,groundZ(1888,3340)+5,3340);scene.add(g2);
-   for(const[x,y,w,d]of[[2000,3440,30,1],[2140,3300,1,30]]){const m=new THREE.Mesh(new THREE.BoxGeometry(w,1,d),lmm.metal);m.position.set(x,groundZ(x,y)+6.5,y);scene.add(m)}}
+   for(const[x,y,w,d]of[[2000,3440,30,1],[2000,3380,1,30]]){const m=new THREE.Mesh(new THREE.BoxGeometry(w,1,d),lmm.metal);m.position.set(x,groundZ(x,y)+6.5,y);scene.add(m)}}
   // marina: basin water, three moored boats (one shared bob in landmarkTick), containers, the crane is drawn by the cranes list
   const mw=new THREE.Mesh(new THREE.PlaneGeometry(126,304),lmm.water);mw.rotation.x=-Math.PI/2;mw.position.set(233,1.6,3800);scene.add(mw);
   const hull=mergeGeos([[new THREE.BoxGeometry(24,2.2,8),new THREE.Matrix4()],[new THREE.BoxGeometry(8,3,6),new THREE.Matrix4().makeTranslation(-3,2.4,0)]]),hm=new THREE.MeshLambertMaterial({color:'#e8e4f0'});
