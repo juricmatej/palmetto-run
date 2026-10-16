@@ -127,6 +127,18 @@ function inBuilding(x,y){if(x>W+300){for(const b of iwalls)if(x>b.x&&x<b.x+b.w&&
 // circle o(x,y) radius r vs buildings + world bounds; moves `body`, returns impact speed
 function collide(body,px,py,r){
   let imp=0;
+  // step-up limit: ground more than `lim` above the body's feet is a wall. Push back down the slope and report the speed.
+  const car=body.type!==undefined,fz=body===me?me.z:car?(body.air?NaN:body.z):body.gz,lim=body===me?(inAir()?12:8):car?12:8;
+  // The heightmap cell is 10 units, so a cliff reads as a steep slope. Look 12 units ahead along the velocity to catch it.
+  const vl=Math.hypot(body.vx||0,body.vy||0);
+  if(Number.isFinite(fz)&&vl>1e-3){
+    const fx=body.vx/vl,fy=body.vy/vl,high=(x,y)=>groundZ(x,y)-fz>lim||groundZ(x+fx*12,y+fy*12)-fz>lim;
+    if(high(px,py)){
+      let k=0;while(k<60&&high(px-fx*k,py-fy*k))k+=.5;
+      const dx=-fx*k,dy=-fy*k;body.x+=dx;body.y+=dy;px+=dx;py+=dy;
+      const vu=body.vx*fx+body.vy*fy;if(vu>0){imp=vu;body.vx-=vu*fx;body.vy-=vu*fy}
+    }
+  }
   const hit=b=>{
     if(body===me&&me.z>9&&(b.H<14||me.z>b.H+(b.kind==='house'?16:1.6)))return;
     const cx=clamp(px,b.x,b.x+b.w),cy=clamp(py,b.y,b.y+b.h);let dx=px-cx,dy=py-cy,d2=dx*dx+dy*dy;
@@ -144,6 +156,7 @@ function collide(body,px,py,r){
   if(px>hi){body.x+=hi-px;if(body.vx>0){imp=Math.max(imp,body.vx);body.vx*=-.3}}
   if(py<lo){body.y+=lo-py;if(body.vy<0){imp=Math.max(imp,-body.vy);body.vy*=-.3}}
   const hy=W+260-r;if(py>hy){body.y+=hy-py;if(body.vy>0){imp=Math.max(imp,body.vy);body.vy*=-.3}}
+  if(!car&&body!==me)body.gz=groundZ(body.x,body.y); // peds keep the ground under their feet for the step rule
   return imp;
 }
 function sidewalkPoint(){const bi=Math.floor(rand()*N),bj=Math.floor(rand()*N),x0=bi*B+R+7,y0=bj*B+R+7,x1=(bi+1)*B-7,y1=(bj+1)*B-7,t=rand(),s=Math.floor(rand()*4);
@@ -676,7 +689,7 @@ function die(word,fine){
   showBig(word,word==='BUSTED'?'#4aa3ff':'#ff4b4b',loss?`-$${loss}`:'');
 }
 function respawn(){for(const q of peds){q.calling=0;q.fight=0;q.armed=0}handsUp=false;me.inside=null;me.heli=null;me.jet=null;me.z=0;jvz=0;stam=1;stamOut=false;me.roof=null;me.climb=null;drunk=0;
-  const[x,y]=pointAway(0,900);me.x=x;me.y=y;me.vx=me.vy=0;me.hp=BAL.playerHp;me.inv=2.5;me.bustT=0;heat=0;state='play';hideBig();
+  const[x,y]=pointAway(0,900);me.x=x;me.y=y;me.z=groundZ(x,y);me.vx=me.vy=0;me.hp=BAL.playerHp;me.inv=2.5;me.bustT=0;heat=0;state='play';hideBig();
   for(let i=cars.length-1;i>=0;i--)if(cars[i].kind==='police')cars.splice(i,1);
 }
 
@@ -711,7 +724,7 @@ function leaveCar(force){
   const c=me.car;if(!c)return;
   const sp=Math.hypot(c.vx,c.vy);if(!force&&sp>120)return;
   c.kind='parked';me.car=null;
-  for(const s of[-1,1]){const x=c.x+Math.cos(c.a+s*1.57)*24,y=c.y+Math.sin(c.a+s*1.57)*24;if(!inBuilding(x,y)){me.x=x;me.y=y;break}}
+  for(const s of[-1,1]){const x=c.x+Math.cos(c.a+s*1.57)*24,y=c.y+Math.sin(c.a+s*1.57)*24;if(!inBuilding(x,y)){me.x=x;me.y=y;break}}me.z=groundZ(me.x,me.y);
   me.vx=me.vy=0;
 }
 
@@ -1361,7 +1374,7 @@ function jobStep(dt){
 // ---------- movement ----------
 // stamina, jump, roof drops, hands up and horn
 let stam=1,stamOut=false,stamIdle=0,handsUp=false,surrT=0,driftA=0,driftG=7,jvz=0,peak=0;
-const floorH=()=>{const r=me.roof||roofAt(me.x,me.y);return r?r.H+1.6:0};
+const floorH=()=>{const r=me.roof||roofAt(me.x,me.y);return Math.max(groundZ(me.x,me.y),r?r.H+1.6:0)};
 const inAir=()=>jvz>0||me.z>floorH()+.01;
 function jump(){if(state!=='play'||me.car||me.inside||me.climb||me.heli||me.jet||handsUp||inAir())return;jvz=230;stam=Math.max(0,stam-.12)}
 function stamStep(sprint,dt){
@@ -1371,7 +1384,7 @@ function stamStep(sprint,dt){
   if(stamOut&&stam>=.25)stamOut=false;
 }
 function footStep(dt){
-  if(!inAir()){jvz=0;peak=me.z=floorH();return}
+  if(!inAir()||(jvz===0&&me.z-floorH()<=4)){jvz=0;peak=me.z=floorH();return} // a slope of up to 4 is walked, a ledge is a fall
   peak=Math.max(peak,me.z);
   jvz-=700*dt;me.z+=jvz*dt;
   const f=floorH();
