@@ -910,6 +910,12 @@ function wsRoom(url){
   connect();setInterval(()=>{if(dirty){dirty=false;rebuild()}},50);
   return{peers:()=>snap,onPeers(f){subs.push(f);return()=>{}},presence(patch){for(const k in patch){if(patch[k]===null)delete mine[k];else mine[k]=patch[k]}send();return Promise.resolve()}}}
 const lobbyHost=/^https?:$/.test(location.protocol)&&!(/^(localhost|127\.0\.0\.1)$/.test(location.hostname)&&location.port!=='8787');
+// On the hosted site, check for a newer deploy every 45 s and offer a reload.
+const BUILD_VERSION='__BUILD_VERSION__';
+if(lobbyHost&&!window.claude&&BUILD_VERSION.length===12){let shown=false;setInterval(async()=>{if(shown)return;try{const r=await fetch('/version.json',{cache:'no-store'});if(!r.ok)return;const v=(await r.json()).v;
+  if(typeof v==='string'&&v!==BUILD_VERSION){shown=true;const b=document.createElement('button');b.type='button';b.textContent='A new version of Palmetto Run is live. Reload';
+    b.style.cssText='position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:7;font:16px var(--display);background:var(--gold);color:#1a1205;border:0;padding:10px 18px;cursor:pointer;box-shadow:0 0 24px rgba(255,201,74,.5)';
+    b.addEventListener('click',()=>location.reload());document.body.appendChild(b);feed('A new version is live. Click the button at the top to reload')}}catch(e){}},45000)}
 const remotes=new Map();
 const num=(v,d=0)=>Number.isFinite(v)?v:d;
 const hex=(v,d='#ff3ea5')=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)?v:d;

@@ -4,12 +4,12 @@ Thanks for helping build Palmetto Run.
 
 ## Workflow
 
-1. Fork the repo and create a branch: `git checkout -b feature/my-thing`
+1. Collaborators: clone the repo. Everyone else: fork it. Then create a branch: `git checkout -b feature/my-thing`
 2. Make your change in `src/` (or `legacy/` for the 2D version).
 3. Run `npm run check` and `npm run dev`, then play-test in the browser. Check the browser console for errors.
 4. Open a pull request describing what you changed and how you tested it. A screenshot or short clip helps.
 
-CI runs `npm run check` and `npm run build` on every pull request. When a pull request is merged into `main`, the game is deployed to the live site automatically.
+Collaborators' pull requests merge themselves and go live about a minute after `npm run check` and `npm run build` pass, with no review. Open the pull request as a **Draft** if it isn't finished yet. Pull requests from forks wait for the owner to merge them.
 
 ## Guidelines
 

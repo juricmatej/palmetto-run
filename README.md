@@ -137,6 +137,12 @@ npm run deploy       # builds and deploys
 
 Pull requests from forks never see these secrets; only code that lands on `main` is deployed.
 
+### Auto-merge (no review)
+
+`.github/workflows/automerge.yml` merges every pull request opened from a branch **in this repo** (the owner and collaborators) as soon as `npm run check` and `npm run build` pass, then deploys it. Open a pull request as a **Draft** to keep it from merging until you click **Ready for review**. Pull requests from forks are never auto-merged.
+
+The live site checks `/version.json` every 45 seconds. When a new version is deployed, players see a **Reload** button at the top of the screen.
+
 The Claude Artifact is not updated automatically. Republish it by hand when you want it to match (see above).
 
 ## Contributing
