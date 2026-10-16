@@ -164,3 +164,9 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #bCar{right:116px;bottom:calc(24px + env(safe-area-inset-bottom,0px));width:62px!important;height:62px!important;font-size:12px!important}
 @media (max-width:560px){#mini{width:124px;height:124px}#players{min-width:110px}#cash{font-size:22px}#hpbar{width:110px}#stamBar{width:110px}#job{max-width:190px;font-size:13px}}
 @media (prefers-reduced-motion:reduce){#feed div{animation:none}}
+
+/* places: arcade, barber and gym modal */
+#pmG{flex-wrap:wrap}
+#pmCv,#gmCv{width:min(320px,100%);height:auto;border:1px solid var(--line);background:#07050f}
+#gmCv{width:min(360px,100%)}
+#pmB .b{text-align:left}
