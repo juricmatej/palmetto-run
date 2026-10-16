@@ -302,8 +302,8 @@ function spawnPed(x,y){
   setPedBlock(p);peds.push(p);
   if(rnd&&['downtown','midtown','beach'].includes(d)&&rand()<.1){ // a group of 2 or 3 chatting, 14 units apart
     const n=rand()<.5?2:3,rad=7/Math.sin(Math.PI/n);
-    p.kind='chat';p.gx=px;p.gy=py;p.x=px+rad;p.y=py;p.fa=Math.PI;setPedBlock(p);
-    for(let i=1;i<n;i++){const a=i*TAU/n,q=spawnPed(px+Math.cos(a)*rad,py+Math.sin(a)*rad);q.kind='chat';q.gx=px;q.gy=py;q.fa=a+Math.PI}
+    p.kind='chat';p.x=px+rad;p.y=py;p.fa=Math.PI;setPedBlock(p);
+    for(let i=1;i<n;i++){const a=i*TAU/n,q=spawnPed(px+Math.cos(a)*rad,py+Math.sin(a)*rad);q.kind='chat';q.fa=a+Math.PI}
   }
   return p;
 }
@@ -323,7 +323,7 @@ function knockPed(p,vx,vy,byMe){
 }
 function scare(x,y,r){for(const p of peds){if(p.down)continue;if(p.gang){if(Math.hypot(p.x-x,p.y-y)<r*1.2)p.aggro=true;continue}if(Math.hypot(p.x-x,p.y-y)<r){if(p.vendor){p.crouch=3+rand()*2;continue}p.flee=3+rand()*2;p.fx=x;p.fy=y}}}
 function provoke(q){if(q.brave==='fighter'&&!q.fight){q.fight=12;q.punchT=0}}
-function bark(p,ev,col){if(p.bark||peds.filter(q=>q.bark).length>=4)return;const L=BARKS[ev];p.bark={s:L[Math.floor(rand()*L.length)],c:col||'#fff',t:2}}
+function bark(p,ev,col){if(p.bark)return;let n=0;for(const q of peds)if(q.bark&&++n>=4)return;const L=BARKS[ev];p.bark={s:L[Math.floor(rand()*L.length)],c:col||'#fff',t:2}}
 // A crime near civilians: up to 2 witnesses within 320 pull out a phone and call in 3 s, if they are still standing and the player is within 450.
 function crime(x,y,sev){
   let n=peds.reduce((k,q)=>k+(q.calling>0?1:0),0);
@@ -343,7 +343,7 @@ function talkTarget(){
 function talkPed(){
   const p=talkTarget();if(!p)return false;
   p.a=Math.atan2(me.y-p.y,me.x-p.x);p.bark=null;
-  if(robbing(p)){p.hands=1.5;p.vx=p.vy=0;pickups.push({x:p.x,y:p.y,amt:Math.floor(rr(20,120)),t:25});crime(p.x,p.y,.5);return true}
+  if(robbing(p)&&!p.robbed){p.robbed=true;p.hands=1.5;p.vx=p.vy=0;pickups.push({x:p.x,y:p.y,amt:Math.floor(rr(20,120)),t:25});crime(p.x,p.y,.5);return true}
   p.stopT=2;bark(p,'greet');return true;
 }
 let shotNow=false,pedShotT=-9,crimeT=-9;
@@ -366,7 +366,7 @@ function pedStep(p,dt){
     if(p.down<=0&&p.vendor){p.down=0;p.x=p.hx;p.y=p.hy;p.vx=p.vy=0;return false}
     return p.down<=0||Math.hypot(p.x-A.x,p.y-A.y)>1600;
   }
-  if(p.vendor){if(p.crouch>0)p.crouch-=dt;return false}
+  if(p.vendor){if(p.crouch>0)p.crouch-=dt;if(p.hands>0)p.hands=Math.max(0,p.hands-dt);return false}
   const dme=Math.hypot(p.x-me.x,p.y-me.y),onFoot=state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside;
   if(onFoot&&dme<14&&Math.hypot(me.vx,me.vy)>30){provoke(p);bark(p,'bump')}
   if(p.brave==='armed'){
@@ -554,7 +554,7 @@ function die(word){
   const loss=Math.floor(me.cash*(word==='BUSTED'?.15:.1));me.cash-=loss;
   showBig(word,word==='BUSTED'?'#4aa3ff':'#ff4b4b',loss?`-$${loss}`:'');
 }
-function respawn(){me.inside=null;me.heli=null;me.jet=null;me.z=0;me.roof=null;me.climb=null;drunk=0;
+function respawn(){for(const q of peds){q.calling=0;q.fight=0;q.armed=0}me.inside=null;me.heli=null;me.jet=null;me.z=0;me.roof=null;me.climb=null;drunk=0;
   const[x,y]=pointAway(0,900);me.x=x;me.y=y;me.vx=me.vy=0;me.hp=100;me.inv=2.5;me.bustT=0;heat=0;state='play';hideBig();
   for(let i=cars.length-1;i>=0;i--)if(cars[i].kind==='police')cars.splice(i,1);
 }
@@ -580,7 +580,7 @@ function toggleCar(){
   if(!me.car&&nearDealer()){buyPowder();return}
   if(me.car){leaveCar(false);return}
   const c=nearestCar();if(!c){talkPed();return}
-  if(c.kind==='traffic'||c.kind==='parked')crime(c.x,c.y,.3);
+  if(c.kind==='traffic')crime(c.x,c.y,.3);
   if(c.kind==='traffic'){const p=spawnPed(c.x+Math.cos(c.a-1.57)*20,c.y+Math.sin(c.a-1.57)*20);p.flee=4;p.fx=c.x;p.fy=c.y;c.vx=Math.cos(c.a)*c.cur*.3;c.vy=Math.sin(c.a)*c.cur*.3;
     for(const q of cars)if(q.kind==='police'&&Math.hypot(q.x-me.x,q.y-me.y)<400){addHeat(.5);break}}
   if(c.kind==='police')addHeat(1);
