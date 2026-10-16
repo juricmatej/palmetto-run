@@ -130,11 +130,15 @@ const A={x:me.x,y:me.y};let lap=null;
 let flareSeq=0,flareCd=0,rob=null;const robCd={};
 let burstZ=0,heli=null,heliWait=0,heliSide=1,heliUpT=false,heliDnT=false;
 let lockTarget=null,armorWait=45,fireZ=12,fireSpd=0,fireLife=0,scoped=false,fireSlope=0,aimPt=null,aimHit=false;
-function homePos(h){if(!h)return null;if(h.car)return h.car.kind==='dead'?null:h.car;if(h.peer){if(h.peer===myPeer)return state==='play'?(me.car||me):null;const r=remotes.get(h.peer);return r&&!r.dead?r:null}return null}
+function homePos(h){if(!h)return null;if(h.air)return h.air.dead?null:h.air;if(h.car)return h.car.kind==='dead'?null:h.car;if(h.peer){if(h.peer===myPeer)return state==='play'?(me.car||me):null;const r=remotes.get(h.peer);return r&&!r.dead?r:null}return null}
 function steerMissile(b,dt){const t=homePos(b.home);if(!t)return;if(b.home.peer&&b.home.peer!==myPeer){const r=remotes.get(b.home.peer);if(r&&time-(r.flareT||-9)<2.5){b.home=null;b.vz=-80;return}}const dx=t.x-b.x,dy=t.y-b.y,d=Math.hypot(dx,dy);if(d<18){b.life=0;return}
-  const cur=Math.atan2(b.vy,b.vx),na=cur+clamp(wrap(Math.atan2(dy,dx)-cur),-3*dt,3*dt),sp=Math.hypot(b.vx,b.vy);b.vx=Math.cos(na)*sp;b.vy=Math.sin(na)*sp;const tz=t===me?(me.z||0)+12:t.inCar===false?(t.z||0)+12:10;b.vz=clamp((tz-b.z)*3,-400,400)}
+  const cur=Math.atan2(b.vy,b.vx),na=cur+clamp(wrap(Math.atan2(dy,dx)-cur),-3*dt,3*dt),sp=Math.hypot(b.vx,b.vy);b.vx=Math.cos(na)*sp;b.vy=Math.sin(na)*sp;const fly=!!(b.home.air||t.inHeli||t.inJet),lim=fly?600:400,tz=fly?(t.z||0)+4:t===me?(me.z||0)+12:t.inCar===false?(t.z||0)+12:10;b.vz=clamp((tz-b.z)*3,-lim,lim)}
 function findLock(){const c=me.car,ox=c?c.x:me.x,oy=c?c.y:me.y,fa=c?c.a:look.yaw;let best=null,bs=1e9;
-  for(const[peer,r]of remotes){if(r.dead||!(r.inCar||r.inHeli||r.inJet))continue;const dx=r.x-ox,dy=r.y-oy,d=Math.hypot(dx,dy);if(d>1100||d<30)continue;const da=Math.abs(wrap(Math.atan2(dy,dx)-fa));if(da>.6)continue;const sc=d*(1+da*2);if(sc<bs){bs=sc;best={peer,name:r.name}}}
+  const air=[];if(typeof copHeli!=='undefined'&&copHeli&&!copHeli.dead)air.push({air:copHeli,name:'Police helicopter'});
+  if(heli&&!heli.dead&&me.heli!==heli)air.push({air:heli,name:'Attack helicopter'});
+  for(const j of jets)if(!j.dead&&me.jet!==j)air.push({air:j,name:'Fighter jet'});
+  for(const a of air){const v=a.air;if(v.z<=8)continue;const dx=v.x-ox,dy=v.y-oy,d=Math.hypot(dx,dy);if(d>1400||d<30)continue;const da=Math.abs(wrap(Math.atan2(dy,dx)-fa));if(da>.6)continue;const sc=d*(1+da*2)*.8;if(sc<bs){bs=sc;best=a}}
+  for(const[peer,r]of remotes){if(r.dead||!(r.inCar||r.inHeli||r.inJet))continue;const fly=(r.inHeli||r.inJet)&&r.z>8,dx=r.x-ox,dy=r.y-oy,d=Math.hypot(dx,dy);if(d>(fly?1400:1100)||d<30)continue;const da=Math.abs(wrap(Math.atan2(dy,dx)-fa));if(da>.6)continue;const sc=d*(1+da*2)*(fly?.8:1);if(sc<bs){bs=sc;best={peer,name:r.name}}}
   if(best)return best;
   for(const v of cars){if(v===c||v.kind==='dead'||v.kind==='mine')continue;const dx=v.x-ox,dy=v.y-oy,d=Math.hypot(dx,dy);if(d>800||d<30)continue;const da=Math.abs(wrap(Math.atan2(dy,dx)-fa));if(da>.45)continue;const sc=d*(1+da*2);if(sc<bs){bs=sc;best={car:v,name:ctOf(v).name}}}
   return best}let clubHype=0,drunk=0;
@@ -212,6 +216,7 @@ function interact(){const p=nearSpot();if(!p||state!=='play')return;
   else if(p.act==='rob'||p.act==='heist')startRob(p);
   else if(p.act==='sleep'){me.hp=100;heat=0;drunk=0;saveArsenal();showBig('RESTED','#ffc94a','Progress saved',1.6)}}
 let job=null;
+if(DBG)Object.defineProperties(DBG,{lockTarget:{get:()=>lockTarget},findLock:{get:()=>findLock},jets:{get:()=>jets},remotes:{get:()=>remotes},equip:{get:()=>equip},ammo:{get:()=>ammo}});
 
 // ---------- cars ----------
 const POS=d=>d===0||d===1,laneOff=d=>(d===0||d===3)?84:36;
@@ -1240,6 +1245,7 @@ function update(dt){
       if(!dead)for(const[peer,r]of remotes){if(r.dead)continue;if(b.z>(r.inCar?0:(r.z||0))-3&&b.z<(r.inCar?0:(r.z||0))+(r.inCar?24:26)&&segDist(r.x,r.y,b.px,b.py,b.x,b.y)<(r.inCar?16:r.inHeli||r.inJet?28:11)){dmgOut[peer]=(dmgOut[peer]||0)+(r.inCar&&r.ct==='armored'?0:Math.round(b.dmg*(r.inCar?.6:1)));burst(b.x,b.y,6,r.color,140,.3);dead=true;break}}
     }
     if(!dead&&b.owner==='police'&&state==='play'){const rad=me.car?16:10;if(b.z>(me.z||0)-3&&b.z<(me.z||0)+28&&segDist(me.x,me.y,b.px,b.py,b.x,b.y)<rad){if(me.jet)me.jet.hp-=b.dmg;else if(me.car){if(me.car.type!=='armored')damageCar(me.car,b.dmg,false),hurtMe(b.dmg*.3,null)}else hurtMe(b.dmg,null);dead=true;burst(b.x,b.y,5,'#ff6b6b',120,.25)}}
+    if(dead&&b.rocket&&b.owner==='me'&&b.home&&b.home.air)for(const v of[typeof copHeli!=='undefined'?copHeli:null,heli,...jets])if(v&&!v.dead&&v!==me.heli&&v!==me.jet&&Math.hypot(v.x-b.x,v.y-b.y,(v.z||0)-b.z)<60)v.hp-=120;
     if(dead){if(b.rocket)explode(b.x,b.y,b.owner==='me',b.owner!=='me',b.z,b.heli?.7:1);bullets.splice(i,1)}
   }
   stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
@@ -1937,7 +1943,7 @@ function render(dt){
   {const show=job&&job.phase!=='wait'&&!job.noMarker&&!me.inside&&state==='play';gps.visible=!!show;
    if(show){const px=me.car?me.car.x:me.x,py=me.car?me.car.y:me.y,ang=Math.atan2(job.y-py,job.x-px);gpsMat.color.set(jobCol());
      gps.position.set(px,(me.car?ctOf(me.car).h+24:27)+Math.sin(time*3)*.8,py);gps.rotation.y=-ang;const sc=me.car?.95:.5;gps.scale.set(sc,sc,sc)}}
-  {const t=lockTarget&&homePos(lockTarget);reticle.visible=!!t;if(t){reticle.position.set(t.x,20,t.y);reticle.material.rotation=time*2}}
+  {const t=lockTarget&&homePos(lockTarget);reticle.visible=!!t;if(t){reticle.position.set(t.x,((t.inHeli||t.inJet||lockTarget.air)?(t.z||0):0)+20,t.y);reticle.material.rotation=time*2}}
   // camera
   const inCar=!!me.car,tx=inCar?me.car.x:me.x,ty=inCar?me.car.y:me.y;
   if(inCar){if(time-look.offT>1.2)look.off*=Math.pow(.04,dt);const vel=Math.hypot(me.car.vx,me.car.vy),rev=(me.car.vx*Math.cos(me.car.a)+me.car.vy*Math.sin(me.car.a))<-40;
