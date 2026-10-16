@@ -14,7 +14,6 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 | Claude Artifact | Yes, everyone with the page open shares one city | Open the artifact link (must be signed in to Claude and have access) |
 | Locally with the lobby | Yes | `npm run preview`, then open http://localhost:8787 in two tabs |
 | Locally, quick | No (solo) | `npm run dev`, then open http://localhost:8080 |
-| GitHub Pages | No (solo) | Enable Pages for this repo (see below) |
 
 ### Controls
 
@@ -127,9 +126,18 @@ npm run deploy       # builds and deploys
 
 `npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. The lobby holds up to 32 players.
 
-## GitHub Pages (optional)
+### Automatic deploys
 
-The workflow in `.github/workflows/pages.yml` builds the game and deploys `dist/` to GitHub Pages on every push to `main`. To turn it on: **Settings → Pages → Source: GitHub Actions**. That copy is single-player.
+`.github/workflows/deploy.yml` deploys to Cloudflare on every push to `main`, which includes merged pull requests. It needs two repository secrets (**Settings → Secrets and variables → Actions → New repository secret**):
+
+| Secret | Where to get it |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare dashboard → **My Profile → API Tokens → Create Token** → template **Edit Cloudflare Workers** |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → **Workers & Pages** → Account ID in the right sidebar |
+
+Pull requests from forks never see these secrets; only code that lands on `main` is deployed.
+
+The Claude Artifact is not updated automatically. Republish it by hand when you want it to match (see above).
 
 ## Contributing
 

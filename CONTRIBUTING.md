@@ -9,7 +9,7 @@ Thanks for helping build Palmetto Run.
 3. Run `npm run check` and `npm run dev`, then play-test in the browser. Check the browser console for errors.
 4. Open a pull request describing what you changed and how you tested it. A screenshot or short clip helps.
 
-CI runs `npm run check` and `npm run build` on every pull request.
+CI runs `npm run check` and `npm run build` on every pull request. When a pull request is merged into `main`, the game is deployed to the live site automatically.
 
 ## Guidelines
 
