@@ -1,5 +1,7 @@
 # Palmetto Run
 
+**Play now:** https://palmetto-run.palleto.workers.dev
+
 A neon open-world crime sandbox that runs in the browser. Steal cars, fly an attack helicopter or a fighter jet, run missions, rob the casino, pull a co-op bank heist, and fight your friends in real time. Built with [Three.js](https://threejs.org/) r128 and plain JavaScript: no framework, no bundler, no dependencies.
 
 The game is published as a **Claude Artifact**, which gives it live multiplayer. It also runs as a normal web page (single-player).
