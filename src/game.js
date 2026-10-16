@@ -218,7 +218,9 @@ if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAM
 // Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
 const LMS=[],LMA={spray:null,boats:[]};
 // name shown on entry (AREA banner), footprint for the minimap and the debug list
-const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:120,y:4520,w:4400,h:260},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3200,w:320,h:760}];
+const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3200,w:320,h:760,ic:'M'}];
+function landmarkKey(x,y){const i=LANDMARKS.findIndex(l=>x>=l.x&&x<l.x+l.w&&y>=l.y&&y<l.y+l.h);return i<0?null:'lm'+i}
+LANDMARKS.forEach((l,i)=>AREA['lm'+i]=[l.name,l.sub]); // entry banner text
 const LMC={cA:'#b8432f',cB:'#2f6fb8',cC:'#d68a2f',cD:'#3d8a52',stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
 // solid box: collision in buildings, a mesh in landmarkMeshes(); m is a key of LMC. H is the height above the ground.
 function lmSolid(x,y,w,h,H,m){const b={x,y,w,h,H,kind:'lm',m,roof:LMC[m]};buildings.push(b);LMS.push(b);
@@ -2167,7 +2169,7 @@ function ui(dt){
   if(isTouch){$('bBoom').hidden=!stickies.length;$('bAim').hidden=!(weap==='sniper'&&!me.car)}
   $('scope').hidden=!scoped;
   {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
-  {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(A.y>W?'beach':district(bi,bj));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
+  {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(landmarkKey(A.x,A.y)||(A.y>W?'beach':district(bi,bj)));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
   $('carhp').textContent=me.jet?`Fighter jet ${Math.max(0,Math.round(me.jet.hp/BAL.jetHp*100))}% · ${Math.round(me.jet.speed*.6)} km/h · ${Math.round((me.jet.z-heliGround(me.jet.x,me.jet.y))/10)} m up`:me.heli?`Attack helicopter ${Math.max(0,Math.round(me.heli.hp/BAL.heliHp*100))}% · ${Math.round((me.heli.z-heliGround(me.heli.x,me.heli.y))/10)} m up`:me.car?(me.car.burn?'Car on fire! Get out (E)':`${ctOf(me.car).name} ${Math.max(0,Math.round(me.car.hp/ctOf(me.car).hp*100))}%`):'';
   const j=$('job');j.replaceChildren();{const jt=document.createElement('strong'),jx=document.createElement('span');
     if(!job||job.phase==='wait'){jt.textContent='Missions';jx.textContent=job&&job.msg?job.msg:'Waiting for the next job...'}
@@ -3121,6 +3123,7 @@ function drawMini(){
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[jx,jy]=edge(job.x,job.y);c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(jx,jy);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // places
   c.font='700 13px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
+  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,9,0,TAU);c.fill();c.strokeStyle='#ffc94a';c.lineWidth=2;c.stroke();c.fillStyle='#ffc94a';c.fillText(l.ic,px,py+1)}
   for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=2.5;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',px,py+1)}
   for(const b of ladders){if(!inView(b.ladder.x,b.ladder.base))continue;const[px,py]=Pt(b.ladder.x,b.ladder.base);c.fillStyle='#a7a1ba';c.fillRect(px-2,py-2,4,4)}
   // armored truck
