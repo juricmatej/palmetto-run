@@ -219,7 +219,7 @@ if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAM
 const LMS=[],LMA={spray:null,boats:[]};
 // name shown on entry (AREA banner), footprint for the minimap and the debug list
 const LANDMARKS=[{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320}];
-const LMC={wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
+const LMC={stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
 // solid box: collision in buildings, a mesh in landmarkMeshes(); m is a key of LMC. H is the height above the ground.
 function lmSolid(x,y,w,h,H,m){const b={x,y,w,h,H,kind:'lm',m,roof:LMC[m]};buildings.push(b);LMS.push(b);
   cells[clamp(Math.floor((y+h/2)/B),0,N-1)*N+clamp(Math.floor((x+w/2)/B),0,N-1)].push(b);return b}
@@ -235,6 +235,11 @@ addShape({kind:'plateau',x:1160,y:1950,w:160,d:56,h:8,slope:3});    // step 2
 addShape({kind:'plateau',x:1160,y:1950,w:120,d:32,h:12,slope:3});   // top, 12 high
 addShape({kind:'ramp',x:1160,y:2010,a:-Math.PI/2,len:40,w:24,h:12}); // drive up onto the terrace; lip at y 1970
 addShape({kind:'plateau',x:1240,y:2140,w:110,d:56,h:4,slope:2});    // stage
+// Sunset Pier, block row bj=9: a boardwalk on the sea side of the road (y 4524 to 4568) and the pier south from its middle to the world edge (y 4780). Deck at 4.
+addShape({kind:'plateau',x:W/2,y:4546,w:W,d:40,h:4,slope:2,mat:'wood'});
+addShape({kind:'plateau',x:2100,y:4670,w:40,d:209,h:4,slope:2,mat:'wood'});
+addShape({kind:'ramp',x:2080,y:4600,a:Math.PI,len:40,w:30,h:12}); // off the pier start, west onto the sand
+lmSolid(1880,4528,24,16,7,'stall');lmSolid(2290,4528,24,16,7,'stall');
 // (trees, benches and lamps: see landmarkMeshes)
 rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{landmarks:{get:()=>LANDMARKS.map(l=>l.name)}});
@@ -2457,12 +2462,13 @@ function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
 // terrain meshes: one per shape, built on the heightmap cells that groundZ reads. Only cells that rise are drawn.
 // Ramps get yellow and black chevrons; parks grass, the city concrete, the beach sand.
 const tgrass=new THREE.MeshLambertMaterial({map:grassTex}),tsand=new THREE.MeshLambertMaterial({map:sandTex}),tconc=new THREE.MeshLambertMaterial({map:walkTex});
+const twood=new THREE.MeshLambertMaterial({map:rtex(128,128,(g,w,h)=>{g.fillStyle='#6b4a32';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=16){g.fillStyle='#3e2a1c';g.fillRect(0,y,w,2);g.fillStyle='rgba(255,220,170,.06)';g.fillRect(0,y+2,w,12)}grit(g,w,h,800,11,.06)},1,1)});
 const tchev=new THREE.MeshLambertMaterial({map:canvasTex(64,64,(g,w,h)=>{g.fillStyle='#ffc94a';g.fillRect(0,0,w,h);g.fillStyle='#141218';for(let k=-1;k<3;k++){g.beginPath();g.moveTo(k*32,0);g.lineTo(k*32+16,0);g.lineTo(k*32+48,h);g.lineTo(k*32+32,h);g.fill()}})});
 tchev.map.wrapS=tchev.map.wrapT=THREE.RepeatWrapping;
 function terrainMesh(s){
   const[i0,j0,i1,j1]=s.box,nw=i1-i0+1,nh=j1-j0+1,pos=[],uv=[],ix=[],hz=(i,j)=>HM.a[j*HM.gw+i];
-  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tchev:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
-  const sc=mat===tchev?1/40:mat===tconc?1/(B-R):1/IN;
+  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tchev:s.mat==='wood'?twood:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
+  const sc=mat===tchev?1/40:mat===twood?1/24:mat===tconc?1/(B-R):1/IN;
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell;pos.push(x,hz(i,j),z);uv.push(x*sc,z*sc)}
   for(let j=0;j<nh-1;j++)for(let i=0;i<nw-1;i++){const a=j*nw+i,b=a+1,c=a+nw,d=c+1;if(Math.max(hz(i0+i,j0+j),hz(i0+i+1,j0+j),hz(i0+i,j0+j+1),hz(i0+i+1,j0+j+1))<=0)continue;ix.push(a,c,b,b,c,d)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();
@@ -2548,14 +2554,12 @@ let ferris=null;
 {const sand=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(W+600,300),(W+600)/IN,300/IN),new THREE.MeshLambertMaterial({map:sandTex}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-.5,W+150);scene.add(sand);
  const surf=new THREE.Mesh(new THREE.BoxGeometry(W+600,.6,5),new THREE.MeshBasicMaterial({color:'#bfeaf5',transparent:true,opacity:.55}));surf.position.set(W/2,-.4,W+300);scene.add(surf);
  const plank=new THREE.MeshLambertMaterial({color:'#5a4030'});
- const pier=new THREE.Mesh(new THREE.BoxGeometry(46,3,520),plank);pier.position.set(2100,2,W+300+250);scene.add(pier);
- for(let z=0;z<520;z+=40)for(const dx of[-20,20]){const p=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,10,6),plank);p.position.set(2100+dx,-3,W+300+z);scene.add(p)}
- ferris=new THREE.Group();ferris.position.set(2100,140,W+700);
+ ferris=new THREE.Group();ferris.position.set(2100,140,4700);
  const rimMat=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),spokeMat=new THREE.MeshBasicMaterial({color:'#29e6d6'});
  ferris.add(new THREE.Mesh(new THREE.TorusGeometry(115,2.5,8,48),rimMat));
  for(let i=0;i<12;i++){const a=i/12*TAU,sp=new THREE.Mesh(new THREE.BoxGeometry(230,1.2,1.2),spokeMat);sp.rotation.z=a;ferris.add(sp);const cab=new THREE.Mesh(new THREE.BoxGeometry(12,12,10),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][i%3]}));cab.position.set(Math.cos(a)*115,Math.sin(a)*115,0);ferris.add(cab)}
- scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,W+700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
- const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,W+690);scene.add(fg);
+ scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,4700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
+ const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,4690);scene.add(fg);
  // palms
  const trunkG=new THREE.CylinderGeometry(1.4,2.4,1,6),trunk=new THREE.InstancedMesh(trunkG,new THREE.MeshLambertMaterial({color:'#6b4a32'}),Math.max(1,palms.length)),frond=new THREE.InstancedMesh(new THREE.BoxGeometry(24,1,6),new THREE.MeshLambertMaterial({color:'#2f8a4e'}),Math.max(1,palms.length*6));
  palms.forEach(([x,y,rot],i)=>{const h=44;inst(trunk,i,x,h/2,y,0,1,h,1);for(let k=0;k<6;k++){const a=rot+k/6*TAU;dummy.position.set(x+Math.cos(a)*10,h-2,y+Math.sin(a)*10);dummy.rotation.set(0,-a,-.45);dummy.scale.set(1,1,1);dummy.updateMatrix();frond.setMatrixAt(i*6+k,dummy.matrix)}});
@@ -3128,6 +3132,19 @@ function landmarkMeshes(){
   const lp=[[1040,2000],[1280,2000],[1040,2080],[1280,2080]].filter(([x,y])=>!rampZone(x,y)),lpo=new THREE.InstancedMesh(new THREE.CylinderGeometry(.5,.7,16,6),lmm.metal,Math.max(1,lp.length)),
     lhd=new THREE.InstancedMesh(new THREE.SphereGeometry(1.6,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),Math.max(1,lp.length));
   lp.forEach(([x,y],i)=>{const g=groundZ(x,y);inst(lpo,i,x,g+8,y);inst(lhd,i,x,g+16.4,y)});lpo.count=lhd.count=lp.length;scene.add(lpo,lhd);
+  // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
+  const pil=new THREE.InstancedMesh(new THREE.CylinderGeometry(.9,1,9,5),lmm.wood,40);let pn=0;
+  for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])inst(pil,pn++,x,0,y);pil.count=pn;scene.add(pil);
+  const rp=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,5,.8),lmm.metal,Math.ceil(W/30)+1);for(let i=0;i<=W/30;i++){const x=i*30;inst(rp,i,x,groundZ(x,4568)+2.5,4568)}rp.count=Math.ceil(W/30)+1;scene.add(rp);
+  const rail=new THREE.Mesh(new THREE.BoxGeometry(W,.7,.7),lmm.metal);rail.position.set(W/2,6.3,4568);scene.add(rail);
+  const awn=['#ff3ea5','#29e6d6'];LMS.filter(b=>b.m==='stall').forEach((b,i)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),new THREE.MeshLambertMaterial({color:awn[i%2]}));m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
+  // roller-coaster frame east of the pier: towers and a track of boxes along a wave, merged into two meshes
+  const trk=[],tow=[],cz=4650;let px=null;
+  for(let i=0;i<=24;i++){const x=2280+i*15,h=groundZ(x,cz)+30+22*Math.abs(Math.sin(i*.5));
+    if(i%4===0)tow.push([new THREE.BoxGeometry(2,h,2),new THREE.Matrix4().makeTranslation(x,h/2,cz)]);
+    if(px){const dh=h-px[1],L=Math.hypot(15,dh),mid=new THREE.Matrix4().makeTranslation((px[0]+x)/2,(px[1]+h)/2,cz).multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(dh,15)));trk.push([new THREE.BoxGeometry(L,1.4,1.4),mid])}
+    px=[x,h]}
+  scene.add(new THREE.Mesh(mergeGeos(trk),lmm.metal),new THREE.Mesh(mergeGeos(tow),lmm.metal));
 }
 // per-frame motion for landmarks: the fountain spray
 function landmarkTick(){
