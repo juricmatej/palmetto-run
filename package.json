@@ -9,7 +9,8 @@
     "check": "node scripts/check.mjs",
     "dev": "node scripts/build.mjs && node scripts/serve.mjs",
     "deploy": "npm run build && wrangler deploy",
-    "preview": "npm run build && wrangler dev"
+    "preview": "npm run build && wrangler dev",
+    "smoke": "node scripts/smoke.mjs"
   },
   "engines": {
     "node": ">=18"

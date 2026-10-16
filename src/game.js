@@ -1862,6 +1862,8 @@ function start(data){
     requestAnimationFrame(loop)};
   requestAnimationFrame(loop);
 }
+// ?debug exposes live state for scripts/smoke.mjs --eval. Add getters here when a test needs a new value.
+if(/[?&]debug\b/.test(location.search))window.__pr={me,cars,peds,get job(){return job},get heat(){return heat},get state(){return state},get time(){return time}};
 window.claude?.hot?.snapshot?.(()=>({name:myName,color:myColor,cash:me.cash,bonus10k:true,owned,ammo,weap,playing:state!=='menu'}));
 window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
 })();

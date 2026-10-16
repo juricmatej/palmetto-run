@@ -42,6 +42,7 @@ Requires Node 18 or newer. There is nothing to install.
 npm run dev     # build, then serve dist/ on http://localhost:8080
 npm run check   # syntax-check the game code
 npm run build   # write dist/artifact.html, dist/index.html and dist/2d.html
+npm run smoke   # play the build in headless Chrome, print console errors (see the top of scripts/smoke.mjs)
 ```
 
 Edit files in `src/`, then run `npm run dev` again and reload the page.
