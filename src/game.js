@@ -216,7 +216,7 @@ if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAM
 // ---------- landmarks ----------
 // Hand-placed places on the blocks in LANDBLK. Their buildings are solid boxes (kind 'lm') with a mesh in landmarkMeshes() (models section).
 // Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
-const LMS=[],LMA={spray:null,boats:[]};
+const LMS=[],LMA={spray:null,boats:null};
 // name shown on entry (AREA banner), footprint for the minimap and the debug list
 const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3200,w:320,h:760,ic:'M'}];
 function landmarkKey(x,y){const i=LANDMARKS.findIndex(l=>x>=l.x&&x<l.x+l.w&&y>=l.y&&y<l.y+l.h);return i<0?null:'lm'+i}
@@ -2595,7 +2595,8 @@ let ferris=null;
  ferris=new THREE.Group();ferris.position.set(2100,140,4700);
  const rimMat=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),spokeMat=new THREE.MeshBasicMaterial({color:'#29e6d6'});
  ferris.add(new THREE.Mesh(new THREE.TorusGeometry(115,2.5,8,48),rimMat));
- for(let i=0;i<12;i++){const a=i/12*TAU,sp=new THREE.Mesh(new THREE.BoxGeometry(230,1.2,1.2),spokeMat);sp.rotation.z=a;ferris.add(sp);const cab=new THREE.Mesh(new THREE.BoxGeometry(12,12,10),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][i%3]}));cab.position.set(Math.cos(a)*115,Math.sin(a)*115,0);ferris.add(cab)}
+ const spk=[],cabs=[[],[],[]],I=new THREE.Matrix4();for(let i=0;i<12;i++){const a=i/12*TAU;spk.push([new THREE.BoxGeometry(230,1.2,1.2).rotateZ(a),I]);cabs[i%3].push([new THREE.BoxGeometry(12,12,10).translate(Math.cos(a)*115,Math.sin(a)*115,0),I])}
+ ferris.add(new THREE.Mesh(mergeGeos(spk),spokeMat));cabs.forEach((l,k)=>ferris.add(new THREE.Mesh(mergeGeos(l),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][k]}))));
  scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,4700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
  const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,4690);scene.add(fg);
  // palms
@@ -3183,7 +3184,7 @@ function landmarkMeshes(){
   // marina: basin water, three moored boats (one shared bob in landmarkTick), containers, the crane is drawn by the cranes list
   const mw=new THREE.Mesh(new THREE.PlaneGeometry(126,304),lmm.water);mw.rotation.x=-Math.PI/2;mw.position.set(233,1.6,3800);scene.add(mw);
   const hull=mergeGeos([[new THREE.BoxGeometry(24,2.2,8),new THREE.Matrix4()],[new THREE.BoxGeometry(8,3,6),new THREE.Matrix4().makeTranslation(-3,2.4,0)]]),hm=new THREE.MeshLambertMaterial({color:'#e8e4f0'});
-  LMA.boats=[[200,3720],[248,3840],[200,3910]].map(([x,y],i)=>{const m=new THREE.Mesh(hull,i%2?hm:lmm.wood);m.position.set(x,1.9,y);m.userData.y=y;scene.add(m);return m});
+  LMA.boats=new THREE.InstancedMesh(hull,hm,3);LMA.boats.userData.pos=[[200,3720],[248,3840],[200,3910]];scene.add(LMA.boats);
   // the Pit: floodlight pylons with glow sprites, a pink ring on the floor
   const pyl=[[3218,3218],[3502,3218],[3218,3502],[3502,3502]];
   const pp=new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2,1.6,36,6),lmm.metal,pyl.length),ph=new THREE.InstancedMesh(new THREE.BoxGeometry(8,2.4,8),new THREE.MeshBasicMaterial({color:'#fff1c4'}),pyl.length);
@@ -3191,11 +3192,10 @@ function landmarkMeshes(){
   for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,38,y);g.scale.set(40,40,1);scene.add(g)}
   const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);
   // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
-  const pil=new THREE.InstancedMesh(new THREE.CylinderGeometry(.9,1,9,5),lmm.wood,40);let pn=0;
-  for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])inst(pil,pn++,x,0,y);pil.count=pn;scene.add(pil);
-  const rp=new THREE.InstancedMesh(new THREE.BoxGeometry(.8,5,.8),lmm.metal,Math.ceil(W/30)+1);for(let i=0;i<=W/30;i++){const x=i*30;inst(rp,i,x,groundZ(x,4568)+2.5,4568)}rp.count=Math.ceil(W/30)+1;scene.add(rp);
+  const pg=[];for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])pg.push([new THREE.CylinderGeometry(.9,1,9,5).translate(x,0,y),new THREE.Matrix4()]);scene.add(new THREE.Mesh(mergeGeos(pg),lmm.wood));
+  const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
   const rail=new THREE.Mesh(new THREE.BoxGeometry(W,.7,.7),lmm.metal);rail.position.set(W/2,6.3,4568);scene.add(rail);
-  const awn=['#ff3ea5','#29e6d6'];LMS.filter(b=>b.m==='stall').forEach((b,i)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),new THREE.MeshLambertMaterial({color:awn[i%2]}));m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
+  const awm=new THREE.MeshLambertMaterial({color:'#ff3ea5'});LMS.filter(b=>b.m==='stall').forEach(b=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),awm);m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
   // roller-coaster frame east of the pier: towers and a track of boxes along a wave, merged into two meshes
   const trk=[],tow=[],cz=4650;let px=null;
   for(let i=0;i<=24;i++){const x=2280+i*15,h=groundZ(x,cz)+30+22*Math.abs(Math.sin(i*.5));
@@ -3206,7 +3206,7 @@ function landmarkMeshes(){
 }
 // per-frame motion for landmarks: the fountain spray
 function landmarkTick(){
-  for(let i=0;i<LMA.boats.length;i++){const m=LMA.boats[i];m.position.y=1.9+Math.sin(time*1.3+i*2)*.15;m.rotation.z=Math.sin(time*.9+i)*.03}
+  const bo=LMA.boats;if(bo){const p=bo.userData.pos;for(let i=0;i<p.length;i++)inst(bo,i,p[i][0],1.9+Math.sin(time*1.3+i*2)*.15,p[i][1],Math.sin(time*.9+i)*.03);bo.instanceMatrix.needsUpdate=true}
   const sp=LMA.spray;if(!sp)return;const fx=1160,fy=2040,fg=groundZ(fx,fy);
   for(let i=0;i<8;i++){const a=i/8*TAU+time*.6,r=7+Math.sin(time*3+i)*1.5,y=fg+6+(Math.sin(time*6+i*.9)+1)*2.2;inst(sp,i,fx+Math.cos(a)*r,y,fy+Math.sin(a)*r)}
   sp.instanceMatrix.needsUpdate=true;
