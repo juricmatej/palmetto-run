@@ -967,7 +967,7 @@ if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7
 // One line, three reels. Cherries pay anywhere on the line, three of a kind pays on the line. Strips hold 20 stops each.
 const N7NAME=['Cherry','Lemon','Bar','Double bar','Bell','7','Neon 7'];
 const N7STRIP=(()=>{const a=[0,1,2,3,4,1,0,2,5,1,3,0,4,2,6,1,3,4,2,5];return[a,a.slice().reverse(),a.slice(7).concat(a.slice(0,7))]})();
-const N7CH=[0,1,3,10],N7TRI=[0,5,10,20,30,100,200];
+const N7CH=[0,1,3,10],N7TRI=[0,5,10,20,30,100,150];
 function n7Eval(a){const k=a.filter(s=>s===0).length;if(k)return N7CH[k];return a[0]===a[1]&&a[1]===a[2]?N7TRI[a[0]]:0}
 function n7Spin(){const si=[0,1,2].map(()=>(rand()*20)|0);return{si,a:si.map((s,r)=>N7STRIP[r][s])}}
 const s7={el:$('slots7'),bet:25,busy:false,msg:'Pick a bet and pull.',reels:[0,1,2].map(()=>({p:0,v:0,s:'idle'})),wv:0,shown:0,line:0,skip:false,wq:[]};
