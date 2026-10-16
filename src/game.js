@@ -212,7 +212,7 @@ if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAM
 
 // ---------- hills ----------
 // Palmetto Hills: the land north of the city, from y=0 down to the north edge at y=-2400. Its heights go into the same heightmap.
-const HILL={edge:-2400,flatY:-40,peaks:[{x:W*.62,y:-1900,h:460,r:1000},{x:W*.2,y:-1700,h:330,r:800}]};
+const HILL={edge:-2400,flatY:-40,peaks:[{x:W*.62,y:-1900,h:460,r0:120},{x:W*.2,y:-1700,h:330,r0:100}]};
 const HVAL=(()=>{const r=seeded(20),t=new Float32Array(65536);for(let i=0;i<t.length;i++)t[i]=r();return t})();
 // value noise, 0 to 1, lattice of 1 unit
 function vnoise(x,y){const i=Math.floor(x),j=Math.floor(y),fx=x-i,fy=y-j,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),v=(a,b)=>HVAL[((a&255)<<8)|(b&255)];
@@ -221,8 +221,9 @@ function vnoise(x,y){const i=Math.floor(x),j=Math.floor(y),fx=x-i,fy=y-j,sx=fx*f
 function hillBase(x,y){
   const u=-y;if(u<=-HILL.flatY)return 0;
   const e=clamp((u+HILL.flatY)/200,0,1),ease=e*e*(3-2*e),t=clamp((u+HILL.flatY)/1360,0,1);
-  let h=300*t+ease*((vnoise(x/300,u/300)-.5)*60+(vnoise(x/120+7,u/120+3)-.5)*16);
-  for(const p of HILL.peaks){const d=Math.hypot(x-p.x,y-p.y);if(d<p.r)h=Math.max(h,p.h*(1+Math.cos(Math.PI*d/p.r))/2)}
+  let h=280*t+ease*((vnoise(x/400,u/400)-.5)*60+(vnoise(x/150+7,u/150+3)-.5)*16);
+  // peaks: a plateau, then a fall of 0.2 per unit, so the roads can climb them within their grade
+  for(const p of HILL.peaks){const d=Math.hypot(x-p.x,y-p.y);h=Math.max(h,p.h-.2*Math.max(0,d-p.r0))}
   return Math.max(0,h)}
 // fills the north half of the heightmap (x up to the city's east edge, y<0)
 function fillHills(){
@@ -242,7 +243,7 @@ const HILL_ROADS=[
   {name:'Dirt trail',w:22,dirt:1,pts:[[360,-260],[300,-620],[380,-960],[260,-1280],[360,-1600],[240,-1900]]},
   {name:'Dam',w:44,pts:[[470,-1080],[930,-1080]]},
 ];
-const GRADE=.18; // design grade for flattening; the boot check allows 0.22
+const GRADE=.21; // design grade for flattening; the boot check allows 0.22
 // points every `step` units along a road: [x, y, arc length, unit tangent x, unit tangent y]
 function roadSamples(r,step){const P=r.loop?[...r.pts,r.pts[0]]:r.pts,out=[];let L=0;
   for(let k=0;k<P.length-1;k++){const[ax,ay]=P[k],dx=P[k+1][0]-ax,dy=P[k+1][1]-ay,len=Math.hypot(dx,dy),ux=dx/len,uy=dy/len,n=Math.max(1,Math.ceil(len/step));
@@ -414,7 +415,7 @@ function roadMeshes(){
   const lineM=new THREE.MeshBasicMaterial({color:'#e8d27a',side:THREE.DoubleSide});
   return[new THREE.Mesh(geo(asph),roadM),new THREE.Mesh(geo(dirt),dirtM),new THREE.Mesh(geo(dash),lineM),new THREE.Mesh(geo(rail),railM),pm]}
 // one mesh per 400 units of y: vertex colours by slope (dry grass, rock on steep faces, bare earth on the flat verge), normals from the heightmap so the bands join without seams
-const HC={verge:new THREE.Color('#4d4a3e'),g1:new THREE.Color('#7d8a3a'),g2:new THREE.Color('#9a8448'),r1:new THREE.Color('#6e655c'),r2:new THREE.Color('#857b70')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
+const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),r1:new THREE.Color('#625c55'),r2:new THREE.Color('#827a6e')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
 function hillMeshes(){
   const det=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#c8c8c8';g.fillRect(0,0,w,h);grit(g,w,h,9000,31,.12)});det.wrapS=det.wrapT=THREE.RepeatWrapping;
   const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[];
@@ -473,6 +474,30 @@ function hikerStep(dt){if(!HIKE.mesh)return;
     hillPose(h);inst(HIKE.mesh,i,h.x,groundZ(h.x,h.y),h.y,-h.a)});
   HIKE.mesh.instanceMatrix.needsUpdate=true}
 if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='hill').length},hikers:{get:()=>HIKERS.length}});
+
+// minimap layer for the hills, drawn once: shaded contours, roads, the lake and the spot icons. drawMini blits it.
+function buildHillMini(MS,MO){
+  const X0=-MO,Y0=HILL.edge-MO,cv=document.createElement('canvas');cv.width=Math.ceil((W+2*MO)/MS);cv.height=Math.ceil(-Y0/MS);cv.ox=X0;cv.oy=Y0;
+  const g=cv.getContext('2d'),t=(x,y)=>[(x-X0)/MS,(y-Y0)/MS],i0=Math.max(0,Math.round((X0-HM.x0)/HM.cell)),i1=Math.min(HM.gw-1,Math.round((X0+cv.width*MS-HM.x0)/HM.cell)),
+    j0=Math.max(0,Math.round((Y0-HM.y0)/HM.cell)),j1=Math.min(HM.gh-1,Math.round((0-HM.y0)/HM.cell)-1),ni=i1-i0+1,nj=j1-j0+1,hh=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)];
+  g.fillStyle='#0b2a3d';g.fillRect(0,0,cv.width,cv.height);
+  const img=new ImageData(ni,nj),d=img.data;
+  for(let j=0;j<nj;j++)for(let i=0;i<ni;i++){const I=i0+i,J=j0+j,h=hh(I,J),gx=(hh(I+1,J)-hh(I-1,J))/20,gz=(hh(I,J+1)-hh(I,J-1))/20,
+    lit=clamp((gx*.5+gz*.5+.7)/Math.hypot(gx,1,gz)/Math.hypot(.5,.7,.5),.3,1),k=(j*ni+i)*4;
+    const f=clamp(h/300,0,1),c=h<1?[74,74,54]:[63+(122-63)*f,90+(112-90)*f,46+(74-46)*f],
+      line=h>=1&&(Math.floor(h/50)!==Math.floor(hh(I+1,J)/50)||Math.floor(h/50)!==Math.floor(hh(I,J+1)/50))?.7:1;
+    d[k]=c[0]*lit*line;d[k+1]=c[1]*lit*line;d[k+2]=c[2]*lit*line;d[k+3]=255}
+  const tmp=document.createElement('canvas');tmp.width=ni;tmp.height=nj;tmp.getContext('2d').putImageData(img,0,0);
+  g.imageSmoothingEnabled=true;const[px,py]=t(HM.x0+i0*HM.cell,HM.y0+j0*HM.cell);g.drawImage(tmp,px,py,ni*HM.cell/MS,nj*HM.cell/MS);
+  for(const r of HILL_ROADS){const S=roadSamples(r,6);g.beginPath();S.forEach(([x,y],k)=>{const[qx,qy]=t(x,y);k?g.lineTo(qx,qy):g.moveTo(qx,qy)});
+    g.strokeStyle=r.dirt?'#8a6a44':'#3a3848';g.lineWidth=Math.max(1.2,r.w/MS);g.lineJoin='round';g.stroke()}
+  const[lx,ly]=t(LAKE.x,LAKE.y);g.fillStyle='#1d6a8a';g.beginPath();g.arc(lx,ly,LAKE.r/MS,0,TAU);g.fill();
+  g.font='700 12px "Chakra Petch",sans-serif';g.textAlign='center';g.textBaseline='middle';
+  for(const s of HILL_SPOTS){const[qx,qy]=t(s.x,s.y);g.fillStyle='#0b0814';g.beginPath();g.arc(qx,qy,8,0,TAU);g.fill();g.strokeStyle='#ffc94a';g.lineWidth=1.5;g.stroke();g.fillStyle='#ffc94a';g.fillText(s.icon,qx,qy+1)}
+  return cv}
+// fog thins in the hills so the city lights show from the overlook at night
+let fogHill=false;
+function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;scene.fog.density=on?.00026:.00105}
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
@@ -2414,7 +2439,7 @@ function update(dt){
     else for(const d of DOORS)if(Math.hypot(d.x-me.x,d.y-me.y)<18){enterInt(d);break}}
   if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
-  lakeFall();if(me.y<0)hillArrive();
+  lakeFall();if(me.y<0)hillArrive();hillFog();
   // input vector
   let ix=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),iy=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
   const shift=keys.ShiftLeft||keys.ShiftRight,hu=handsUp;
@@ -3302,6 +3327,7 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
  for(const k of RAISED){const i=k%HM.gw,j=(k/HM.gw)|0,h=HM.a[k];g.fillStyle=`rgba(255,240,220,${Math.min(.4,h/120)})`;g.fillRect(t(HM.x0+i*HM.cell),t(HM.y0+j*HM.cell),HM.cell/MS+1,HM.cell/MS+1)} // raised ground reads lighter
 g.fillStyle='#6a5040';g.fillRect(t(2077),t(W+300),46/MS,520/MS);
  g.strokeStyle='rgba(255,201,74,.35)';g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();for(let k=0;k<=N;k++){g.moveTo(t(0),t(k*B+60));g.lineTo(t(W),t(k*B+60));g.moveTo(t(k*B+60),t(0));g.lineTo(t(k*B+60),t(W))}g.stroke();g.setLineDash([])}
+const hillMini=buildHillMini(MS,MO);
 const DOORICON={'Pink Flamingo':'D','Ink & Fade':'T','Iron Palms':'W','Palmetto PD':'P',"St. Palm's":'+','Pixel Palace':'A','Rusty Anchor':'R','Union Bank':'B','Gun shop':'G','Velvet Palms':'V','Snack & Go':'S','Safehouse':'H','Casino':'$'};
 let miniSc=.35;
 function drawMini(){
@@ -3309,7 +3335,7 @@ function drawMini(){
   c.save();c.beginPath();c.arc(C,C,148,0,TAU);c.clip();c.fillStyle='#0b2a3d';c.fillRect(0,0,S,S);
   const cx=A.x,cy=A.y,heading=me.car?me.car.a:look.yaw,rot=-heading-Math.PI/2,cs=Math.cos(rot),sn=Math.sin(rot);
   const sp=me.car?Math.hypot(me.car.vx,me.car.vy):0,want=148/(me.car?520+sp*1.3:380);miniSc+=(want-miniSc)*.06;const sc=miniSc;
-  c.translate(C,C);c.rotate(rot);c.scale(sc*MS,sc*MS);c.drawImage(miniBig,-(cx+MO)/MS,-(cy+MO)/MS);c.setTransform(1,0,0,1,0,0);
+  c.translate(C,C);c.rotate(rot);c.scale(sc*MS,sc*MS);c.drawImage(miniBig,-(cx+MO)/MS,-(cy+MO)/MS);c.drawImage(hillMini,(hillMini.ox-cx)/MS,(hillMini.oy-cy)/MS);c.setTransform(1,0,0,1,0,0);
   const Pt=(x,y)=>{const dx=(x-cx)*sc,dy=(y-cy)*sc;return[C+dx*cs-dy*sn,C+dx*sn+dy*cs]};
   const edge=(x,y)=>{let[px,py]=Pt(x,y);const dx=px-C,dy=py-C,d=Math.hypot(dx,dy);if(d>RIM){px=C+dx/d*RIM;py=C+dy/d*RIM;return[px,py,true]}return[px,py,false]};
   const inView=(x,y)=>{const[px,py]=Pt(x,y);return Math.hypot(px-C,py-C)<RIM+6};
