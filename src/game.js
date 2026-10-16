@@ -297,7 +297,7 @@ function interact(){const p=nearSpot();if(!p||state!=='play')return;
   else if(placesAct(p)){}
   else if(casinoAct(p)||heistAct(p)){}
   else if(p.act==='rob'||p.act==='heist')startRob(p);
-  else if(p.act==='sleep'){me.hp=BAL.playerHp;heat=0;drunk=0;saveArsenal();showBig('RESTED','#ffc94a','Progress saved',1.6)}}
+  else if(p.act==='sleep'){me.hp=BAL.playerHp;heat=0;drunk=0;phBat=100;saveArsenal();showBig('RESTED','#ffc94a','Progress saved',1.6)}}
 let job=null;
 if(DBG)Object.defineProperties(DBG,{lockTarget:{get:()=>lockTarget},findLock:{get:()=>findLock},jets:{get:()=>jets},remotes:{get:()=>remotes},equip:{get:()=>equip},ammo:{get:()=>ammo}});
 
@@ -659,7 +659,7 @@ function fire(x,y,a,owner,dmg,rocket,quiet,home,snd){const sp=home?470:rocket?(f
   parts.push({x:x+Math.cos(a)*6,y:y+Math.sin(a)*6,vx:0,vy:0,life:.06,max:.06,col:'#ffe9a8',k:'flash',sz:rocket?30:16});if(snd)gunSnd(snd,x,y);else noise(rocket?.45:.12,rocket?900:2600,(rocket?.4:.22)*vol(x,y));scare(x,y,320);}
 function segDist(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(px-ax-dx*t,py-ay-dy*t)}
 function myShoot(){
-  if(me.fireCd>0||state!=='play'||wheelOpen)return;
+  if(me.fireCd>0||state!=='play'||wheelOpen||phoneOpen)return;
   if(me.heli){heliFire();return}
   if(me.jet){jetFire();return}
   let w=WEAPONS[WI[weap]];
@@ -1840,12 +1840,179 @@ function trafficStep(dt){
 }
 if(DBG)Object.defineProperties(DBG,{tlP:{get:()=>tlP}});
 
+// ---------- phone ----------
+// T opens a phone over the game. The game keeps running and WASD still walks. World keys and shooting wait while it is open.
+// Other features add an app with phoneApp(id,name,icon,render,colour) and send a text with phoneNotify(from,text,action).
+let phoneOpen=false,phCam=false,phApp=null,phBat=100,phEyes=0,phIdle=90,phLiveT=0,phBanTm=0,phCallTm=0,phDown=false,phTabOn=null,phClk='',phBatS=-1,phBadge=-1,phDistr=null;
+let waypoint=null,wpGroup=null,mapCur=null;
+const apps={},notes=[],phLog=[],phHeld=[];
+const mk=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const clk=()=>{const m=Math.floor(9*60+time)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const starsNow=()=>Math.ceil(heat-.001),dnd=()=>starsNow()>=3;
+const phFrame=$('phFrame'),phHome=$('phHome'),phAppEl=$('phApp'),phBody=$('phBody'),phTitle=$('phTitle'),phBan=$('phBan'),phTab=$('phTab'),phFade=$('phFade'),phWarn=$('phWarn'),phCallEl=$('phCall'),phCallName=$('phCallName');
+const ICO=p=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const IC={map:'<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
+  contacts:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/>',
+  msg:'<path d="M4 5h16v11h-9l-5 4v-4H4z"/>',
+  jobs:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12.5h18"/>',
+  players:'<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.5 3.1-5.5 6.5-5.5s5.9 2 6.5 5.5"/><circle cx="17" cy="9" r="2.8"/><path d="M16.5 14.7c2.6.2 4.4 1.9 5 4.8"/>',
+  places:'<path d="M3.5 20.5h17M5.5 20.5v-10l6.5-5 6.5 5v10M10 20.5v-5h4v5"/>',
+  radio:'<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="15.5" cy="14" r="2.5"/><path d="M7 12h4M7 16h3M8 8l9-4"/>',
+  cam:'<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8.5 7l1.5-2.5h4L15.5 7"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>'};
+function phoneApp(id,name,icon,render,col){apps[id]={name,icon:ICO(icon),render,col:col||'#ff3ea5'};phDrawHome()}
+function phDrawHome(){phHome.replaceChildren();for(const id in apps){const a=apps[id],b=mk('button','ph-app');b.type='button';b.dataset.nav='';b.style.setProperty('--c',a.col);const ic=mk('span','ph-ic');ic.innerHTML=a.icon;a.bd=mk('b','ph-bd');a.bd.hidden=true;b.append(ic,mk('span','',a.name),a.bd);b.onclick=()=>phShow(id);phHome.append(b)}}
+const phNavEls=()=>[...(phApp?phBody:phHome).querySelectorAll('[data-nav]:not(:disabled)')];
+function phFocus(i){const els=phNavEls();if(els[i])els[i].focus({preventScroll:true})}
+function phMove(dx,dy){const els=phNavEls();if(!els.length)return;let i=els.indexOf(document.activeElement);i=i<0?0:clamp(i+dx+dy*(phApp?1:4),0,els.length-1);els[i].focus({preventScroll:true});els[i].scrollIntoView({block:'nearest'})}
+function phShow(id){const a=apps[id];if(!a)return;phApp=id;if(id==='map')mapCur={x:me.x,y:me.y};phHome.hidden=true;phAppEl.hidden=false;phTitle.textContent=a.name;phBody.replaceChildren();phPaint(a,true);phFocus(0)}
+function phHomeShow(){phApp=null;phAppEl.hidden=true;phHome.hidden=false;phFocus(0)}
+// re-renders into a detached copy and swaps only when the markup changed, so a tap is never lost to a repaint
+function phPaint(a,force){const t=phBody.cloneNode(false);a.render(t);if(!force&&t.innerHTML===phBody.innerHTML)return;const was=phNavEls().indexOf(document.activeElement);phBody.replaceChildren(...t.childNodes);if(!force&&was>=0)phFocus(was)}
+function phoneOpenNow(toMsg){
+  if(phoneOpen||state!=='play')return;
+  phoneOpen=true;$('phone').classList.add('open');phBan.classList.remove('show');
+  try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
+  mouse.down=false;touchFire=false;
+  phEyes=me.car&&Math.hypot(me.car.vx,me.car.vy)>200?2.5:0;
+  if(toMsg)phShow('messages');else phHomeShow();
+}
+function phoneClose(){if(!phoneOpen)return;phoneOpen=false;phCam=false;document.body.classList.remove('phone-cam');phApp=null;$('phone').classList.remove('open');if(phFrame.contains(document.activeElement))document.activeElement.blur();phEyes=0}
+function phCamOn(){phCam=true;document.body.classList.add('phone-cam');$('phone').classList.remove('open');if(phFrame.contains(document.activeElement))document.activeElement.blur()}
+function phCamOff(){phCam=false;document.body.classList.remove('phone-cam');$('phone').classList.add('open');phHomeShow()}
+function phSnap(){renderer.render(scene,camera);phFade.className='snap';setTimeout(()=>{phFade.className=''},120);
+  cv.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=mk('a');a.href=u;a.download=`palmetto-run-${Math.floor(time)}.png`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)},'image/png');feed('Photo saved')}
+function phFadeTo(on){phFade.className=on?'on':''}
+function phRing(){tone('triangle',mf(84),.16,.12);tone('triangle',mf(79),.22,.12,AC?AC.currentTime+.22:0)}
+function phCallTo(name,f){if(phCallTm)return;phCallName.textContent=name;phCallEl.hidden=false;phRing();phCallTm=setTimeout(()=>{phCallTm=0;phCallEl.hidden=true;if(state==='play')f()},1200)}
+
+// notifications: texts from contacts. Held while the cops are on you (3 stars or more), then delivered.
+function phAdd(n){notes.unshift(n);if(notes.length>30)notes.length=30;if(!phoneOpen&&state==='play'){phBan.replaceChildren(mk('b','',n.from),mk('span','',n.text));phBan.classList.add('show');clearTimeout(phBanTm);phBanTm=setTimeout(()=>phBan.classList.remove('show'),4500)}}
+function phoneNotify(from,text,action){const n={from,text,action:action||null,t:clk(),read:false};if(dnd()){phHeld.push(n);if(phHeld.length>30)phHeld.shift();return}phAdd(n)}
+phBan.onclick=()=>{phBan.classList.remove('show');phoneOpenNow(true)};
+// the log: everything feed() shows
+function phLogAdd(t){phLog.unshift({t:clk(),text:t});if(phLog.length>30)phLog.length=30}
+function acceptJob(){if(job&&job.phase!=='wait')return feed('You already have a job');newJob()}
+
+// ---- contact actions
+function phTaxi(){
+  if(!waypoint)return phoneNotify('Taxi','Set a waypoint on the map first.');
+  if(starsNow()>0)return phoneNotify('Taxi','No cab will pick you up with the cops on you.');
+  if(me.heli||me.jet)return phoneNotify('Taxi','Not from up there.');
+  if(!plPay(100))return;
+  const wx=waypoint.x,wy=waypoint.y;waypoint=null;phoneClose();phFadeTo(true);
+  setTimeout(()=>{const b=me.car||me;me.inside=null;me.roof=null;me.z=0;me.vx=me.vy=0;b.x=wx;b.y=wy;b.vx=b.vy=0;
+    for(let i=0;i<3;i++)collide(b,b.x,b.y,me.car?14:8);me.x=b.x;me.y=b.y;phFadeTo(false)},reduced?0:1000);
+}
+function phLawyer(){const s=starsNow();if(s>=3)return phoneNotify('Lawyer','Not with three stars on you. Lose the cops first.');if(s<=0)return phoneNotify('Lawyer','You are clean. Keep your cash.');if(!plPay(1000*s))return;heat=0;coolT=0;jingle('pass');phoneNotify('Lawyer',`Done. ${s} star${s>1?'s':''} gone for ${money(1000*s)}.`)}
+function phVic(){if(!unlocked('bank'))return phoneNotify('Vic',`Come back at level ${UNLOCK.bank}.`);phoneClose();openBrief()}
+function phDealer(){waypoint={x:DEALER.x,y:DEALER.y};phoneNotify('Dealer','Pin is on your map. Come alone.')}
+const CONTACTS=[['Taxi','Cab to your waypoint, $100',phTaxi],['Lawyer','Clears 1 or 2 stars, $1,000 each',phLawyer],['Vic','Heists',phVic],['Dealer','Sends you a pin',phDealer],['Mechanic','Cars',()=>phoneNotify('Mechanic','No cars on file yet.')]];
+
+// ---- map: the city at full size, with the waypoint and a GPS line along the roads
+const mapCv=mk('canvas','ph-map');mapCv.width=mapCv.height=560;
+function wpRoute(x,y,wx,wy){const sn=v=>Math.round((v-60)/B)*B+60,ax=sn(x),by=sn(wy);return[[x,y],[ax,y],[ax,by],[wx,by],[wx,wy]]}
+function mapPick(p){if(waypoint&&Math.hypot(waypoint.x-p.x,waypoint.y-p.y)<130){waypoint=null;feed('Waypoint cleared')}else{waypoint={x:p.x,y:p.y};feed('Waypoint set')}}
+mapCv.addEventListener('pointerdown',e=>{const r=mapCv.getBoundingClientRect(),k=W+500;mapCur={x:(e.clientX-r.left)/r.width*k-MO,y:(e.clientY-r.top)/r.height*k-MO};mapPick(mapCur)});
+function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:AREA[k][0],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
+function phMapDraw(){
+  const c=mapCv.getContext('2d'),S=560,k=S/(W+500),X=x=>(x+MO)*k,Y=y=>(y+MO)*k;
+  c.setTransform(1,0,0,1,0,0);c.drawImage(miniBig,0,0,S,S);
+  phDistr=phDistr||phDistricts();
+  c.textAlign='center';c.textBaseline='middle';c.font='700 26px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=10;
+  for(const d of phDistr)c.fillText(d.name,X(d.x),Y(d.y));
+  c.shadowBlur=0;c.font='700 22px "Chakra Petch",sans-serif';
+  for(const d of DOORS){c.fillStyle='#0b0814';c.beginPath();c.arc(X(d.x),Y(d.y),17,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=3;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',X(d.x),Y(d.y)+1)}
+  for(const r of remotes.values()){if(r.dead)continue;c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(X(r.x),Y(r.y),11,0,TAU);c.fill();c.stroke()}
+  if(job&&job.phase!=='wait'&&!job.noMarker){c.fillStyle=jobCol();c.beginPath();c.arc(X(job.x),Y(job.y),15,0,TAU);c.fill()}
+  if(waypoint){const rt=wpRoute(me.x,me.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.lineWidth=3;c.setLineDash([6,5]);c.beginPath();rt.forEach(([x,y],i)=>i?c.lineTo(X(x),Y(y)):c.moveTo(X(x),Y(y)));c.stroke();c.setLineDash([]);
+    c.fillStyle='#29e6d6';c.strokeStyle='#0b0814';c.lineWidth=3;c.beginPath();c.arc(X(waypoint.x),Y(waypoint.y),16,0,TAU);c.fill();c.stroke()}
+  c.save();c.translate(X(me.x),Y(me.y));c.rotate(me.car?me.car.a:me.a);c.scale(1.9,1.9);c.fillStyle='#fff';c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.moveTo(11,0);c.lineTo(-7,8);c.lineTo(-3,0);c.lineTo(-7,-8);c.closePath();c.fill();c.stroke();c.restore();
+  if(mapCur){c.strokeStyle='#ffc94a';c.lineWidth=3;c.beginPath();c.arc(X(mapCur.x),Y(mapCur.y),20,0,TAU);c.stroke()}
+}
+
+// ---- 3D waypoint: the job beacon look in cyan
+function wpBuild(){wpGroup=new THREE.Group();const cyl=new THREE.Mesh(new THREE.CylinderGeometry(15,15,160,24,1,true),new THREE.MeshBasicMaterial({color:'#29e6d6',transparent:true,opacity:.26,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+  cyl.position.y=80;const ring=new THREE.Mesh(new THREE.RingGeometry(15,19,32),new THREE.MeshBasicMaterial({color:'#29e6d6',side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=1.8;wpGroup.add(cyl,ring);scene.add(wpGroup)}
+
+// ---- apps
+phoneApp('map','Map',IC.map,el=>{el.append(mapCv,mk('div','ph-sub','Click or press Enter to drop a pin. Click the pin again to clear it.'))},'#29e6d6');
+phoneApp('contacts','Contacts',IC.contacts,el=>{for(const[n,r,f]of CONTACTS){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',n),mk('span','ph-sub',r));b.append(mk('span','ph-av',n[0]),g,mk('span','ph-go','Call'));b.onclick=()=>phCallTo(n,f);el.append(b)}},'#ff3ea5');
+phoneApp('messages','Messages',IC.msg,el=>{
+  if(!notes.length&&!phLog.length)el.append(mk('div','ph-sub','No messages yet.'));
+  for(const n of notes){const w=mk('div','ph-card');w.append(mk('div','ph-from',n.from),mk('div','ph-txt',n.text),mk('div','ph-tm',n.t));
+    if(n.action){const b=mk('button','ph-btn',n.action.label);b.type='button';b.dataset.nav='';b.onclick=()=>{const f=n.action.fn;n.action=null;f();phPaint(apps.messages,true)};w.append(b)}
+    n.read=true;el.append(w)}
+  if(phLog.length){el.append(mk('div','ph-sec','Log'));for(const l of phLog)el.append(mk('div','ph-log',`${l.t}  ${l.text}`))}
+},'#3dd68c');
+phoneApp('jobs','Jobs',IC.jobs,el=>{const on=!!job&&job.phase!=='wait';
+  const c=mk('div','ph-card');c.append(mk('b','ph-big',on?(job.title||'Mission'):'No job'),mk('div','ph-sub',on?job.text+(job.reward?` Pays ${money(job.reward)}.`:''):(job&&job.msg)||'Nothing on. The next one comes in a moment.'));
+  const d=mk('button','ph-btn alt','Drop the job');d.type='button';d.dataset.nav='';d.disabled=!on;d.onclick=()=>jobFail('You dropped the job');
+  const n=mk('button','ph-btn','Ask for a new job');n.type='button';n.dataset.nav='';n.disabled=on;n.onclick=()=>newJob();
+  el.append(c,d,n)},'#ffc94a');
+phoneApp('players','Players',IC.players,el=>{
+  if(!remotes.size){el.append(mk('div','ph-sub',room?'Nobody else is in the city right now.':'Solo for now. Other players show up once the city is online.'));return}
+  for(const[id,r]of remotes){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
+    const dot=mk('i','ph-dot');dot.style.background=r.color;b.append(dot,g,mk('span','ph-go','GPS'));b.onclick=()=>{waypoint={x:r.x,y:r.y,peer:id};feed(`GPS on ${r.name}`)};el.append(b)}
+},'#7b6bff');
+phoneApp('places','Places',IC.places,el=>{const best={};for(const d of DOORS){const dd=Math.hypot(d.x-me.x,d.y-me.y),o=best[d.label];if(!o||dd<o.dd)best[d.label]={d,dd}}
+  for(const[k,{d,dd}]of Object.entries(best).sort((a,b)=>a[1].dd-b[1].dd)){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const dt=mk('span','ph-dt',DOORICON[k]||'?');dt.style.color=d.col;
+    b.append(dt,mk('span','ph-grow',k),mk('span','ph-sub',`${Math.round(dd/10)} m`),mk('span','ph-go','GPS'));b.onclick=()=>{waypoint={x:d.x,y:d.y};feed(`GPS set to ${k}`)};el.append(b)}
+},'#ff6b3d');
+phoneApp('radio','Radio',IC.radio,el=>{const b=mk('button','ph-btn','Next station');b.type='button';b.dataset.nav='';b.onclick=()=>cycleRadio();
+  el.append(mk('div','ph-big',RADIO[radio]),mk('div','ph-sub',radio?'Playing now':'The radio is off'),b)},'#4aa3ff');
+phoneApp('camera','Camera',IC.cam,el=>{const b=mk('button','ph-btn','Open the camera');b.type='button';b.dataset.nav='';b.onclick=phCamOn;
+  el.append(mk('div','ph-sub','The phone and the HUD hide. Enter takes the shot, Escape comes back.'),b)},'#9d97ad');
+phoneApp('settings','Settings',IC.gear,el=>{const b=mk('button','ph-btn','Open settings');b.type='button';b.dataset.nav='';b.onclick=()=>{phoneClose();openSettings()};
+  el.append(mk('div','ph-sub','Sensitivity, invert Y and aim assist.'),b)},'#5a5570');
+
+// ---- keys while the phone is open
+function phoneKey(e){
+  const c=e.code,rep=e.repeat;
+  if(phCam){if(c==='Enter'&&!rep)phSnap();else if(c==='Escape')phCamOff();return}
+  if(c==='Escape'||(c==='KeyT'&&!rep)){phoneClose();return}
+  if(/^Arrow/.test(c)){e.preventDefault();const dx=c==='ArrowLeft'?-1:c==='ArrowRight'?1:0,dy=c==='ArrowUp'?-1:c==='ArrowDown'?1:0;
+    if(phApp==='map'&&mapCur){mapCur.x=clamp(mapCur.x+dx*70,-MO,W+400);mapCur.y=clamp(mapCur.y+dy*70,-MO,W+400)}else phMove(dx,dy);return}
+  if(c==='Enter'){e.preventDefault();if(rep)return;if(phApp==='map'&&mapCur)mapPick(mapCur);else{const el=document.activeElement;if(el&&el.matches&&el.matches('[data-nav]'))el.click()}return}
+  if(c==='Backspace'){e.preventDefault();if(phApp)phHomeShow()}
+}
+$('phBack').onclick=phHomeShow;$('phTab').onclick=()=>phoneOpenNow(false);
+phFrame.addEventListener('pointerdown',()=>{phDown=true});
+addEventListener('pointerup',()=>{phDown=false});addEventListener('pointercancel',()=>{phDown=false});
+
+// ---- per frame (called from ui)
+function phoneStep(dt){
+  phBat=Math.max(3,phBat-dt/20);
+  if(phoneOpen&&state!=='play')phoneClose();
+  if(state!=='play')phBan.classList.remove('show');
+  if(!dnd()&&phHeld.length)while(phHeld.length)phAdd(phHeld.shift());
+  if(state==='play'&&!phoneOpen&&(!job||job.phase==='wait')&&!starsNow()&&!me.inside){phIdle-=dt;if(phIdle<=0){phIdle=70+rand()*50;phoneNotify('Vic','Got a job for you.',{label:'Accept',fn:acceptJob})}}
+  if(waypoint&&waypoint.peer){const r=remotes.get(waypoint.peer);if(r){waypoint.x=r.x;waypoint.y=r.y}else{waypoint=null;feed('Lost sight of them. Waypoint cleared')}}
+  if(waypoint&&Math.hypot(waypoint.x-A.x,waypoint.y-A.y)<40){waypoint=null;feed('Waypoint reached')}
+  if(waypoint&&!wpGroup)wpBuild();
+  if(wpGroup){wpGroup.visible=!!waypoint&&state==='play'&&!me.inside;if(waypoint)wpGroup.position.set(waypoint.x,0,waypoint.y)}
+  if(phEyes>0)phEyes-=dt;
+  phWarn.hidden=!(phoneOpen&&phEyes>0);
+  const tabOn=state==='play'&&!phoneOpen;if(tabOn!==phTabOn){phTabOn=tabOn;phTab.hidden=!tabOn}
+  if(phoneOpen&&phApp==='map')phMapDraw();
+  if(phoneOpen&&phApp&&phApp!=='map'&&!phDown&&(phLiveT-=dt)<=0){phLiveT=.5;phPaint(apps[phApp])}
+  const cs=clk(),bs=Math.round(phBat);
+  if(cs!==phClk){phClk=cs;$('phClock').textContent=cs;$('phDnd').hidden=!dnd()}
+  if(bs!==phBatS){phBatS=bs;$('phBatF').style.width=bs+'%'}
+  const u=notes.filter(n=>!n.read).length;
+  if(u!==phBadge){phBadge=u;apps.messages.bd.textContent=u;apps.messages.bd.hidden=!u;$('phTabN').textContent=u;$('phTabN').hidden=!u}
+}
+if(DBG)Object.defineProperties(DBG,{phoneOpen:{get:()=>phoneOpen},waypoint:{get:()=>waypoint},phoneNotify:{get:()=>phoneNotify},phoneApps:{get:()=>Object.keys(apps)}});
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
-addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;keys[e.code]=true;
+addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;
+  if(phoneOpen&&/^Arrow/.test(e.code)){phoneKey(e);return}keys[e.code]=true;
   if(state==='menu'||state==='shop')return;
+  if(phoneOpen){phoneKey(e);return}
+  if(e.code==='KeyT'&&!e.repeat&&state==='play'){phoneOpenNow(false);return}
   if(e.code==='Escape'&&lap){endLap();return}
   if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyE'||e.code==='KeyF'){if(!e.repeat)toggleCar()}
@@ -1883,7 +2050,7 @@ function aimAssist(dt){
   if(t)look.yaw+=clamp(wrap(Math.atan2(t.y-me.y,t.x-me.x)-look.yaw),-settings.assist*dt,settings.assist*dt);
 }
 function turn(dx,dy){dx*=settings.sens;dy*=settings.sens;if(settings.inv)dy=-dy;if(wheelOpen){wheelVec.x+=dx;wheelVec.y+=dy;const l=Math.hypot(wheelVec.x,wheelVec.y);if(l>120){wheelVec.x*=120/l;wheelVec.y*=120/l}if(l>25){const n=WEAPONS.length,i=((Math.round((Math.atan2(wheelVec.y,wheelVec.x)+Math.PI/2)/(TAU/n))%n)+n)%n;if(WEAPONS[i].id!==wheelSel){wheelSel=WEAPONS[i].id;paintWheel()}}return}if(me.car){look.off=clamp(look.off+dx*.0026,-2.6,2.6);look.offT=time}else look.yaw+=dx*.0026*(scoped?.3:1);look.pitch=clamp(look.pitch+dy*.0022*(scoped?.3:1),-.45,1.3)}
-function lockMouse(){if(isTouch||document.pointerLockElement===cv)return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(_){}}
+function lockMouse(){if(isTouch||phoneOpen||document.pointerLockElement===cv)return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(_){}}
 cv.addEventListener('pointerdown',e=>{
   if(state==='menu')return;audioInit();
   if(e.pointerType==='mouse'){if(document.pointerLockElement!==cv){lockMouse();return}if(e.button===0)mouse.down=true;if(e.button===2&&weap==='sniper'&&!me.car)scoped=true;return}
@@ -1993,12 +2160,12 @@ function publish(dt){
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 
 // ---------- ui ----------
-function feed(t){const d=document.createElement('div');d.textContent=t;$('feed').appendChild(d);setTimeout(()=>d.remove(),5000);while($('feed').children.length>5)$('feed').firstChild.remove()}
+function feed(t){const d=document.createElement('div');d.textContent=t;$('feed').appendChild(d);setTimeout(()=>d.remove(),5000);while($('feed').children.length>5)$('feed').firstChild.remove();phLogAdd(t)}
 let bigT=0;
 function showBig(t,col,s,dur){const b=$('big');b.hidden=false;b.querySelector('.t').textContent=t;b.querySelector('.t').style.color=col;b.querySelector('.t').style.textShadow=`0 0 24px ${col}`;b.querySelector('.s').textContent=s||'';bigT=dur||0}
 function hideBig(){$('big').hidden=true;bigT=0}
 let uiT=0,saveT=0;
-function ui(dt){
+function ui(dt){phoneStep(dt);
   if(bigT>0){bigT-=dt;if(bigT<=0)hideBig()}
   uiT+=dt;if(uiT<.1)return;uiT=0;
   $('cash').textContent='$'+me.cash.toLocaleString('en-US');
@@ -2070,7 +2237,7 @@ function update(dt){
   if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
   // input vector
-  let ix=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),iy=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
+  let ix=(keys.KeyD||(!phoneOpen&&keys.ArrowRight)?1:0)-(keys.KeyA||(!phoneOpen&&keys.ArrowLeft)?1:0),iy=(keys.KeyS||(!phoneOpen&&keys.ArrowDown)?1:0)-(keys.KeyW||(!phoneOpen&&keys.ArrowUp)?1:0);
   const shift=keys.ShiftLeft||keys.ShiftRight,hu=handsUp;
   if(hu&&(ix||iy||keys.Space||mouse.down||touchFire||stick.id!==null&&(stick.x||stick.y)))handsUp=false;
   aimAssist(dt);
@@ -2938,6 +3105,8 @@ function drawMini(){
   const inView=(x,y)=>{const[px,py]=Pt(x,y);return Math.hypot(px-C,py-C)<RIM+6};
   // route line to the job
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[jx,jy]=edge(job.x,job.y);c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(jx,jy);c.stroke();c.setLineDash([]);c.globalAlpha=1}
+  // waypoint: GPS line along the road grid
+  if(waypoint&&!me.inside){const rt=wpRoute(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();rt.forEach(([x,y],i)=>{const[px,py]=Pt(x,y);if(i)c.lineTo(px,py);else c.moveTo(px,py)});c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // places
   c.font='700 13px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
   for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=2.5;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',px,py+1)}
@@ -2953,6 +3122,8 @@ function drawMini(){
   for(const b of stickies){if(!inView(b.x,b.y))continue;const[px,py]=Pt(b.x,b.y);c.fillStyle=Math.sin(time*10)>0?'#ff4b4b':'#5a1a1a';c.beginPath();c.arc(px,py,3.5,0,TAU);c.fill()}
   // job marker
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[px,py,e]=edge(job.x,job.y);c.fillStyle=col;c.beginPath();c.arc(px,py,e?7:9,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
+  // waypoint pin
+  if(waypoint&&!me.inside){const[px,py,e]=edge(waypoint.x,waypoint.y);c.fillStyle='#29e6d6';c.beginPath();c.arc(px,py,e?6:8,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
   // friends
   for(const r of remotes.values()){if(r.dead)continue;const[px,py,e]=edge(r.x,r.y);c.save();c.translate(px,py);c.rotate(r.a+rot);c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(9,0);c.lineTo(-6,6);c.lineTo(-6,-6);c.closePath();c.fill();c.stroke();c.restore()}
   // you
