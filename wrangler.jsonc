@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "palmetto-run",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-10-12",
+  "observability": {
+    "enabled": true
+  },
+  // The game files (built by npm run build). /ws is handled by the Worker instead.
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS"
+  },
+  // One shared lobby for everyone who opens the site.
+  "durable_objects": {
+    "bindings": [{ "name": "LOBBY", "class_name": "Lobby" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Lobby"] }]
+}

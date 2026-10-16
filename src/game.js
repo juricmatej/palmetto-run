@@ -890,13 +890,33 @@ $('bGun').addEventListener('pointerup',()=>{clearTimeout(gunHold);if(!gunHeld)cy
 
 // ---------- multiplayer (room presence) ----------
 let room=null,myPeer=null,netState='connecting',netWhy='';
+// Outside Claude (e.g. the Cloudflare site) the game joins one shared lobby over a WebSocket
+// at /ws (see worker/index.js). This object mimics the parts of Claude's room API the game uses.
+function wsRoom(url){
+  let ws=null,mine={},self=null,snap=Object.freeze([]),dirty=false;const others=new Map(),subs=[];
+  const rebuild=()=>{const list=[];if(self)list.push({peer:self,sameTab:true,isMe:true,kind:'viewer',guest:false,presence:mine});
+    for(const[peer,d]of others)list.push({peer,sameTab:false,isMe:false,kind:'viewer',guest:false,presence:d});
+    snap=Object.freeze(list);for(const f of subs)try{f({peers:snap,joined:[],left:[],updated:[]})}catch(e){}};
+  const send=()=>{if(ws&&ws.readyState===1)ws.send(JSON.stringify({t:'p',d:mine}))};
+  const connect=()=>{
+    try{ws=new WebSocket(url)}catch(e){setTimeout(connect,3000);return}
+    ws.onopen=()=>{netState='online';netWhy='';send()};
+    ws.onmessage=e=>{let m;try{m=JSON.parse(e.data)}catch(_){return}if(!m||typeof m!=='object')return;
+      if(m.t==='hello'){self=String(m.peer).slice(0,40);others.clear();for(const q of Array.isArray(m.peers)?m.peers:[])if(q&&q.peer&&q.d&&typeof q.d==='object')others.set(String(q.peer).slice(0,40),q.d);rebuild()}
+      else if(m.t==='p'&&m.peer&&m.d&&typeof m.d==='object'){others.set(String(m.peer).slice(0,40),m.d);dirty=true}
+      else if(m.t==='leave'&&m.peer){others.delete(String(m.peer));rebuild()}};
+    ws.onclose=()=>{self=null;others.clear();rebuild();if(netState==='online'){netState='connecting';netWhy=''}setTimeout(connect,3000)};
+    ws.onerror=()=>{netState='solo';netWhy='server offline'}};
+  connect();setInterval(()=>{if(dirty){dirty=false;rebuild()}},50);
+  return{peers:()=>snap,onPeers(f){subs.push(f);return()=>{}},presence(patch){for(const k in patch){if(patch[k]===null)delete mine[k];else mine[k]=patch[k]}send();return Promise.resolve()}}}
+const lobbyHost=/^https?:$/.test(location.protocol)&&!(/^(localhost|127\.0\.0\.1)$/.test(location.hostname)&&location.port!=='8787');
 const remotes=new Map();
 const num=(v,d=0)=>Number.isFinite(v)?v:d;
 const hex=(v,d='#ff3ea5')=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)?v:d;
 const str=v=>typeof v==='string'?v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g,'').slice(0,16):'';
 (async()=>{
   try{
-    if(!window.claude||typeof window.claude.use!=='function'){netState='solo';netWhy='no-viewer';return}
+    if(!window.claude||typeof window.claude.use!=='function'){if(lobbyHost){room=wsRoom((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');room.onPeers(ch=>{for(const p of ch.peers)if(p.sameTab)myPeer=p.peer})}else{netState='solo';netWhy='no-viewer'}return}
     room=await window.claude.use('room');
     if(!room){netState='solo';netWhy='not-admitted';return}
     netState='online';
@@ -1002,7 +1022,7 @@ function ui(dt){
   if(!t&&stickies.length&&state==='play')t=(isTouch?'BOOM':'G')+`: detonate ${stickies.length} sticky bomb${stickies.length>1?'s':''}`;
   h.hidden=!t;h.textContent=t;
   // net text on menu
-  if(state==='menu'){$('net').textContent=netState==='online'?`Live: ${Math.max(1,remotes.size+1)} in the city. Share this page's link so friends can join.`:netState==='solo'?'Solo mode: you are not connected. Friends need a Claude account, must be signed in, and must be invited to this page by email.':'Connecting to the city…'}
+  if(state==='menu'){$('net').textContent=netState==='online'?`Live: ${Math.max(1,remotes.size+1)} in the city. Share this page's link so friends can join.`:netState==='solo'?(window.claude?'Solo mode: you are not connected. Friends need a Claude account, must be signed in, and must be invited to this page by email.':'Solo mode: the multiplayer server is not reachable.'):'Connecting to the city…'}
 }
 
 // ---------- update ----------

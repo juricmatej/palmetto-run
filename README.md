@@ -10,8 +10,10 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 
 | Where | Multiplayer | How |
 |---|---|---|
+| Cloudflare (public site) | Yes, one shared lobby for everyone | https://palmetto-run.palleto.workers.dev (no account needed) |
 | Claude Artifact | Yes, everyone with the page open shares one city | Open the artifact link (must be signed in to Claude and have access) |
-| Locally | No (solo) | `npm run dev`, then open http://localhost:8080 |
+| Locally with the lobby | Yes | `npm run preview`, then open http://localhost:8787 in two tabs |
+| Locally, quick | No (solo) | `npm run dev`, then open http://localhost:8080 |
 | GitHub Pages | No (solo) | Enable Pages for this repo (see below) |
 
 ### Controls
@@ -54,6 +56,8 @@ src/
   game.js       The whole game (one IIFE)
 legacy/
   palmetto-run-2d.html   The original top-down 2D version (separate artifact)
+worker/
+  index.js      Cloudflare Worker: serves dist/ and runs the multiplayer lobby
 scripts/
   build.mjs     Inlines style.css and game.js into page.html
   check.mjs     Syntax check
@@ -76,7 +80,7 @@ The file is split into sections marked `// ---------- name ----------`. Search f
 | robberies, sticky bombs, blackjack, roulette, slots, Union Job | Activities |
 | jobs | Mission types (`newJob`, `jobStep`) |
 | input | Keyboard, mouse, pointer lock, touch |
-| multiplayer | Shared state over the artifact `room` capability (see below) |
+| multiplayer | Claude `room` inside the artifact, or `wsRoom()` (the Cloudflare lobby) elsewhere |
 | ui | HUD, hints, menus |
 | update | Main simulation step |
 | 3D scene, models | Three.js scene, procedural meshes, static batching (`staticBatch`) |
@@ -111,6 +115,17 @@ Only the artifact's owner, or someone the owner gave **edit** access to, can upd
 The `room` capability is what turns on multiplayer. Without it the artifact runs solo.
 
 **Playing with friends:** in the artifact's **Share** menu, invite each friend by email. Friends must be signed in to Claude. Visitors who arrive through a public link cannot join the shared room.
+
+## Host it on Cloudflare (free, with multiplayer)
+
+`worker/index.js` is a Cloudflare Worker that serves `dist/` and runs **one shared lobby** in a Durable Object at `/ws`. When the game is not running inside Claude, it connects there automatically (`wsRoom()` in `game.js`).
+
+```bash
+npx wrangler login   # once
+npm run deploy       # builds and deploys
+```
+
+`npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. The lobby holds up to 32 players.
 
 ## GitHub Pages (optional)
 
