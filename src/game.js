@@ -941,7 +941,7 @@ function bjRender(){
     btn('Double',()=>bjAct('double'),!ok||!pr,'','double');
     btn('Split',()=>bjAct('split'),!(ok&&h.c[0].r===h.c[1].r&&r.h.length<4&&pr),'','split');
     btn('Surrender',()=>bjAct('surr'),!(ok&&r.h.length===1&&!h.sp),'','surr')}
-  else if(ph==='done'){btn(`Same bet ${money(bj.last)}`,()=>{bj.bet=bj.last;bjDeal()},bj.last<BJMIN||bj.last>cash,'go');
+  else if(ph==='done'){btn(`Same bet ${money(bj.last)}`,()=>{bj.ph='bet';bj.bet=bj.last;bjDeal()},bj.last<BJMIN||bj.last>cash,'go');
     btn('Change bet',()=>{bj.ph='bet';bj.bet=0;bj.r=null;bj.open=0;bj.msg='Place your bet.';bjRender()})}
 }
 function bjChip(v,b){if(bj.ph!=='bet')return;const f=b.getBoundingClientRect();bj.bet+=v;bjRender();
@@ -1056,7 +1056,7 @@ const RO_CELL={};
  N.addEventListener('contextmenu',e=>{e.preventDefault();const k=roPick(e);if(k)roPull(k)});
  N.addEventListener('pointermove',e=>{const k=roPick(e),h=$('rHov');h.hidden=!k;if(k){h.style.left=RO_ANC[k][0]/13*100+'%';h.style.top=RO_ANC[k][1]/3*100+'%'}});
  N.addEventListener('pointerleave',()=>{$('rHov').hidden=true});
- const outBtn=(parent,k,l,cls)=>{const b=document.createElement('button');b.type='button';b.className='ob '+(cls||'');b.textContent=l;b.onclick=()=>roBet(k);parent.appendChild(b);ro.ob[k]=b};
+ const outBtn=(parent,k,l,cls)=>{const b=document.createElement('button');b.type='button';b.className='ob '+(cls||'');b.textContent=l;b.onclick=()=>roBet(k);b.oncontextmenu=e=>{e.preventDefault();roPull(k)};parent.appendChild(b);ro.ob[k]=b};
  for(const[k,l,c]of[['red','Red','r'],['black','Black','k'],['odd','Odd',''],['even','Even',''],['low','1–18',''],['high','19–36','']])outBtn($('rOut'),k,l,c);
  for(const[k,l]of[['d1','1st 12'],['d2','2nd 12'],['d3','3rd 12']])outBtn($('rDoz'),k,l);
  for(const[k,l]of[['c3','2:1'],['c2','2:1'],['c1','2:1']])outBtn($('rCols'),k,l)}
@@ -1067,7 +1067,7 @@ function roBet(k){if(ro.spinning||ro.sw)return;if(me.cash<ro.chip){ro.msg='Not e
 // right-click takes the selected chip value back from a spot
 function roPull(k){if(ro.spinning||ro.sw||!ro.bets[k])return;const a=Math.min(ro.chip,ro.bets[k]);ro.bets[k]-=a;me.cash+=a;if(!ro.bets[k])delete ro.bets[k];noise(.03,4000,.05);renderRoul()}
 function roClear(){if(ro.spinning||ro.sw)return;for(const k in ro.bets)me.cash+=ro.bets[k];ro.bets={};renderRoul()}
-function roRebet(){if(!ro.lastBets||ro.spinning||ro.sw)return;const tot=Object.values(ro.lastBets).reduce((a,b)=>a+b,0);if(tot>me.cash){ro.msg='Not enough cash to repeat.';renderRoul();return}me.cash-=tot;ro.bets={...ro.lastBets};renderRoul()}
+function roRebet(){if(!ro.lastBets||ro.spinning||ro.sw)return;roClear();const tot=Object.values(ro.lastBets).reduce((a,b)=>a+b,0);if(tot>me.cash){ro.msg='Not enough cash to repeat.';renderRoul();return}me.cash-=tot;ro.bets={...ro.lastBets};renderRoul()}
 function roDouble(){if(ro.spinning||ro.sw)return;const tot=roTotal();if(!tot)return;if(tot*2>RO_MAX){ro.msg='Table limit is $10,000 a spin.';renderRoul();return}if(tot>me.cash){ro.msg='Not enough cash to double.';renderRoul();return}me.cash-=tot;for(const k in ro.bets)ro.bets[k]*=2;renderRoul()}
 function roSpin(){if(ro.spinning)return;if(!roTotal()){ro.msg='Place a bet first.';renderRoul();return}
   ro.spinning=true;ro.lastBets={...ro.bets};ro.msg='No more bets...';renderRoul();noise(1.4,900,.08);
@@ -1078,7 +1078,7 @@ function roSpin(){if(ro.spinning)return;if(!roTotal()){ro.msg='Place a bet first
 function roDone(n){
   const tot=roTotal(),pay=roPay(ro.bets,n),net=pay-tot;
   ro.hist.unshift(n);if(ro.hist.length>100)ro.hist.length=100;
-  ro.sw=1;const cell=RO_CELL[n];cell.classList.add('hit');setTimeout(()=>cell.classList.remove('hit'),2400);
+  ro.sw=1;const cell=RO_CELL[n];cell.classList.add('hit');
   // losing chips slide into the dealer's rake, winning chips glow
   const rk=$('rRake').getBoundingClientRect();
   for(const el of $('rBoard').querySelectorAll('.stk[data-k]')){
@@ -1089,7 +1089,7 @@ function roDone(n){
   countUp($('rCash'),before,me.cash,900,v=>'Cash '+money(v));
   ro.msg=`${n} ${n===0?'green':REDS.has(n)?'red':'black'}. `+(net>0?`You win ${money(net)}!`:net===0?'You break even.':`You lose ${money(-net)}.`);
   $('rMsg').textContent=ro.msg;
-  setTimeout(()=>{ro.bets={};ro.spinning=false;ro.sw=0;renderRoul()},1300)}
+  setTimeout(()=>{cell.classList.remove('hit');ro.bets={};ro.spinning=false;ro.sw=0;renderRoul()},1300)}
 // chip stacks for the current bets: inside bets on their anchor, outside bets on their button
 function roChips(){const ov=$('rOvl');ov.replaceChildren();
   for(const k in ro.ob)ro.ob[k].querySelectorAll('.stk').forEach(s=>s.remove());
@@ -1563,7 +1563,7 @@ const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
 addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;keys[e.code]=true;
-  if(state==='menu')return;
+  if(state==='menu'||state==='shop')return;
   if(e.code==='Escape'&&lap){endLap();return}
   if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyE'||e.code==='KeyF'){if(!e.repeat)toggleCar()}

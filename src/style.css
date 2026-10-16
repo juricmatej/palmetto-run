@@ -112,7 +112,7 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .hand{--cw:56px;display:flex;justify-content:center;align-items:center;min-height:calc(var(--cw)*1.42 + 4px)}
 .hand.n2{--cw:52px}.hand.n3{--cw:46px}.hand.n4{--cw:40px}
 .pc{position:relative;flex:none;width:var(--cw);height:calc(var(--cw)*1.42);perspective:700px}
-.pc+.pc{margin-left:calc(var(--cw)*-.55)}
+.pc+.pc{margin-left:calc(var(--cw)*-.6)}
 .pi{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .55s cubic-bezier(.3,.7,.3,1)}
 .pi.fd{transform:rotateY(180deg)}
 .face,.bk{position:absolute;inset:0;border-radius:7px;backface-visibility:hidden;-webkit-backface-visibility:hidden;box-shadow:0 4px 8px rgba(0,0,0,.45)}
