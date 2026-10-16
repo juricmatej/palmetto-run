@@ -2077,7 +2077,7 @@ function phoneStep(dt){
   if(waypoint&&waypoint.peer){const r=remotes.get(waypoint.peer);if(r){waypoint.x=r.x;waypoint.y=r.y}else{waypoint=null;feed('Lost sight of them. Waypoint cleared')}}
   if(waypoint&&Math.hypot(waypoint.x-A.x,waypoint.y-A.y)<40){waypoint=null;feed('Waypoint reached')}
   if(waypoint&&!wpGroup)wpBuild();
-  if(wpGroup){wpGroup.visible=!!waypoint&&state==='play'&&!me.inside;if(waypoint)wpGroup.position.set(waypoint.x,0,waypoint.y)}
+  if(wpGroup){wpGroup.visible=!!waypoint&&state==='play'&&!me.inside;if(waypoint)wpGroup.position.set(waypoint.x,groundZ(waypoint.x,waypoint.y),waypoint.y)}
   if(phEyes>0)phEyes-=dt;
   phWarn.hidden=!(phoneOpen&&phEyes>0);
   const tabOn=state==='play'&&!phoneOpen;if(tabOn!==phTabOn){phTabOn=tabOn;phTab.hidden=!tabOn}
