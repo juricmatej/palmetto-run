@@ -1,8 +1,8 @@
 // Plays the built game in headless Chrome and reports every console error and uncaught exception.
-//   node scripts/smoke.mjs [--secs 8] [--keys "KeyW*2,KeyE,wait*1"] [--eval "js"] [--shot out.png] [--size 1280x800]
+//   node scripts/smoke.mjs [--secs 8] [--pre "js"] [--keys "KeyW*2,KeyE,wait*1"] [--eval "js"] [--shot out.png] [--size 1280x800]
 // --keys runs left to right after the start screen: Code*seconds holds a key (KeyW, Space, ShiftLeft...),
 // a bare Code taps it, click*seconds holds the left mouse button on the canvas, wait*seconds idles.
-// The page loads with ?debug, so --eval can read window.__pr (see the boot section of game.js).
+// The page loads with ?debug, so --pre (runs right after the start screen) and --eval (runs at the end) can use window.__pr.
 // Exits 1 if anything was logged as an error. Needs Node 22+ and Google Chrome.
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const { values: o } = parseArgs({ options: {
-  secs: { type: 'string', default: '8' }, keys: { type: 'string', default: '' }, eval: { type: 'string', multiple: true, default: [] },
+  secs: { type: 'string', default: '8' }, pre: { type: 'string', multiple: true, default: [] }, keys: { type: 'string', default: '' }, eval: { type: 'string', multiple: true, default: [] },
   shot: { type: 'string' }, size: { type: 'string', default: '1280x800' }, 'no-build': { type: 'boolean' },
 } });
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -58,6 +58,7 @@ await sleep(4);
 console.log('start screen:', await js(`!document.getElementById('start').hidden`));
 await js(`document.getElementById('startForm').requestSubmit(), 'ok'`);
 await sleep(1);
+for (const e of o.pre) console.log(`pre ${e} =>`, JSON.stringify(await js(e)));
 const key = (type, code) => cdp('Input.dispatchKeyEvent', { type, code, key: code.replace(/^Key|^Digit/, ''), windowsVirtualKeyCode: 0 });
 const mouse = (type) => cdp('Input.dispatchMouseEvent', { type, x: w / 2, y: h / 2, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: 1 });
 let spent = 0;
