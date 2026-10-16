@@ -76,22 +76,43 @@
   <button class="b go" type="button" data-close>Back to the street</button></div></div>
 <div id="bj" hidden>
   <div class="card" role="dialog" aria-label="Blackjack">
-    <h2>Blackjack</h2>
-    <p class="tag" style="margin:0;color:#cfe9da">Dealer stands on 17. Blackjack pays 3 to 2. Cash <b id="bjCash" style="color:var(--gold)"></b></p>
-    <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
-    <div class="bjrow"><span class="bjl">You<b id="bjPv"></b></span><div class="hand" id="bjP"></div></div>
-    <div id="bjMsg"></div>
+    <div class="bjtop"><h2>Blackjack</h2><div class="shoe" id="bjShoe"><span id="bjLeft"></span></div></div>
+    <p class="tag bjtag">Dealer stands on 17. Blackjack pays 3 to 2. Insurance pays 2 to 1. Cash <b id="bjCash"></b></p>
+    <div class="felt">
+      <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
+      <div class="rack" id="bjRack"></div>
+      <div id="bjMsg"></div>
+      <div class="bjHands" id="bjP"></div>
+    </div>
+    <div class="bjbar"><span id="bjHint"></span><button id="bjHintT" type="button">Hints off</button></div>
     <div id="bjBtns"></div>
     <button id="bjClose" type="button">Leave the table</button>
   </div>
 </div>
-<div id="roul" class="gm" hidden><div class="card" role="dialog" aria-label="Roulette">
-  <h2 style="color:var(--gold)">Roulette</h2>
-  <div class="row" style="gap:14px;align-items:flex-start"><div id="rwheelWrap"><canvas id="rwheel" width="400" height="400"></canvas></div>
-  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div class="msg" id="rMsg"></div><div class="row" id="rHist"></div><div class="row" id="rChips"></div></div></div>
-  <button class="rz" id="rZero" type="button">0</button><div class="rgrid" id="rGrid"></div>
-  <div class="row" id="rOut"></div><div class="row" id="rAct"></div>
-  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="roul" class="gm" hidden><div class="card rcard" role="dialog" aria-label="Roulette">
+  <div class="rtop">
+    <div id="rwheelWrap"><canvas id="rwheel" width="400" height="400"></canvas></div>
+    <div class="rside">
+      <div class="msg" id="rMsg"></div>
+      <div id="rCash"></div>
+      <div class="rlim">Table: $10 to $10,000 a spin</div>
+      <div class="row" id="rHist"></div>
+      <div class="rhot" id="rHot"></div>
+    </div>
+  </div>
+  <div class="rbrd" id="rBoard">
+    <div class="rnw">
+      <div class="rnums" id="rNums"><div class="cell g" id="rZero">0</div><div class="rovl" id="rOvl"></div><div class="rhov" id="rHov" hidden></div></div>
+      <div class="rcols" id="rCols"></div>
+    </div>
+    <div class="rdoz" id="rDoz"></div>
+    <div class="rout" id="rOut"></div>
+    <div class="rrake" id="rRake"></div>
+  </div>
+  <div class="row rchips" id="rChips"></div>
+  <div class="row" id="rAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button>
+</div></div>
 <div id="slots" class="gm" hidden><div class="card" role="dialog" aria-label="Candy Cascade slots">
   <h2 style="color:#fff;text-shadow:0 3px 0 #7b1f55">Candy Cascade</h2>
   <p class="tag" style="margin:0;color:#fff">8 or more of the same candy anywhere pays. Wins tumble away and new candy drops in. 4 lollipops start 10 free spins, 3 more add 5. Or buy the feature for 45 bets.</p>

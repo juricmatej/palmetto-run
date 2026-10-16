@@ -895,47 +895,155 @@ function detonate(){if(!stickies.length||state==='menu')return;const pts=[];for(
 
 // ---------- blackjack ----------
 const SUITS=['♠','♥','♦','♣'],RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
-const bj={shoe:[],p:[],d:[],bet:0,last:0,phase:'bet',msg:'Place your bet.'};
-function bjShoe(){bj.shoe=[];for(let n=0;n<6;n++)for(const su of SUITS)for(const r of RANKS)bj.shoe.push([r,su]);for(let i=bj.shoe.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));const t=bj.shoe[i];bj.shoe[i]=bj.shoe[j];bj.shoe[j]=t}}
-function bjDraw(){if(bj.shoe.length<80)bjShoe();noise(.05,6000,.08);return bj.shoe.pop()}
-function bjVal(h){let v=0,a=0;for(const[r]of h){if(r==='A'){a++;v+=11}else v+=(r==='J'||r==='Q'||r==='K')?10:+r}while(v>21&&a){v-=10;a--}return v}
-const bjNat=h=>h.length===2&&bjVal(h)===21;
-function bjDeal(){const b=bj.bet;if(b<=0||b>me.cash)return;me.cash-=b;bj.last=b;bj.p=[bjDraw(),bjDraw()];bj.d=[bjDraw(),bjDraw()];bj.phase='play';bj.msg='Hit or stand?';
-  if(bjNat(bj.p)||bjNat(bj.d))bjSettle();else renderBJ()}
-function bjHit(){if(bj.phase!=='play')return;bj.p.push(bjDraw());const v=bjVal(bj.p);if(v>21)bjSettle();else if(v===21)bjStand();else renderBJ()}
-function bjStand(){if(bj.phase!=='play')return;while(bjVal(bj.d)<17)bj.d.push(bjDraw());bjSettle()}
-function bjDouble(){if(bj.phase!=='play'||bj.p.length!==2||me.cash<bj.bet)return;me.cash-=bj.bet;bj.bet*=2;bj.p.push(bjDraw());if(bjVal(bj.p)>21)bjSettle();else bjStand()}
-function bjSettle(){
-  const pv=bjVal(bj.p),dv=bjVal(bj.d),pn=bjNat(bj.p),dn=bjNat(bj.d);let win=0,msg;
-  if(pn&&!dn){win=Math.floor(bj.bet*2.5);msg='Blackjack!'}
-  else if(dn&&!pn)msg='Dealer has blackjack.';
-  else if(pn&&dn){win=bj.bet;msg='Push.'}
-  else if(pv>21)msg='Bust.';
-  else if(dv>21){win=bj.bet*2;msg='Dealer busts. You win!'}
-  else if(pv>dv){win=bj.bet*2;msg='You win!'}
-  else if(pv===dv){win=bj.bet;msg='Push.'}
-  else msg='Dealer wins.';
-  me.cash+=win;const net=win-bj.bet;bj.msg=msg+(net>0?` +$${net}`:net<0?` -$${-net}`:'');bj.phase='done';
-  if(net>0){noise(.3,6000,.2);if(net>=500)feed(`Big win at blackjack: +$${net}`)}
-  saveArsenal();bj.bet=bj.last;renderBJ();
+const BJMIN=10,BJMAX=5000,BJCUT=234,BJN={hit:'Hit',stand:'Stand',double:'Double',split:'Split',surr:'Surrender'};
+// Basic strategy: dealer stands on all 17s, double on any two cards, split up to 3 times, late surrender.
+// Columns are dealer upcards 2..A. H hit, S stand, D double else hit, d double else stand, R surrender else hit, P split.
+const BJHARD={9:'HDDDDHHHHH',10:'DDDDDDDDHH',11:'DDDDDDDDDH',12:'HHSSSHHHHH',13:'SSSSSHHHHH',14:'SSSSSHHHHH',15:'SSSSSHHHRH',16:'SSSSSHHRRR'};
+const BJSOFT={2:'HHHDDHHHHH',3:'HHHDDHHHHH',4:'HHDDDHHHHH',5:'HHDDDHHHHH',6:'HDDDDHHHHH',7:'dDDDDSSHHH',8:'SSSSSSSSSS',9:'SSSSSSSSSS'};
+const BJPAIR={11:'PPPPPPPPPP',10:'SSSSSSSSSS',9:'PPPPPSPPSS',8:'PPPPPPPPPP',7:'PPPPPPHHHH',6:'PPPPPHHHHH',4:'HHHPPHHHHH',3:'PPPPPPHHHH',2:'PPPPPPHHHH'};
+const PIPS={2:[[50,20],[50,80]],3:[[50,20],[50,50],[50,80]],4:[[30,20],[70,20],[30,80],[70,80]],5:[[30,20],[70,20],[50,50],[30,80],[70,80]],6:[[30,20],[70,20],[30,50],[70,50],[30,80],[70,80]],7:[[30,20],[70,20],[50,35],[30,50],[70,50],[30,80],[70,80]],8:[[30,20],[70,20],[50,35],[30,50],[70,50],[50,65],[30,80],[70,80]],9:[[30,17],[70,17],[30,39],[70,39],[50,50],[30,61],[70,61],[30,83],[70,83]],10:[[30,17],[70,17],[50,28],[30,39],[70,39],[30,61],[70,61],[50,72],[30,83],[70,83]]};
+const money=v=>'$'+Math.round(v).toLocaleString('en-US');
+const wait=ms=>new Promise(r=>setTimeout(r,reduced?0:ms));
+function countUp(el,a,b,ms,fmt){return new Promise(res=>{const t0=performance.now(),f=t=>{const k=reduced?1:Math.min(1,(t-t0)/ms);el.textContent=(fmt||money)(a+(b-a)*(1-(1-k)**3));if(k<1)requestAnimationFrame(f);else res()};requestAnimationFrame(f)})}
+// chips and chip stacks; fly() slides an element from rect a to rect b
+function chipEl(v,i){const c=document.createElement('i');c.className='cx c'+v;if(i!=null)c.style.bottom=i*4+'px';return c}
+function chipStack(a){const s=document.createElement('div');s.className='stk';let i=0;for(const v of[1000,500,100,50,10])while(a>=v&&i<12){s.appendChild(chipEl(v,i++));a-=v}return s}
+function fly(el,a,b,ms,delay){return el.animate([{transform:'translate(0,0)'},{transform:`translate(${b.left-a.left}px,${b.top-a.top}px)`}],{duration:ms,delay:delay||0,easing:'cubic-bezier(.45,0,.2,1)',fill:'forwards'})}
+// shoe and hand maths. Cards are {r, su}. Shared by the table and bjSim.
+function bjNewShoe(){const c=[];for(let k=0;k<6;k++)for(const su of SUITS)for(const r of RANKS)c.push({r,su});for(let i=c.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[c[i],c[j]]=[c[j],c[i]]}return{c,used:0}}
+const bjTake=sh=>(sh.used++,sh.c.pop());
+const bjPip=c=>c.r==='A'?11:'JQK'.includes(c.r)?10:+c.r;
+function bjVal(cs){let v=0,a=0;for(const c of cs){v+=bjPip(c);if(c.r==='A')a++}while(v>21&&a){v-=10;a--}return v}
+const bjHard=cs=>cs.reduce((s,c)=>s+(c.r==='A'?1:bjPip(c)),0);
+const bjNat=cs=>cs.length===2&&bjVal(cs)===21;
+const bjUp=c=>c.r==='A'?9:bjPip(c)===10?8:bjPip(c)-2;
+// action for hand h against upcard index ui: hit, stand, double, split or surr
+function bjStrat(h,ui,r){const cs=h.c,two=cs.length===2,hard=bjHard(cs);let t;
+  if(two&&cs[0].r===cs[1].r&&r.h.length<4)t=(BJPAIR[bjPip(cs[0])]||'')[ui];
+  if(!t){const soft=hard+10<21&&hard>=3&&cs.some(c=>c.r==='A');t=soft?BJSOFT[hard-1][ui]:hard>=17?'S':hard<=8?'H':BJHARD[hard][ui]}
+  return{H:'hit',S:'stand',D:two?'double':'hit',d:two?'double':'stand',R:two&&r.h.length===1?'surr':'hit',P:'split'}[t]}
+// a round: r.h hands {c, bet, sp, done, surr, win, res}, r.i active hand, r.d dealer cards, r.ins insurance, r.stake money in, r.back money out
+function bjNewRound(bet,draw){const h={c:[],bet,sp:0,done:0,surr:0,win:0,res:''};const r={h:[h],i:0,d:[],ins:0,stake:bet,back:0};h.c.push(draw());r.d.push(draw());h.c.push(draw());r.d.push(draw());return r}
+const bjChk=h=>{if(bjVal(h.c)>=21)h.done=1};
+function bjHit(r,draw){const h=r.h[r.i];h.c.push(draw());bjChk(h)}
+function bjDbl(r,draw){const h=r.h[r.i];r.stake+=h.bet;h.bet*=2;h.c.push(draw());h.done=1}
+function bjSplit(r,draw){const h=r.h[r.i],ace=h.c[0].r==='A',n={c:[h.c.pop()],bet:h.bet,sp:1,done:0,surr:0,win:0,res:''};
+  h.sp=1;r.h.splice(r.i+1,0,n);r.stake+=h.bet;h.c.push(draw());n.c.push(draw());if(ace)h.done=n.done=1;bjChk(h);bjChk(n)}
+function bjSurr(r){const h=r.h[r.i];h.surr=1;h.done=1}
+function bjStand(r){r.h[r.i].done=1}
+function bjNext(r){for(;r.i<r.h.length;r.i++)if(!r.h[r.i].done)return true;return false}
+function bjDealer(r,draw){if(r.h.length===1&&bjNat(r.h[0].c)||!r.h.some(h=>!h.surr&&bjVal(h.c)<=21))return;while(bjVal(r.d)<17)r.d.push(draw())}
+// sets h.win and h.res for each hand, adds insurance, returns total money back
+function bjPay(r){const dv=bjVal(r.d),dn=bjNat(r.d),one=r.h.length===1;let back=dn?r.ins*3:0;
+  for(const h of r.h){const pv=bjVal(h.c),pn=one&&bjNat(h.c),b=h.bet;let k,t;
+    if(h.surr){k=.5;t='Surrender'}
+    else if(pv>21){k=0;t='Bust'}
+    else if(pn&&dn){k=1;t='Push'}
+    else if(pn){k=2.5;t='Blackjack'}
+    else if(dn){k=0;t='Dealer blackjack'}
+    else if(dv>21||pv>dv){k=2;t='Win'}
+    else if(pv===dv){k=1;t='Push'}
+    else{k=0;t='Lose'}
+    h.win=k*b;h.res=t;back+=h.win}
+  r.back=back;return back}
+// bjSim(n): n hands of basic strategy, no animation. Returns the player's return (money back / money staked).
+function bjSim(n){let sh=bjNewShoe(),st=0,bk=0;const draw=()=>bjTake(sh);
+  for(let k=0;k<n;k++){if(sh.used>=BJCUT)sh=bjNewShoe();const r=bjNewRound(BJMIN,draw);
+    if(!(r.h.length===1&&bjNat(r.h[0].c))&&!bjNat(r.d))
+      while(bjNext(r)){const a=bjStrat(r.h[r.i],bjUp(r.d[0]),r);
+        if(a==='hit')bjHit(r,draw);else if(a==='stand')bjStand(r);else if(a==='double')bjDbl(r,draw);else if(a==='split')bjSplit(r,draw);else bjSurr(r)}
+    bjDealer(r,draw);st+=r.stake;bk+=bjPay(r)}
+  return bk/st}
+// table state. ph: bet, ins (insurance offer), play, reveal, done
+const bj={sh:bjNewShoe(),r:null,ph:'bet',bet:0,last:0,msg:'Place your bet.',busy:0,open:0,hint:0,counting:0,n:0,seen:new WeakSet()};
+function bjDraw(){noise(.05,6000,.08);const c=bjTake(bj.sh);c.n=++bj.n;return c}
+function bjFaceHTML(c){const tl=`<i class=ix>${c.r}<b>${c.su}</b></i>`,br=`<i class="ix bt">${c.r}<b>${c.su}</b></i>`;
+  if('JQK'.includes(c.r))return tl+br+`<em class=fc>${c.r}</em><em class=fs>${c.su}</em>`;
+  if(c.r==='A')return tl+br+`<em class=pa>${c.su}</em>`;
+  return tl+br+PIPS[bjPip(c)].map(([x,y])=>`<em class="p${y>50?' u':''}" style="left:${x}%;top:${y}%">${c.su}</em>`).join('')}
+function bjCard(c,down){const e=document.createElement('div');e.className='pc';const red=c.su==='♥'||c.su==='♦';
+  e.innerHTML=`<div class="pi${down?' fd':''}"><div class="face${red?' red':''}">${bjFaceHTML(c)}</div><div class="bk"></div></div>`;return e}
+function bjShow(c,down){const e=bjCard(c,down);if(!bj.seen.has(c)){bj.seen.add(c);e.dataset.new=c.n||0}return e}
+// new cards fly from the shoe, in the order they were drawn
+function bjFlyIn(){const s=$('bjShoe').getBoundingClientRect(),sx=s.left+s.width/2,sy=s.top+s.height/2;
+  const nw=[...$('bj').querySelectorAll('[data-new]')].sort((a,b)=>a.dataset.new-b.dataset.new);
+  nw.forEach((el,i)=>{el.removeAttribute('data-new');const r=el.getBoundingClientRect(),dx=sx-(r.left+r.width/2),dy=sy-(r.top+r.height/2);
+    el.animate([{transform:`translate(${dx}px,${dy}px) rotate(-10deg) scale(.8)`,opacity:0},{transform:'none',opacity:1}],{duration:480,delay:reduced?0:i*180,easing:'cubic-bezier(.2,.8,.2,1)',fill:'backwards'})})}
+function bjHandEl(h,i,n){const b=document.createElement('div');b.className='bjHand'+(h&&bj.ph==='play'&&bj.r.i===i?' act':'');
+  const hd=document.createElement('div');hd.className='hand n'+(n>=4?4:n);if(h)h.c.forEach(c=>hd.appendChild(bjShow(c,false)));
+  const tot=document.createElement('b');tot.className='bjTot';if(h&&h.c.length){const v=bjVal(h.c);tot.textContent=v>21?'Bust':v}
+  const sp=document.createElement('div');sp.className='bjSpot';sp.dataset.t=h?'':'Bet here';const amt=h?h.bet:bj.bet;if(amt)sp.appendChild(chipStack(amt));
+  const rs=document.createElement('div');rs.className='bjRes';
+  if(h&&h.res){const net=h.win-h.bet;rs.textContent=h.res+(net>0?' +'+money(net):net<0?' -'+money(-net):'');if(net)rs.classList.add(net>0?'win':'lose')}
+  if(h)b.append(hd);b.append(tot,sp,rs);return b}
+function bjRender(){
+  const ph=bj.ph,r=ph==='bet'?null:bj.r,hide=!bj.open&&(ph==='play'||ph==='ins'||ph==='reveal');
+  if(!bj.counting)$('bjCash').textContent=money(me.cash);
+  $('bjLeft').textContent=bj.sh.used>=BJCUT?'Cut card out, reshuffle next hand':`${BJCUT-bj.sh.used} cards to the cut`;
+  $('bjShoe').classList.toggle('cut',bj.sh.used>=BJCUT);
+  const D=$('bjD');D.replaceChildren();if(r)r.d.forEach((c,i)=>D.appendChild(bjShow(c,hide&&i===1)));
+  $('bjDv').textContent=!r?'':hide?String(bjVal([r.d[0]])):String(bjVal(r.d));
+  const P=$('bjP');P.replaceChildren();if(!r)P.appendChild(bjHandEl(null,0,0));else r.h.forEach((h,i)=>P.appendChild(bjHandEl(h,i,r.h.length)));
+  bjFlyIn();
+  const act=ph==='play'&&!bj.busy?r.h[r.i]:null,hintA=bj.hint&&act?bjStrat(act,bjUp(r.d[0]),r):'';
+  $('bjHint').textContent=hintA?`Basic strategy: ${BJN[hintA]}`:'';
+  $('bjHintT').textContent=bj.hint?'Hints on':'Hints off';
+  $('bjMsg').textContent=bj.msg;
+  const Bt=$('bjBtns');Bt.replaceChildren();const cash=me.cash;
+  const btn=(t,fn,dis,cls,a)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=!!dis||!!bj.busy;if(cls)b.className=cls;if(a){b.dataset.a=a;if(a===hintA)b.classList.add('hint')}b.onclick=()=>fn(b);Bt.appendChild(b);return b};
+  if(ph==='bet'){for(const v of[10,50,100,500])btn('+$'+v,b=>bjChip(v,b),bj.bet+v>Math.min(BJMAX,cash),'chip');btn('Clear',()=>{bj.bet=0;bjRender()},!bj.bet);btn(`Deal ${money(bj.bet)}`,bjDeal,bj.bet<BJMIN||bj.bet>cash,'go')}
+  else if(ph==='ins'){const a=Math.floor(r.h[0].bet/2);btn(`Insurance ${money(a)}`,()=>bjIns(1),a>cash,'chip');btn('No insurance',()=>bjIns(0))}
+  else if(ph==='play'){const h=r.h[r.i],ok=h.c.length===2,pr=cash>=h.bet;
+    btn('Hit',()=>bjAct('hit'),false,'go','hit');btn('Stand',()=>bjAct('stand'),false,'','stand');
+    btn('Double',()=>bjAct('double'),!ok||!pr,'','double');
+    btn('Split',()=>bjAct('split'),!(ok&&h.c[0].r===h.c[1].r&&r.h.length<4&&pr),'','split');
+    btn('Surrender',()=>bjAct('surr'),!(ok&&r.h.length===1&&!h.sp),'','surr')}
+  else if(ph==='done'){btn(`Same bet ${money(bj.last)}`,()=>{bj.ph='bet';bj.bet=bj.last;bjDeal()},bj.last<BJMIN||bj.last>cash,'go');
+    btn('Change bet',()=>{bj.ph='bet';bj.bet=0;bj.r=null;bj.open=0;bj.msg='Place your bet.';bjRender()})}
 }
-function cardEl(c,hidden){const e=document.createElement('div');e.className='pc'+(hidden?' back':(c[1]==='♥'||c[1]==='♦'?' red':''));
-  if(!hidden){const a=document.createElement('span');a.textContent=c[0];const b=document.createElement('span');b.textContent=c[1];b.style.alignSelf='flex-end';b.style.fontSize='20px';e.append(a,b)}return e}
-function renderBJ(){
-  $('bjCash').textContent='$'+me.cash.toLocaleString('en-US');
-  const hide=bj.phase==='play';
-  $('bjD').replaceChildren(...bj.d.map((c,i)=>cardEl(c,hide&&i===1)));$('bjP').replaceChildren(...bj.p.map(c=>cardEl(c,false)));
-  $('bjDv').textContent=bj.d.length?String(hide?bjVal([bj.d[0]]):bjVal(bj.d)):'';$('bjPv').textContent=bj.p.length?String(bjVal(bj.p)):'';
-  $('bjMsg').textContent=bj.phase==='bet'?(bj.bet?`Bet: $${bj.bet}`:'Place your bet.'):bj.msg;
-  const Bt=$('bjBtns');Bt.replaceChildren();
-  const btn=(t,fn,dis,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=!!dis;if(cls)b.className=cls;b.onclick=fn;Bt.appendChild(b)};
-  if(bj.phase==='bet'){for(const v of[10,50,100,500])btn('+$'+v,()=>{bj.bet+=v;renderBJ()},bj.bet+v>me.cash,'chip');btn('Clear',()=>{bj.bet=0;renderBJ()},!bj.bet);btn(`Deal $${bj.bet}`,bjDeal,!bj.bet||bj.bet>me.cash,'go')}
-  else if(bj.phase==='play'){btn('Hit',bjHit,false,'go');btn('Stand',bjStand);btn('Double',bjDouble,bj.p.length!==2||me.cash<bj.bet)}
-  else{btn(`Same bet $${bj.bet}`,bjDeal,!bj.bet||bj.bet>me.cash,'go');btn('Change bet',()=>{bj.phase='bet';bj.bet=0;bj.p=[];bj.d=[];renderBJ()})}
-}
-function openBJ(){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';if(bj.phase==='bet')bj.bet=Math.min(bj.bet,me.cash);$('bj').hidden=false;renderBJ()}
-function bjLeave(){if(bj.phase==='play')bjStand()}
+function bjChip(v,b){if(bj.ph!=='bet')return;const f=b.getBoundingClientRect();bj.bet+=v;bjRender();
+  const s=$('bjP').querySelector('.bjSpot');if(!s)return;const t=s.getBoundingClientRect(),el=chipEl(v);
+  el.style.cssText=`position:fixed;z-index:9;left:${f.left}px;top:${f.top}px`;document.body.append(el);fly(el,f,t,320).onfinish=()=>el.remove();noise(.04,6000,.06)}
+async function bjDeal(){
+  if(bj.ph!=='bet'||bj.busy||bj.bet<BJMIN||bj.bet>BJMAX||bj.bet>me.cash)return;
+  if(bj.sh.used>=BJCUT)bj.sh=bjNewShoe();
+  bj.busy=1;me.cash-=bj.bet;bj.last=bj.bet;bj.open=0;bj.r=bjNewRound(bj.bet,bjDraw);bj.ph='play';bj.msg='';
+  if(bj.r.d[0].r==='A'){bj.ph='ins';bj.msg='Dealer shows an ace. Insurance pays 2 to 1.'}
+  bjRender();await wait(1000);bj.busy=0;
+  if(bj.ph==='ins'){bjRender();return}
+  if(bj.ph!=='play')return;
+  if(bjNat(bj.r.d)||bjNat(bj.r.h[0].c))await bjSettle();else bjRender()}
+async function bjIns(take){if(bj.ph!=='ins')return;const r=bj.r,a=Math.floor(r.h[0].bet/2);
+  if(take&&a<=me.cash){me.cash-=a;r.ins=a;r.stake+=a}
+  bj.ph='play';bj.msg=r.ins?'Insurance bought.':'No insurance.';
+  if(bjNat(r.d)||bjNat(r.h[0].c)){await bjSettle();return}
+  bjRender()}
+async function bjAct(a){if(bj.ph!=='play'||bj.busy)return;const r=bj.r,s0=r.stake;
+  if(a==='hit')bjHit(r,bjDraw);else if(a==='stand')bjStand(r);else if(a==='double')bjDbl(r,bjDraw);else if(a==='split')bjSplit(r,bjDraw);else bjSurr(r);
+  me.cash-=r.stake-s0;noise(.05,6000,.07);bj.busy=1;bjRender();await wait(520);bj.busy=0;
+  if(bj.ph!=='play')return;
+  if(bjNext(r))bjRender();else await bjSettle()}
+// the dealer turns the hole card, draws, then pays out
+async function bjSettle(){if(bj.ph==='reveal'||bj.ph==='done')return;const r=bj.r;bj.ph='reveal';bj.busy=1;bjRender();
+  await wait(350);bj.open=1;$('bjD').querySelector('.pi.fd')?.classList.remove('fd');
+  await wait(600);bjDealer(r,bjDraw);bjRender();await wait(900);
+  const back=bjPay(r),net=back-r.stake;me.cash+=back;bj.ph='done';bj.busy=1;bj.counting=1;
+  bjRender();bjFlights(r);
+  bj.msg=r.h.map(h=>h.res).join(' · ')+(net>0?' +'+money(net):net<0?' -'+money(-net):'');
+  if(net>0){jingle(net>=500?'level':'pass');if(net>=500)feed(`Big win at blackjack: +${money(net)}`)}else tone('triangle',180,.35,.1);
+  await countUp($('bjCash'),me.cash-back,me.cash,800);
+  bj.counting=0;bj.busy=0;bj.bet=bj.last;saveArsenal();bjRender()}
+// payout chips slide from the rack to winners, losing bets slide back to the rack
+function bjFlights(r){const rk=$('bjRack').getBoundingClientRect(),sp=$('bj').querySelectorAll('.bjSpot');
+  r.h.forEach((h,i)=>{const st=sp[i]&&sp[i].querySelector('.stk');if(!st)return;
+    if(h.win>h.bet){const p=chipStack(h.win-h.bet);p.style.cssText='position:fixed;z-index:9';p.style.left=rk.left+'px';p.style.top=rk.top+'px';document.body.append(p);fly(p,rk,st.getBoundingClientRect(),700,i*120).onfinish=()=>p.remove()}
+    else if(h.win===0){fly(st,st.getBoundingClientRect(),rk,650,150);st.animate([{opacity:1},{opacity:0}],{duration:650,delay:150,fill:'forwards'})}})}
+// closing the table mid-hand stands every hand and pays out at once
+function bjLeave(){if(bj.ph!=='play'&&bj.ph!=='ins')return;const r=bj.r;for(const h of r.h)h.done=1;bj.open=1;bjDealer(r,bjDraw);me.cash+=bjPay(r);bj.ph='done';bj.busy=0;bj.counting=0;bj.bet=bj.last;saveArsenal()}
+function openBJ(){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';if(bj.ph==='bet')bj.bet=Math.min(bj.bet,me.cash);$('bj').hidden=false;bjRender()}
 $('bjClose').addEventListener('click',()=>closeShop());
+$('bjHintT').addEventListener('click',()=>{bj.hint=bj.hint?0:1;bjRender()});
+if(DBG)Object.defineProperties(DBG,{bj:{get:()=>bj}});
 
 // ---------- VIP booth ----------
 function startLap(){if(lap)return;if(me.cash<100){feed('A private dance costs $100');return}me.cash-=100;lap={t:0,dur:20};state='cut';me.vx=me.vy=0;me.x=club.ox+386;me.y=club.oy+305;me.a=-Math.PI/2;mouse.down=false;
@@ -953,34 +1061,123 @@ function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();retu
 // ---------- roulette ----------
 const RO_ORDER=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 const REDS=new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
-const ro={chip:10,bets:{},lastBets:null,spinning:false,rot:0,hist:[],msg:'Pick a chip, then tap the table to bet.'};
-{const c=$('rwheel'),g=c.getContext('2d'),seg=TAU/37;g.translate(200,200);g.fillStyle='#5a3a22';g.beginPath();g.arc(0,0,199,0,TAU);g.fill();
- for(let i=0;i<37;i++){const n=RO_ORDER[i],a0=-Math.PI/2+i*seg-seg/2;g.fillStyle=n===0?'#1f8a4c':REDS.has(n)?'#b3202f':'#16121f';g.beginPath();g.moveTo(0,0);g.arc(0,0,186,a0,a0+seg);g.closePath();g.fill();
+const RO_MAX=10000,RO_CHIPS=[10,50,100,500,1000],RR=(a,b)=>Array.from({length:Math.max(0,b-a+1)},(_,i)=>a+i),md=x=>((x%TAU)+TAU)%TAU;
+// bet keys: n<num> straight, s<a>-<b> split, t<a> street, q<a> corner, l<a> six line, d1-d3 dozens, c1-c3 columns, red black odd even low high
+const ROCV={};
+function roCov(k){let c=ROCV[k];if(!c){const a=+k.slice(1),all=RR(1,36),o={red:[...REDS],black:all.filter(n=>!REDS.has(n)),odd:all.filter(n=>n%2),even:all.filter(n=>n%2===0),low:RR(1,18),high:RR(19,36)};
+  c=o[k]||({n:[a],s:k.slice(1).split('-').map(Number),t:RR(a,a+2),q:[a,a+1,a+3,a+4],l:RR(a,a+5),d:RR((a-1)*12+1,a*12),c:all.filter(n=>n%3===a%3)})[k[0]];ROCV[k]=c}return c}
+const roHit=(k,n)=>roCov(k).includes(n),roMult=k=>36/roCov(k).length;
+// money back (stake included) for bets {key: amount} on winning number n. Used by the table and by rouletteRTP.
+function roPay(bets,n){let w=0;for(const k in bets)if(roHit(k,n))w+=bets[k]*roMult(k);return w}
+// board in cell units: 13 columns (zero, then 12 number columns) by 3 rows. Each inside bet has an anchor point.
+const RX=n=>Math.ceil(n/3)+.5,RY=n=>n%3===1?2.5:n%3===2?1.5:.5;
+const RO_ANC={n0:[.5,1.5],'s0-1':[1,2.5],'s0-2':[1,1.5],'s0-3':[1,.5]};
+for(let n=1;n<=36;n++)RO_ANC['n'+n]=[RX(n),RY(n)];
+for(let n=1;n<=33;n++)RO_ANC[`s${n}-${n+3}`]=[Math.ceil(n/3)+1,RY(n)];
+for(let n=1;n<=35;n++)if(n%3)RO_ANC[`s${n}-${n+1}`]=[RX(n),(RY(n)+RY(n+1))/2];
+for(let a=1;a<=32;a++)if(a%3)RO_ANC['q'+a]=[Math.ceil(a/3)+1,(RY(a)+RY(a+1))/2];
+for(let c=1;c<=12;c++)RO_ANC['t'+(3*c-2)]=[c+.5,3];
+for(let c=1;c<=11;c++)RO_ANC['l'+(3*c-2)]=[c+1,3];
+const RO_OUT=['red','black','odd','even','low','high','d1','d2','d3','c1','c2','c3'],RO_KEYS=[...Object.keys(RO_ANC),...RO_OUT];
+// nearest anchor to a point in cell units, within 0.9 cells
+function roNear(x,y){let best,bd=.9;for(const k in RO_ANC){const d=Math.hypot(RO_ANC[k][0]-x,RO_ANC[k][1]-y);if(d<bd){bd=d;best=k}}return best}
+function roPick(e){const p=$('rNums').getBoundingClientRect();return roNear((e.clientX-p.left)/p.width*13,(e.clientY-p.top)/p.height*3)}
+// wheel: drawn once, then rotated each frame with the ball on top
+const RWH=document.createElement('canvas');RWH.width=RWH.height=400;
+{const g=RWH.getContext('2d'),seg=TAU/37;g.translate(200,200);
+ g.fillStyle='#4a2e18';g.beginPath();g.arc(0,0,199,0,TAU);g.fill();
+ g.fillStyle='#c9a24a';g.beginPath();g.arc(0,0,192,0,TAU);g.fill();
+ for(let i=0;i<37;i++){const n=RO_ORDER[i],a0=-Math.PI/2+i*seg-seg/2;g.fillStyle=n===0?'#1f8a4c':REDS.has(n)?'#b3202f':'#16121f';
+   g.beginPath();g.arc(0,0,186,a0,a0+seg);g.arc(0,0,130,a0+seg,a0,true);g.closePath();g.fill();
+   g.strokeStyle='#e9d28a';g.lineWidth=1.5;g.beginPath();g.moveTo(Math.cos(a0)*130,Math.sin(a0)*130);g.lineTo(Math.cos(a0)*186,Math.sin(a0)*186);g.stroke();
    g.save();g.rotate(a0+seg/2+Math.PI/2);g.fillStyle='#fff';g.font='700 19px sans-serif';g.textAlign='center';g.fillText(String(n),0,-160);g.restore()}
- g.fillStyle='#3a2a1a';g.beginPath();g.arc(0,0,118,0,TAU);g.fill();g.fillStyle='#ffc94a';g.beginPath();g.arc(0,0,24,0,TAU);g.fill()}
-const roMult=k=>k[0]==='n'?36:k[0]==='d'?3:2;
-function roHit(k,n){if(k[0]==='n')return+k.slice(1)===n;if(n===0)return false;return{red:REDS.has(n),black:!REDS.has(n),odd:n%2===1,even:n%2===0,low:n<=18,high:n>=19,d1:n<=12,d2:n>12&&n<=24,d3:n>24}[k]||false}
-function roBet(k){if(ro.spinning)return;if(me.cash<ro.chip){ro.msg='Not enough cash for that chip.';renderRoul();return}me.cash-=ro.chip;ro.bets[k]=(ro.bets[k]||0)+ro.chip;noise(.04,6000,.06);renderRoul()}
-function roClear(){if(ro.spinning)return;for(const k in ro.bets)me.cash+=ro.bets[k];ro.bets={};renderRoul()}
-function roRebet(){if(!ro.lastBets||ro.spinning)return;const tot=Object.values(ro.lastBets).reduce((a,b)=>a+b,0);if(tot>me.cash){ro.msg='Not enough cash to repeat.';renderRoul();return}me.cash-=tot;ro.bets={...ro.lastBets};renderRoul()}
-function roSpin(){if(ro.spinning)return;const tot=Object.values(ro.bets).reduce((a,b)=>a+b,0);if(!tot){ro.msg='Place a bet first.';renderRoul();return}
-  ro.spinning=true;ro.lastBets={...ro.bets};const n=Math.floor(rand()*37),i=RO_ORDER.indexOf(n),seg=360/37;ro.rot=Math.ceil(ro.rot/360)*360+1800+((360-i*seg)%360);
-  $('rwheel').style.transform=`rotate(${ro.rot}deg)`;ro.msg='No more bets...';renderRoul();noise(1.4,900,.08);
-  setTimeout(()=>{let win=0;for(const k in ro.bets)if(roHit(k,n))win+=ro.bets[k]*roMult(k);me.cash+=win;const net=win-tot;ro.hist.unshift(n);if(ro.hist.length>10)ro.hist.length=10;
-    ro.msg=`${n} ${n===0?'green':REDS.has(n)?'red':'black'}. `+(net>0?`You win $${net.toLocaleString('en-US')}!`:net===0?'You break even.':`You lose $${(-net).toLocaleString('en-US')}.`);
-    if(net>0){noise(.3,6000,.2);if(net>=5000)feed(`Roulette win: +$${net.toLocaleString('en-US')}`)}ro.bets={};ro.spinning=false;saveArsenal();renderRoul()},3300)}
-function renderRoul(){
+ const cone=g.createRadialGradient(0,0,10,0,0,118);cone.addColorStop(0,'#5b3d22');cone.addColorStop(1,'#1d140c');
+ g.fillStyle=cone;g.beginPath();g.arc(0,0,118,0,TAU);g.fill();
+ const hub=g.createRadialGradient(-6,-6,2,0,0,24);hub.addColorStop(0,'#fff3b8');hub.addColorStop(1,'#c58d1b');
+ g.fillStyle=hub;g.beginPath();g.arc(0,0,24,0,TAU);g.fill()}
+// ball radius over t (0..1): rides the rim, drops into the pocket ring with bounces, settles
+function roR(t){if(t<.55)return 182;if(t<.8){const s=(t-.55)/.25;return 146+36*(1-s)**2+5*Math.abs(Math.sin(3*Math.PI*s))*(1-s)}const s=(t-.8)/.2;return 146+3*Math.abs(Math.sin(4*Math.PI*s))*(1-s)}
+const ro={chip:10,bets:{},lastBets:null,spinning:false,sw:0,a:0,b:null,r:182,hist:[],ob:{},msg:'Pick a chip, then tap the table to bet.'};
+function roDraw(){const g=$('rwheel').getContext('2d');g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,400,400);
+  g.translate(200,200);g.rotate(ro.a);g.drawImage(RWH,-200,-200);g.rotate(-ro.a);
+  if(ro.b!=null){const x=Math.cos(ro.b)*ro.r,y=Math.sin(ro.b)*ro.r;
+    g.fillStyle='rgba(0,0,0,.35)';g.beginPath();g.arc(x+2,y+4,9,0,TAU);g.fill();
+    const gr=g.createRadialGradient(x-3,y-3,1,x,y,9);gr.addColorStop(0,'#ffffff');gr.addColorStop(1,'#b9b4c9');
+    g.fillStyle=gr;g.beginPath();g.arc(x,y,8,0,TAU);g.fill()}}
+// board DOM is built once. Number cells are divs (not buttons) so clicks use the pointer position.
+const RO_CELL={};
+{const N=$('rNums');RO_CELL[0]=$('rZero');
+ for(let n=1;n<=36;n++){const b=document.createElement('div');b.className='cell '+(REDS.has(n)?'r':'k');b.textContent=n;
+   b.style.gridColumn=String(Math.ceil(n/3)+1);b.style.gridRow=String(n%3===0?1:n%3===2?2:3);RO_CELL[n]=b;N.appendChild(b)}
+ N.addEventListener('click',e=>{const k=roPick(e);if(k)roBet(k)});
+ N.addEventListener('contextmenu',e=>{e.preventDefault();const k=roPick(e);if(k)roPull(k)});
+ N.addEventListener('pointermove',e=>{const k=roPick(e),h=$('rHov');h.hidden=!k;if(k){h.style.left=RO_ANC[k][0]/13*100+'%';h.style.top=RO_ANC[k][1]/3*100+'%'}});
+ N.addEventListener('pointerleave',()=>{$('rHov').hidden=true});
+ const outBtn=(parent,k,l,cls)=>{const b=document.createElement('button');b.type='button';b.className='ob '+(cls||'');b.textContent=l;b.onclick=()=>roBet(k);b.oncontextmenu=e=>{e.preventDefault();roPull(k)};parent.appendChild(b);ro.ob[k]=b};
+ for(const[k,l,c]of[['red','Red','r'],['black','Black','k'],['odd','Odd',''],['even','Even',''],['low','1–18',''],['high','19–36','']])outBtn($('rOut'),k,l,c);
+ for(const[k,l]of[['d1','1st 12'],['d2','2nd 12'],['d3','3rd 12']])outBtn($('rDoz'),k,l);
+ for(const[k,l]of[['c3','2:1'],['c2','2:1'],['c1','2:1']])outBtn($('rCols'),k,l)}
+const roTotal=()=>Object.values(ro.bets).reduce((a,b)=>a+b,0);
+function roBet(k){if(ro.spinning||ro.sw)return;if(me.cash<ro.chip){ro.msg='Not enough cash for that chip.';renderRoul();return}
+  if(roTotal()+ro.chip>RO_MAX){ro.msg='Table limit is $10,000 a spin.';renderRoul();return}
+  me.cash-=ro.chip;ro.bets[k]=(ro.bets[k]||0)+ro.chip;noise(.04,6000,.06);ro.msg='';renderRoul()}
+// right-click takes the selected chip value back from a spot
+function roPull(k){if(ro.spinning||ro.sw||!ro.bets[k])return;const a=Math.min(ro.chip,ro.bets[k]);ro.bets[k]-=a;me.cash+=a;if(!ro.bets[k])delete ro.bets[k];noise(.03,4000,.05);renderRoul()}
+function roClear(){if(ro.spinning||ro.sw)return;for(const k in ro.bets)me.cash+=ro.bets[k];ro.bets={};renderRoul()}
+function roRebet(){if(!ro.lastBets||ro.spinning||ro.sw)return;roClear();const tot=Object.values(ro.lastBets).reduce((a,b)=>a+b,0);if(tot>me.cash){ro.msg='Not enough cash to repeat.';renderRoul();return}me.cash-=tot;ro.bets={...ro.lastBets};renderRoul()}
+function roDouble(){if(ro.spinning||ro.sw)return;const tot=roTotal();if(!tot)return;if(tot*2>RO_MAX){ro.msg='Table limit is $10,000 a spin.';renderRoul();return}if(tot>me.cash){ro.msg='Not enough cash to double.';renderRoul();return}me.cash-=tot;for(const k in ro.bets)ro.bets[k]*=2;renderRoul()}
+function roSpin(){if(ro.spinning)return;if(!roTotal()){ro.msg='Place a bet first.';renderRoul();return}
+  ro.spinning=true;ro.lastBets={...ro.bets};ro.msg='No more bets...';renderRoul();noise(1.4,900,.08);
+  // decide the pocket first, then animate the wheel and ball to end with that pocket under the marker at the top
+  const n=Math.floor(rand()*37),i=RO_ORDER.indexOf(n),w0=ro.a,dW=TAU*3+md(-i*TAU/37-w0),b0=-Math.PI/2+(rand()-.5)*.6*TAU/37,dB=TAU*6,T=reduced?1200:5000,t0=performance.now();
+  const f=now=>{const t=Math.min(1,(now-t0)/T),e=1-(1-t)**3;ro.a=w0+dW*e;ro.b=b0+dB*(1-e);ro.r=roR(t);roDraw();if(t<1)requestAnimationFrame(f);else roDone(n)};
+  requestAnimationFrame(f)}
+function roDone(n){
+  const tot=roTotal(),pay=roPay(ro.bets,n),net=pay-tot;
+  ro.hist.unshift(n);if(ro.hist.length>100)ro.hist.length=100;
+  ro.sw=1;const cell=RO_CELL[n];cell.classList.add('hit');
+  // losing chips slide into the dealer's rake, winning chips glow
+  const rk=$('rRake').getBoundingClientRect();
+  for(const el of $('rBoard').querySelectorAll('.stk[data-k]')){
+    if(roHit(el.dataset.k,n))el.classList.add('won');
+    else{fly(el,el.getBoundingClientRect(),rk,650,250);el.animate([{opacity:1},{opacity:0}],{duration:650,delay:250,fill:'forwards'})}}
+  const before=me.cash;me.cash+=pay;saveArsenal();
+  if(net>0){jingle(net>=5000?'level':'pass');if(net>=5000)feed(`Roulette win: +${money(net)}`)}
+  countUp($('rCash'),before,me.cash,900,v=>'Cash '+money(v));
+  ro.msg=`${n} ${n===0?'green':REDS.has(n)?'red':'black'}. `+(net>0?`You win ${money(net)}!`:net===0?'You break even.':`You lose ${money(-net)}.`);
   $('rMsg').textContent=ro.msg;
-  const H=$('rHist');H.replaceChildren();const lab=document.createElement('span');lab.textContent=`Cash $${me.cash.toLocaleString('en-US')} · Last:`;lab.style.cssText='font-size:12px;color:#cfe9da';H.appendChild(lab);
-  for(const n of ro.hist){const e=document.createElement('span');e.className='rh';e.style.background=n===0?'#1f8a4c':REDS.has(n)?'#b3202f':'#16121f';e.textContent=n;H.appendChild(e)}
-  const C=$('rChips');C.replaceChildren();for(const v of[10,50,100,500,1000])mkBtn(C,'$'+v,()=>{ro.chip=v;renderRoul()},'chip'+(ro.chip===v?' on':''));
-  const tag=k=>ro.bets[k]?` •$${ro.bets[k]}`:'';
-  $('rZero').textContent='0'+tag('n0');$('rZero').classList.toggle('on',!!ro.bets.n0);$('rZero').onclick=()=>roBet('n0');
-  const G=$('rGrid');G.replaceChildren();for(let n=1;n<=36;n++){const b=document.createElement('button');b.type='button';b.className=(REDS.has(n)?'r':'k')+(ro.bets['n'+n]?' on':'');b.textContent=n;b.title=ro.bets['n'+n]?`$${ro.bets['n'+n]} on ${n}`:`Bet on ${n} (pays 35 to 1)`;b.onclick=()=>roBet('n'+n);G.appendChild(b)}
-  const O=$('rOut');O.replaceChildren();for(const[k,l]of[['red','Red'],['black','Black'],['odd','Odd'],['even','Even'],['low','1–18'],['high','19–36'],['d1','1st 12'],['d2','2nd 12'],['d3','3rd 12']])mkBtn(O,l+tag(k),()=>roBet(k),ro.bets[k]?'on':'',ro.spinning);
-  const tot=Object.values(ro.bets).reduce((a,b)=>a+b,0),Ac=$('rAct');Ac.replaceChildren();
-  mkBtn(Ac,ro.spinning?'Spinning...':`Spin ($${tot})`,roSpin,'go',ro.spinning||!tot);mkBtn(Ac,'Clear bets',roClear,'',ro.spinning||!tot);mkBtn(Ac,'Repeat last bet',roRebet,'',ro.spinning||!ro.lastBets);
-}
+  setTimeout(()=>{cell.classList.remove('hit');ro.bets={};ro.spinning=false;ro.sw=0;renderRoul()},1300)}
+// chip stacks for the current bets: inside bets on their anchor, outside bets on their button
+function roChips(){const ov=$('rOvl');ov.replaceChildren();
+  for(const k in ro.ob)ro.ob[k].querySelectorAll('.stk').forEach(s=>s.remove());
+  for(let n=0;n<=36;n++)RO_CELL[n].classList.toggle('on',!!ro.bets[cellK(n)]);
+  for(const k in ro.bets){const st=chipStack(ro.bets[k]);st.dataset.k=k;
+    if(RO_ANC[k]){const[a,b]=RO_ANC[k];st.style.left=`calc(${a/13*100}% - 13px)`;st.style.top=`calc(${b/3*100}% - 13px)`;ov.appendChild(st)}
+    else{st.classList.add('ob');ro.ob[k].appendChild(st)}}
+  for(const k of RO_OUT)ro.ob[k].classList.toggle('on',!!ro.bets[k])}
+const cellK=n=>n===0?'n0':'n'+n;
+function renderRoul(){
+  const tot=roTotal();
+  $('rMsg').textContent=ro.msg;
+  if(!ro.sw){$('rCash').textContent=`Cash ${money(me.cash)}`;roChips()}
+  const H=$('rHist');H.replaceChildren();
+  for(const n of ro.hist.slice(0,15)){const e=document.createElement('span');e.className='rh '+(n===0?'g':REDS.has(n)?'r':'k');e.textContent=n;H.appendChild(e)}
+  const cnt=Array(37).fill(0);for(const n of ro.hist)cnt[n]++;
+  const ord=[...Array(37).keys()].sort((a,b)=>cnt[b]-cnt[a]||a-b);
+  $('rHot').textContent=ro.hist.length<10?'Hot and cold numbers show after 10 spins.':`Hot ${ord.slice(0,5).join(' · ')}   Cold ${ord.slice(-5).reverse().join(' · ')}`;
+  const C=$('rChips');C.replaceChildren();
+  for(const v of RO_CHIPS){const b=document.createElement('button');b.type='button';b.className=`cb c${v}${ro.chip===v?' on':''}`;b.textContent=v>=1000?'1K':'$'+v;b.onclick=()=>{ro.chip=v;renderRoul()};C.appendChild(b)}
+  const A=$('rAct');A.replaceChildren();
+  mkBtn(A,ro.spinning?'Spinning...':`Spin $${tot}`,roSpin,'go',ro.spinning||ro.sw||!tot);
+  mkBtn(A,'Repeat last bet',roRebet,'',ro.spinning||ro.sw||!ro.lastBets);
+  mkBtn(A,'Double',roDouble,'',ro.spinning||ro.sw||!tot);
+  mkBtn(A,'Clear bets',roClear,'',ro.spinning||ro.sw||!tot)}
+// rouletteRTP(n): random legal bets (1 to 4 spots, random chip each), returns money back / money staked
+function roRandBets(){const b={},k=1+Math.floor(rand()*4);for(let j=0;j<k;j++){const key=RO_KEYS[Math.floor(rand()*RO_KEYS.length)];b[key]=(b[key]||0)+RO_CHIPS[Math.floor(rand()*RO_CHIPS.length)]}return b}
+function rouletteRTP(n){let st=0,bk=0;for(let i=0;i<n;i++){const b=roRandBets();for(const k in b)st+=b[k];bk+=roPay(b,Math.floor(rand()*37))}return bk/st}
+roDraw();renderRoul();
+if(DBG)Object.defineProperties(DBG,{bjSim:{get:()=>bjSim},rouletteRTP:{get:()=>rouletteRTP},openBJ:{get:()=>openBJ}});
+if(DBG)Object.defineProperties(DBG,{ro:{get:()=>ro}});
 
 // ---------- Candy Cascade slots ----------
 // Rules: 8 or more of one candy pays and tumbles away. 4 or more lollipops start 10 free spins, 3 or more in free spins add 5.
@@ -1361,7 +1558,6 @@ const PLACES=[{name:'Pink Flamingo Diner',r:diner},{name:'Ink & Fade',r:ink},{na
 const plKey={look:'pr3d-look',gym:'pr3d-gym',arc:'pr3d-arcade',hosp:'pr3d-hosp'};
 const plGet=k=>{try{return JSON.parse(localStorage.getItem(plKey[k])||'null')}catch(_){return null}};
 const plSet=(k,v)=>{try{localStorage.setItem(plKey[k],JSON.stringify(v))}catch(_){}};
-const money=n=>'$'+n.toLocaleString('en-US');
 const plPay=n=>{if(me.cash<n){feed(`That costs ${money(n)}`);return false}me.cash-=n;saveArsenal();return true};
 // modal shared by all places: #pm (title, text, buttons, canvases)
 let plG=null,plLoopOn=false,plLast=0,plC=null;
@@ -1649,7 +1845,7 @@ const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
 addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;keys[e.code]=true;
-  if(state==='menu')return;
+  if(state==='menu'||state==='shop')return;
   if(e.code==='Escape'&&lap){endLap();return}
   if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyE'||e.code==='KeyF'){if(!e.repeat)toggleCar()}
