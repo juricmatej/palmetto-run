@@ -843,13 +843,12 @@ function jobStep(dt){
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
-addEventListener('keydown',e=>{if(typing())return;keys[e.code]=true;
+addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;keys[e.code]=true;
   if(state==='menu')return;
   if(e.code==='Escape'&&lap){endLap();return}
   if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
   if(e.code==='KeyE'||e.code==='KeyF'){if(!e.repeat)toggleCar()}
   if(e.code==='KeyM'&&!e.repeat)muted=!muted;
-  if(e.code==='Escape'&&state==='shop')closeShop();
   if(/^Digit[1-8]$/.test(e.code))equip(WEAPONS[+e.code.slice(5)-1].id);
   if(e.code==='KeyR'&&!e.repeat)cycleWeapon();
   if(e.code==='KeyP'&&!e.repeat&&state==='play')openSettings();
@@ -889,7 +888,7 @@ cv.addEventListener('pointerdown',e=>{
 });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 let wheelAt=0;
-cv.addEventListener('wheel',e=>{e.preventDefault();if(state!=='play'||wheelOpen||Math.abs(e.deltaY)<=4||performance.now()-wheelAt<180)return;wheelAt=performance.now();if(e.deltaY>0)cycleWeapon();else prevWeapon()},{passive:false});
+cv.addEventListener('wheel',e=>{e.preventDefault();const dy=e.deltaMode===1?e.deltaY*40:e.deltaY;if(state!=='play'||wheelOpen||Math.abs(dy)<=4||performance.now()-wheelAt<180)return;wheelAt=performance.now();if(dy>0)cycleWeapon();else prevWeapon()},{passive:false});
 cv.addEventListener('pointermove',e=>{
   if(e.pointerType==='mouse'){if(state!=='menu'&&state!=='shop'&&(document.pointerLockElement===cv||e.buttons))turn(e.movementX||0,e.movementY||0);return}
   if(e.pointerId===stick.id){let dx=(e.clientX-stick.ox)/55,dy=(e.clientY-stick.oy)/55;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}stick.x=dx;stick.y=dy}
@@ -1009,7 +1008,7 @@ function ui(dt){
   {const pw=$('power');pw.hidden=!(power>0||crashT>0||powder>0);pw.textContent=power>0?`Super strength ${Math.ceil(power)}s`:crashT>0?`Crashing ${Math.ceil(crashT)}s`:`White powder x${powder} (${isTouch?'BUMP':'N'})`;if(isTouch)$('bNose').hidden=!(powder>0&&!power)}
   if(isTouch){$('bBoom').hidden=!stickies.length;$('bAim').hidden=!(weap==='sniper'&&!me.car)}
   $('scope').hidden=!scoped;
-  {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
+  {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
   {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(A.y>W?'beach':district(bi,bj));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
   $('carhp').textContent=me.jet?`Fighter jet ${Math.max(0,Math.round(me.jet.hp/5))}% · ${Math.round(me.jet.speed*.6)} km/h · ${Math.round((me.jet.z-heliGround(me.jet.x,me.jet.y))/10)} m up`:me.heli?`Attack helicopter ${Math.max(0,Math.round(me.heli.hp/6))}% · ${Math.round((me.heli.z-heliGround(me.heli.x,me.heli.y))/10)} m up`:me.car?(me.car.burn?'Car on fire! Get out (E)':`${ctOf(me.car).name} ${Math.max(0,Math.round(me.car.hp/ctOf(me.car).hp*100))}%`):'';
   const j=$('job');j.replaceChildren();{const jt=document.createElement('strong'),jx=document.createElement('span');
