@@ -253,6 +253,16 @@ for(const[x,y]of[[3296,3296],[3406,3296],[3296,3406],[3406,3406]])lmSolid(x,y,18
 lmSolid(3346,3346,28,28,5,'stone');                                               // centre cover
 addShape({kind:'plateau',x:3360,y:3262,w:200,d:22,h:6,slope:2});                  // catwalk
 addShape({kind:'ramp',x:3360,y:3600,a:-Math.PI/2,len:40,w:30,h:12});             // stunt ramp on the road south of the Pit, over the south wall
+// Alleys: the largest tower in three downtown blocks without a door is split in two with a 30-wide alley between, so a car can cut through the block.
+const ALLEYS=[];
+function alleyCut(bi,bj){const cell=cells[bj*N+bi];let b=null;for(const q of cell)if((q.kind==='glass'||q.kind==='tower')&&!q.ladder&&(!b||q.w*q.h>b.w*b.h))b=q;if(!b)return;
+  const gap=30,hw=(b.w-gap)/2,ax=b.x+hw;cell.splice(cell.indexOf(b),1);buildings.splice(buildings.indexOf(b),1);
+  for(const x of[b.x,ax+gap]){const h={...b,x,w:hw,vent:null,sign:false,ladder:null};cell.push(h);buildings.push(h)}
+  ALLEYS.push({x:ax,y:b.y,h:b.h});
+  lmSolid(ax-34,b.y-14,12,8,4,'metal'); // dumpster beside the north mouth, off the car path
+}
+for(const[bi,bj]of[[2,3],[5,4],[3,2]])alleyCut(bi,bj);
+if(DBG)Object.defineProperties(DBG,{alleys:{get:()=>ALLEYS.map(a=>[a.x,a.y,a.h])}});
 // Sunset Pier, block row bj=9: a boardwalk on the sea side of the road (y 4524 to 4568) and the pier south from its middle to the world edge (y 4780). Deck at 4.
 addShape({kind:'plateau',x:W/2,y:4546,w:W,d:40,h:4,slope:2,mat:'wood'});
 addShape({kind:'plateau',x:2100,y:4670,w:40,d:209,h:4,slope:2,mat:'wood'});
@@ -3158,6 +3168,11 @@ function landmarkMeshes(){
   const lp=[[1040,2000],[1280,2000],[1040,2080],[1280,2080]].filter(([x,y])=>!rampZone(x,y)),lpo=new THREE.InstancedMesh(new THREE.CylinderGeometry(.5,.7,16,6),lmm.metal,Math.max(1,lp.length)),
     lhd=new THREE.InstancedMesh(new THREE.SphereGeometry(1.6,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),Math.max(1,lp.length));
   lp.forEach(([x,y],i)=>{const g=groundZ(x,y);inst(lpo,i,x,g+8,y);inst(lhd,i,x,g+16.4,y)});lpo.count=lhd.count=lp.length;scene.add(lpo,lhd);
+  // alleys: fire escape platforms and ladders on the alley side of the west half, a steam vent per alley
+  {for(const a of ALLEYS){for(const fy of[18,36,54]){const pl=new THREE.Mesh(new THREE.BoxGeometry(2.5,.8,a.h*.5),lmm.metal);pl.position.set(a.x+1.25,fy,a.y+a.h*.5);scene.add(pl)}
+    const ld=new THREE.Mesh(new THREE.BoxGeometry(.6,56,.6),lmm.metal);ld.position.set(a.x+3,28,a.y+a.h*.3);scene.add(ld);
+    const vt=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.6,3,6),lmm.metal);vt.position.set(a.x+15,1.5,a.y+a.h*.7);scene.add(vt);
+    const st=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(200,200,225,.35)'),transparent:true,depthWrite:false}));st.position.set(a.x+15,9,a.y+a.h*.7);st.scale.set(26,26,1);scene.add(st)}}
   // skate park: graffiti on the wall faces and two rails across the deck
   {const g1=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[0]);g1.position.set(2140,groundZ(2140,3206)+5,3208.3);scene.add(g1);
    const g2=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[2]);g2.rotation.y=Math.PI/2;g2.position.set(1888.3,groundZ(1888,3340)+5,3340);scene.add(g2);
