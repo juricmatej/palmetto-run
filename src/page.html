@@ -9,9 +9,11 @@
 <div id="xh" hidden></div>
 <div class="hud" id="area" style="opacity:0"></div>
 <div class="hud" id="lock" hidden></div>
+<div class="hud" id="lockMark" hidden></div>
 <div class="hud" id="warn" hidden>Missile incoming</div>
 <div class="hud" id="tl">
   <div id="cash">$0</div>
+  <div id="lvl"><b>1</b><i><u></u></i></div>
   <div id="stars" aria-label="Wanted level">★★★★★</div>
   <div id="hpbar"><div id="hp"></div></div>
   <div id="weapon">Pistol<span>&infin;</span></div>
@@ -34,11 +36,43 @@
 <div id="shop" hidden>
   <div class="card" role="dialog" aria-label="Gun shop">
     <h2>Gun shop</h2>
-    <p class="tag" style="margin:0">Cash <b id="shopCash" style="color:var(--gold)"></b>. Equip with keys 1&ndash;5 or cycle with Q.</p>
+    <p class="tag" style="margin:0">Cash <b id="shopCash" style="color:var(--gold)"></b>. Equip with keys 1&ndash;5 or cycle with R.</p>
     <div id="shopList"></div>
     <button id="shopClose" type="button">Back to the street</button>
   </div>
 </div>
+<div id="settings" class="gm" hidden><div class="card" role="dialog" aria-label="Settings">
+  <h2>Settings</h2>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setSens">Look sensitivity</label>
+    <input id="setSens" type="range" min="0.3" max="3" step="0.1" value="1">
+  </div>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input id="setInv" type="checkbox"> Invert Y (mouse up looks down)</label>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setAssist">Aim assist strength (hold Q)</label>
+    <select id="setAssist">
+      <option value="0">Off</option>
+      <option value="4">Light (4 rad/s)</option>
+      <option value="8">Strong (8 rad/s)</option>
+    </select>
+  </div>
+  <div class="keys">
+    <kbd>Mouse / trackpad</kbd><span>Look and aim</span>
+    <kbd>WASD / arrows</kbd><span>Walk, drive or fly</span>
+    <kbd>Click / Space</kbd><span>Shoot (Space flies a helicopter or jet up)</span>
+    <kbd>Shift</kbd><span>Sprint, handbrake, or dive in a helicopter or jet</span>
+    <kbd>E or F</kbd><span>Steal or leave a vehicle, use things indoors</span>
+    <kbd>Q (hold)</kbd><span>Lock-on aim assist, on foot</span>
+    <kbd>R / two-finger scroll</kbd><span>Next weapon (scroll up for the previous one)</span>
+    <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8)</span>
+    <kbd>Right-click / Z</kbd><span>Sniper scope</span>
+    <kbd>G</kbd><span>Detonate sticky bombs</span>
+    <kbd>X</kbd><span>Flares (break missile locks)</span>
+    <kbd>N</kbd><span>Use white powder</span>
+    <kbd>M</kbd><span>Sound on/off</span>
+    <kbd>P</kbd><span>This settings panel</span>
+  </div>
+  <button class="b go" type="button" data-close>Back to the street</button></div></div>
 <div id="bj" hidden>
   <div class="card" role="dialog" aria-label="Blackjack">
     <h2>Blackjack</h2>
@@ -84,19 +118,22 @@
       <div id="swatches"></div>
     </div>
     <div class="keys">
-      <kbd>Mouse</kbd><span>Look and aim (click the game to lock the mouse, Esc to free it)</span>
-      <kbd>WASD / arrows</kbd><span>Walk or drive</span>
-      <kbd>E</kbd><span>Steal or leave a car, use things indoors</span>
+      <kbd>Mouse / trackpad</kbd><span>Look and aim (click the game to lock the mouse, Esc to free it)</span>
+      <kbd>WASD / arrows</kbd><span>Walk, drive or fly</span>
+      <kbd>E or F</kbd><span>Steal or leave a car, use things indoors</span>
       <kbd>Click / Space</kbd><span>Shoot</span>
       <kbd>Shift</kbd><span>Sprint or handbrake</span>
+      <kbd>Q (hold)</kbd><span>Lock-on aim assist, on foot</span>
+      <kbd>R / two-finger scroll</kbd><span>Next weapon (scroll up for the previous one)</span>
       <kbd>G</kbd><span>Detonate sticky bombs</span>
       <kbd>Space / Shift</kbd><span>Helicopter up / down (helipad in Lagoon Park)</span>
       <kbd>X</kbd><span>Helicopter / jet flares (break missile locks)</span>
       <kbd>Airport</kbd><span>Steal a fighter jet: W throttle, mouse steers, Space climbs, click fires missiles</span>
       <kbd>N</kbd><span>Use white powder: super strength (dealer in Low Palms)</span>
       <kbd>Right-click / Z</kbd><span>Sniper scope</span>
-      <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8 / Q). Buy guns at the cyan gun shops</span>
+      <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8). Buy guns at the cyan gun shops</span>
       <kbd>M</kbd><span>Sound on/off</span>
+      <kbd>P</kbd><span>Settings: sensitivity, invert Y, aim assist</span>
     </div>
     <div id="net">Connecting to the city…</div>
     <button id="play" type="submit">Hit the streets</button>

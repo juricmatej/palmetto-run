@@ -19,18 +19,20 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 
 | Key | Action |
 |---|---|
-| Mouse | Look and aim (click the game to lock the mouse, Esc to free it) |
-| WASD / arrows | Walk or drive |
-| E | Steal or leave a vehicle, use things indoors, climb ladders |
-| Click / Space | Shoot |
-| Shift | Sprint or handbrake |
-| Hold Tab | Weapon wheel (or 1–8 / Q) |
+| Mouse / trackpad | Look and aim (click the game to lock the mouse, Esc to free it) |
+| WASD / arrows | Walk, drive or fly |
+| E or F | Steal or leave a vehicle, use things indoors, climb ladders |
+| Click / Space | Shoot (Space also flies a helicopter or jet up) |
+| Shift | Sprint, handbrake, or dive in a helicopter or jet |
+| Q (hold) | Lock-on aim assist, on foot |
+| R or two-finger scroll | Next weapon (scroll up for the previous one) |
+| Hold Tab | Weapon wheel (or 1–8) |
 | Right-click / Z | Sniper scope |
 | G | Detonate sticky bombs |
-| Space / Shift | Helicopter or jet up / down |
 | X | Flares (break missile locks) |
 | N | Use white powder (super strength) |
 | M | Sound on/off |
+| P | Settings: look sensitivity, invert Y, aim assist strength |
 
 Phones get an on-screen joystick and buttons.
 
