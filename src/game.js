@@ -14,7 +14,7 @@ const DBG=/[?&]debug\b/.test(location.search)?(window.__pr={}):null;
 
 // ---------- world ----------
 const B=440,R=120,N=10,W=N*B+R,SW=14,TAU=Math.PI*2;
-const rand=Math.random,rr=(a,b)=>a+rand()*(b-a),clamp=(v,a,b)=>v<a?a:v>b?b:v;
+let rand=Math.random,rr=(a,b)=>a+rand()*(b-a),clamp=(v,a,b)=>v<a?a:v>b?b:v;
 const wrap=a=>{while(a>Math.PI)a-=TAU;while(a<-Math.PI)a+=TAU;return a};
 function seeded(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;if(f<1){r*=f;g*=f;b*=f}else{const t=f-1;r+=(255-r)*t;g+=(255-g)*t;b+=(255-b)*t}return`rgb(${r|0},${g|0},${b|0})`}
@@ -948,7 +948,7 @@ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',
 function mkBtn(parent,label,fn,cls,dis){const b=document.createElement('button');b.type='button';b.className='b'+(cls?' '+cls:'');b.textContent=label;b.disabled=!!dis;b.addEventListener('click',fn);parent.appendChild(b);return b}
 function casinoAct(p){if(p.act==='roulette'){openModal('roul');renderRoul();return true}
   if(p.act==='slots'){openModal('slots');casinoOpenSlots();return true}
-  if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();return true}return false}
+  if(p.act==='slots7'){openModal('slots7');s7.skip=false;s7UI();slStart();$('s7Act').querySelector('.go')?.focus();return true}return false}
 
 // ---------- roulette ----------
 const RO_ORDER=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
@@ -1005,15 +1005,20 @@ function candyRun(fs,buy){
   const bombs=g.flat().filter(c=>c.s===BOMB),mul=bombs.reduce((a,c)=>a+c.m,0),sp=scat>=SL_TRIG?SCATPAY[Math.min(scat,6)-SL_TRIG]:0;
   return{init,steps,bombs,base,mul:bombs.length?mul:1,sp,scat,total:base*(bombs.length?mul:1)+sp}}
 // Free spins for a feature that starts now (buy: first view has the forced lollipops). Same rules as slView().
-function slFeat(buy){let w=0,f=SL_FREE,first=buy;while(f>0){const q=candyRun(true,first);w+=q.total;if(!first&&q.scat>=SL_RETRIG)f+=SL_ADD;first=false;f--}return w}
-// Plays n spins with the same math and no animation. 'candy' is a base spin, 'candyBuy' is one feature bought (rtp per 100 bets), 'neon7' is one spin.
-function slotRTP(m,n){let won=0,hit=0,feat=0;
-  for(let i=0;i<n;i++){let w;
+// Free-spin retrigger rule, shared by slFeat (sim) and slSpin (live). A view adds SL_ADD spins when it lands SL_RETRIG or more lollipops. A bought feature's first view never adds.
+const slAdd=(r,first)=>!first&&r.scat>=SL_RETRIG?SL_ADD:0;
+function slFeat(buy){let w=0,f=SL_FREE,first=buy;while(f>0){const q=candyRun(true,first);w+=q.total;f+=slAdd(q,first);first=false;f--}return w}
+// Plays n spins with the same math and no animation, on a fixed seed so the numbers repeat. 'candy' is a base spin, 'candyBuy' is one feature bought (cost 45 bets), 'neon7' is one spin.
+function slotRTP(m,n){
+  if(!['candy','candyBuy','neon7'].includes(m))throw new Error('slotRTP: unknown machine '+m);
+  let won=0,hit=0,feat=0;const keep=rand;rand=seeded(12345);
+  try{for(let i=0;i<n;i++){let w;
     if(m==='neon7')w=n7Eval(n7Spin().a);
     else if(m==='candy'){const r=candyRun(false,false);w=r.total;if(r.scat>=SL_TRIG){feat++;w+=slFeat(false)}}
     else w=slFeat(true);
-    won+=w;if(w>0)hit++}
-  const cost=m==='candyBuy'?100:1;return{rtp:+(won/(n*cost)).toFixed(4),hitRate:+(hit/n).toFixed(4),featureRate:+(feat/n).toFixed(5)}}
+    won+=w;if(w>0)hit++}}
+  finally{rand=keep}
+  const cost=m==='candyBuy'?45:1;return{rtp:+(won/(n*cost)).toFixed(4),hitRate:+(hit/n).toFixed(4),featureRate:+(feat/n).toFixed(5)}}
 
 // Timing. reduced motion shortens every wait and tween to a quick fade.
 const slT=ms=>reduced?Math.min(ms,80):ms;
@@ -1046,14 +1051,14 @@ function slFall(m,G,ant){const now=performance.now(),kept=new Set(m.grid.flat())
   for(let x=0;x<6;x++){const col=G[x],k=col.filter(c=>!kept.has(c)).length,slow=ant&&sc>=3,dur=slT(slow?900:380);
     if(slow&&!hot){hot=true;tone('sawtooth',160,1.2,.06,T0()+t/1000,null,820)}
     col.forEach((c,y)=>{const old=kept.has(c);c.fr=old?c.tr:y-k;c.tr=y;c.t0=now+t;c.dur=dur;c.e=old?0:1;c.ant=slow?1:0});
-    if(ant)tone('square',1300+x*110,.05,.05,T0()+(t+dur)/1000);
+    tone('square',1300+x*110,.05,.05,T0()+(t+dur)/1000);
     sc+=col.filter(c=>c.s===SCAT).length;
     end=Math.max(end,now+t+dur);t+=slow?300:70}
   m.grid=G;return end-now}
 function slBurst(m,x,y,col,n){for(let i=0;i<n;i++){const a=rand()*TAU,s=rr(140,460);m.pt.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-180,l:0,max:slT(rr(450,900))/1000,c:col})}}
 // Symbol art: vector shapes drawn once per size into offscreen canvases. Units are about -1.3 to 1.3 around the centre.
 const SPR={};
-function slSpr(k,S){const key=k+'|'+S;if(SPR[key])return SPR[key];const c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');g.setTransform(S/2.6,0,0,S/2.6,S/2,S/2);ART[k](g);return SPR[key]=c}
+function slSpr(k,S){S=Math.round(S/8)*8;const key=k+'|'+S;if(SPR[key])return SPR[key];const c=document.createElement('canvas');c.width=c.height=S;const g=c.getContext('2d');g.setTransform(S/2.6,0,0,S/2.6,S/2,S/2);ART[k](g);return SPR[key]=c}
 function slBody(g,path,stops,y0,y1){const S=g.canvas.width;g.save();g.shadowColor='rgba(40,0,30,.5)';g.shadowBlur=S*.05;g.shadowOffsetY=S*.035;path(g);const f=g.createLinearGradient(0,y0,0,y1);stops.forEach((c,i)=>f.addColorStop(i/(stops.length-1),c));g.fillStyle=f;g.fill();g.restore();
   g.save();path(g);g.clip();const h=g.createRadialGradient(-.3,-.42,0,-.3,-.42,.95);h.addColorStop(0,'rgba(255,255,255,.9)');h.addColorStop(.45,'rgba(255,255,255,.15)');h.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=h;g.fillRect(-1.5,-1.5,3,3);g.restore();
   path(g);g.lineWidth=.07;g.strokeStyle='rgba(255,255,255,.85)';g.stroke()}
@@ -1103,7 +1108,7 @@ n4:g=>{slBody(g,c=>{c.beginPath();c.moveTo(-.78,.42);c.bezierCurveTo(-.8,-.1,-.6
 n5:g=>{g.font='900 2.5px "Arial Black",Impact,sans-serif';g.textAlign='center';g.textBaseline='middle';g.shadowColor='rgba(255,46,77,.9)';g.shadowBlur=g.canvas.width*.05;g.lineWidth=.16;g.strokeStyle='#fff';g.strokeText('7',0,.1);g.fillStyle='#ff2e4d';g.fillText('7',0,.1)},
 n6:g=>{g.font='900 2.5px "Arial Black",Impact,sans-serif';g.textAlign='center';g.textBaseline='middle';g.shadowColor='#ff3ea5';g.shadowBlur=g.canvas.width*.14;g.fillStyle='#ff4fd8';g.fillText('7',0,.1);g.shadowBlur=0;g.lineWidth=.06;g.strokeStyle='#fff';g.strokeText('7',0,.1)}};
 function slDraw(m,now,dt){
-  const g=slFit($('slc'),640,440),k=g.canvas.width/640,S=Math.round(66*k),FF='Bungee,Impact,sans-serif',BF='"Chakra Petch",system-ui,sans-serif';
+  const g=slFit($('slc'),640,440),k=g.canvas.width/640,S=Math.round(74*k),FF='Bungee,Impact,sans-serif',BF='"Chakra Petch",system-ui,sans-serif';
   m.sh*=Math.exp(-dt*6);m.shown+=(m.wv-m.shown)*Math.min(1,dt*9);
   const jx=m.sh>.01?(rand()-.5)*m.sh*14:0,jy=m.sh>.01?(rand()-.5)*m.sh*14:0;
   g.save();g.translate(jx,jy);
@@ -1115,15 +1120,15 @@ function slDraw(m,now,dt){
     if(hot){g.globalAlpha=1-age*.5;g.drawImage(glow(slCol(c.s)),cx-58,cy-58,116,116)}
     if(c.ant){g.globalAlpha=.45+.35*Math.sin(now/110);g.drawImage(glow('#ff3ea5'),cx-62,cy-62,124,124)}
     g.globalAlpha=1;const sc=hot?1+.14*Math.sin(Math.PI*age):1;
-    g.save();g.translate(cx,cy);g.scale(sc,sc);if(c.s===BOMB)g.drawImage(glow('#ff9a2e'),-44,-44,88,88);g.drawImage(slSpr(c.s,S),-33,-33,66,66);
-    if(c.s===BOMB){g.fillStyle='#fff';g.font='900 13px '+FF;g.textAlign='center';g.textBaseline='middle';g.fillText('x'+c.m,0,2)}
+    g.save();g.translate(cx,cy);g.scale(sc,sc);if(c.s===BOMB)g.drawImage(glow('#ff9a2e'),-44,-44,88,88);g.drawImage(slSpr(c.s,S),-37,-37,74,74);
+    if(c.s===BOMB){g.fillStyle='#fff';g.font='900 15px '+FF;g.textAlign='center';g.textBaseline='middle';g.fillText('x'+c.m,0,2)}
     g.restore()}));
   g.restore();
   // flying bombs go to the multiplier pill on a quadratic curve
   m.fly=m.fly.filter(f=>now-f.t0<f.dur);
   for(const f of m.fly){const q=(now-f.t0)/f.dur,e=q*q*(3-2*q),mx=(f.x0+f.x1)/2,my=Math.min(f.y0,f.y1)-130;
     const x=(1-e)*(1-e)*f.x0+2*(1-e)*e*mx+e*e*f.x1,y=(1-e)*(1-e)*f.y0+2*(1-e)*e*my+e*e*f.y1;
-    g.save();g.translate(x,y);g.scale(.6,.6);g.drawImage(slSpr(BOMB,S),-33,-33,66,66);g.restore()}
+    g.save();g.translate(x,y);g.scale(.6,.6);g.drawImage(slSpr(BOMB,S),-37,-37,74,74);g.restore()}
   // particles: sparks in the symbol colour
   for(const p of m.pt){p.l+=dt;p.vy+=900*dt;p.x+=p.vx*dt;p.y+=p.vy*dt}
   m.pt=m.pt.filter(p=>p.l<p.max);
@@ -1177,14 +1182,14 @@ async function slView(m,buy){
 // A spin press: base spin, feature buy, or the automatic free spins that follow a trigger.
 async function slSpin(buy){
   const m=sl;if(m.busy)return;
-  if(buy){if(me.cash<m.bet*100){m.msg='Not enough cash for the feature.';renderSlots();return}me.cash-=m.bet*100;m.feat=true;m.free=SL_FREE;m.ftot=0}
-  else if(!m.feat){if(me.cash<m.bet){m.msg='Not enough cash.';renderSlots();return}me.cash-=m.bet}
+  if(buy){if(me.cash<m.bet*45){m.msg='Not enough cash for the feature.';renderSlots();return}me.cash-=m.bet*45;saveArsenal();m.feat=true;m.free=SL_FREE;m.ftot=0}
+  else if(!m.feat){if(me.cash<m.bet){m.msg='Not enough cash.';renderSlots();return}me.cash-=m.bet;saveArsenal()}
   m.busy=true;renderSlots();
   for(let first=buy;;first=false){
     if(m.feat)m.free--;
     const r=await slView(m,first);
     if(!m.feat){if(r.scat<SL_TRIG)break;m.feat=true;m.free=SL_FREE;m.ftot=0;await slAsk(m,'FREE SPINS: '+SL_FREE,r.scat+' lollipops landed. The free spins play out on their own.','Start');continue}
-    if(!first&&r.scat>=SL_RETRIG){m.free+=SL_ADD;m.ban={t0:performance.now(),text:'+'+SL_ADD+' FREE SPINS',dur:slT(1600)};await slWait(m,slT(1600))}
+    const add=slAdd(r,first);if(add){m.free+=add;m.ban={t0:performance.now(),text:'+'+add+' FREE SPINS',dur:slT(1600)};await slWait(m,slT(1600))}
     if(m.free<=0){m.feat=false;m.msg='Feature paid $'+m.ftot.toLocaleString('en-US')+'.';renderSlots();await slAsk(m,'FEATURE OVER','Free spins won $'+m.ftot.toLocaleString('en-US'),'Collect');break}
     await slWait(m,slT(400))}
   m.busy=false;renderSlots()}
@@ -1193,8 +1198,11 @@ function renderSlots(){
   const A=$('sAct');A.replaceChildren();
   for(const v of[10,50,100,500,1000])mkBtn(A,'$'+v,()=>{if(!m.busy&&!m.feat){m.bet=v;renderSlots()}},'chip'+(m.bet===v?' on':''),m.busy||m.feat);
   mkBtn(A,m.feat?`Free spins: ${m.free} left`:`Spin $${m.bet}`,()=>slSpin(false),'go',m.busy||(!m.feat&&me.cash<m.bet));
-  mkBtn(A,`Buy feature $${(m.bet*100).toLocaleString('en-US')}`,()=>slSpin(true),'',m.busy||m.feat||me.cash<m.bet*100)}
-function casinoOpenSlots(){sl.skip=false;if(!sl.grid.length)slFall(sl,Array.from({length:6},()=>Array.from({length:5},()=>slSym(false))),false);renderSlots();slStart()}
+  mkBtn(A,`Buy feature $${(m.bet*45).toLocaleString('en-US')}`,()=>slSpin(true),'',m.busy||m.feat||me.cash<m.bet*45)}
+function casinoOpenSlots(){sl.skip=false;if(!sl.grid.length)slFall(sl,Array.from({length:6},()=>Array.from({length:5},()=>slSym(false))),false);renderSlots();slStart();$('sAct').querySelector('.go')?.focus()}
+// Space or Enter spins the open machine. The busy guard stops double spins. Escape still closes through closeShop().
+addEventListener('keydown',e=>{if(e.repeat||(e.code!=='Space'&&e.code!=='Enter'))return;
+  if(!sl.el.hidden){e.preventDefault();slSpin(false)}else if(!s7.el.hidden){e.preventDefault();s7Spin()}});
 if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino},interact:{get:()=>interact}});
 
 // ---------- Neon 7s ----------
@@ -1213,7 +1221,7 @@ function s7Step(now,dt){for(const r of s7.reels){
   else if(r.s==='bump'){const b=Math.min(1,(now-r.t0)/slT(220));r.p=r.p0+r.d-.12*Math.sin(Math.PI*b);if(b>=1){r.s='idle';r.p=r.p0+r.d}}
   r.p=((r.p%20)+20)%20}}
 async function s7Spin(){const m=s7;if(m.busy)return;if(me.cash<m.bet){m.msg='Not enough cash.';s7UI();return}
-  me.cash-=m.bet;m.busy=true;m.wv=0;m.line=0;m.msg='Good luck.';s7UI();
+  me.cash-=m.bet;saveArsenal();m.busy=true;m.wv=0;m.line=0;m.msg='Good luck.';s7UI();
   const n=n7Spin(),w=n7Eval(n.a)*m.bet;
   m.reels.forEach(r=>{r.s='spin';r.v=0});sfx(.5,'bandpass',900,.04);
   for(let i=0;i<3;i++){await slWait(m,slT(i?380:900));s7Stop(m.reels[i],n.si[i]);sfx(.05,'bandpass',1500,.12)}
@@ -1226,7 +1234,7 @@ function s7UI(){const m=s7;$('s7Msg').textContent=`${m.msg}  Cash $${me.cash.toL
   for(const v of[25,100,250,1000,2500])mkBtn(A,'$'+v.toLocaleString('en-US'),()=>{if(!m.busy){m.bet=v;s7UI()}},'chip'+(m.bet===v?' on':''),m.busy);
   mkBtn(A,m.busy?'Spinning...':`Pull $${m.bet.toLocaleString('en-US')}`,s7Spin,'go',m.busy||me.cash<m.bet)}
 function s7Draw(now,dt){
-  const g=slFit($('s7c'),640,380),k=g.canvas.width/640,S=Math.round(80*k),FF='Bungee,Impact,sans-serif';
+  const g=slFit($('s7c'),640,380),k=g.canvas.width/640,S=Math.round(96*k),FF='Bungee,Impact,sans-serif';
   s7Step(now,dt);s7.shown+=(s7.wv-s7.shown)*Math.min(1,dt*9);
   const bg=g.createLinearGradient(0,0,0,380);bg.addColorStop(0,'#24093a');bg.addColorStop(1,'#07030f');g.fillStyle=bg;g.fillRect(0,0,640,380);
   g.fillStyle='#050208';g.strokeStyle='#ffd84a';g.lineWidth=3;g.shadowColor='#ffd84a';g.shadowBlur=18;g.beginPath();g.roundRect(70,22,500,276,16);g.fill();g.stroke();g.shadowBlur=0;
@@ -1236,8 +1244,8 @@ function s7Draw(now,dt){
     g.fillStyle='#120a1e';g.fillRect(x,26,150,268);
     for(let j=-3;j<=3;j++){const q=Math.floor(r.p)+j,y=160-(q-r.p)*86,sy=N7STRIP[i][((q%20)+20)%20],mid=j===0,pulse=mid&&lit?1+.07*Math.sin(now/90):1;
       const spr=slSpr('n'+sy,S);
-      if(sp>8){g.globalAlpha=.22;g.drawImage(spr,x+75-40,y-40-Math.min(24,sp*1.1),80,80);g.drawImage(spr,x+75-40,y-40+Math.min(24,sp*1.1),80,80);g.globalAlpha=1}
-      g.save();g.translate(x+75,y);g.scale(pulse,pulse);g.drawImage(spr,-40,-40,80,80);g.restore()}
+      if(sp>8){g.globalAlpha=.22;g.drawImage(spr,x+75-48,y-48-Math.min(24,sp*1.1),96,96);g.drawImage(spr,x+75-48,y-48+Math.min(24,sp*1.1),96,96);g.globalAlpha=1}
+      g.save();g.translate(x+75,y);g.scale(pulse,pulse);g.drawImage(spr,-48,-48,96,96);g.restore()}
     const f1=g.createLinearGradient(0,26,0,96);f1.addColorStop(0,'rgba(5,2,8,1)');f1.addColorStop(1,'rgba(5,2,8,0)');g.fillStyle=f1;g.fillRect(x,26,150,70);
     const f2=g.createLinearGradient(0,240,0,294);f2.addColorStop(0,'rgba(5,2,8,0)');f2.addColorStop(1,'rgba(5,2,8,1)');g.fillStyle=f2;g.fillRect(x,240,150,54);
     g.restore()});
@@ -1623,6 +1631,19 @@ function honk(){
 }
 if(DBG)Object.defineProperties(DBG,{stam:{get:()=>stam},handsUp:{get:()=>handsUp},driftA:{get:()=>driftA}});
 
+// ---------- traffic lights ----------
+// Four phases, shared worldwide, 15s cycle: 0 = axis A green (6s), 1 = axis A yellow (1.5s),
+// 2 = axis B green (6s), 3 = axis B yellow (1.5s). Crossing roads alternate; the cross axis stays red.
+// tlPaint is set by the 3D scene once the instanced lamps exist; it repaints all instances in one pass per phase change.
+const TLD=[6,1.5,6,1.5];let tlT=0,tlP=-1,tlPaint=null;
+function trafficStep(dt){
+  if(!tlPaint)return;
+  tlT+=dt;
+  const c=TLD[0]+TLD[1]+TLD[2]+TLD[3],t=tlT%c,ph=t<TLD[0]?0:t<TLD[0]+TLD[1]?1:t<TLD[0]+TLD[1]+TLD[2]?2:3;
+  if(ph!==tlP){tlP=ph;tlPaint(ph)}
+}
+if(DBG)Object.defineProperties(DBG,{tlP:{get:()=>tlP}});
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
@@ -1948,7 +1969,7 @@ function update(dt){
     if(!dead&&b.owner==='police'&&state==='play'){const rad=me.car?16:10;if(b.z>(me.z||0)-3&&b.z<(me.z||0)+28&&segDist(me.x,me.y,b.px,b.py,b.x,b.y)<rad){if(me.jet)me.jet.hp-=b.dmg*BAL.bulletAir;else if(me.heli)me.heli.hp-=b.dmg*BAL.bulletAir;else if(me.car){if(me.car.type!=='armored')damageCar(me.car,b.dmg*BAL.bulletVeh,false),hurtMe(b.dmg*.3,null)}else hurtMe(b.dmg,null);dead=true;burst(b.x,b.y,5,'#ff6b6b',120,.25)}}
     if(dead){if(b.rocket)explode(b.x,b.y,b.owner==='me',b.owner!=='me',b.z,b.heli?BAL.heliRocketK:b.jet?BAL.jetMissileK:1);bullets.splice(i,1)}
   }
-  stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
+  stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);trafficStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
   if(scoped&&(weap!=='sniper'||me.car||me.heli||me.jet||state!=='play'||me.climb))scoped=false;
   // pickups
   for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t-=dt;if(play&&Math.hypot(p.x-me.x,p.y-me.y)<22){if(p.powder){powder++;feed('Picked up a bag of white powder. Press N to use it')}me.cash+=p.amt;noise(.08,7000,.12);pickups.splice(i,1);continue}if(p.t<=0)pickups.splice(i,1)}
@@ -2222,20 +2243,24 @@ let ferris=null;
 {const s=B-R,lp=[],tl=[],hy=[],bn=[],bch=[],sh=[],AV=[2,4,6],mx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x0=bi*B+R,y0=bj*B+R,t=blockType[bj*N+bi];
    for(const o of[25,135,245])lp.push([x0+7,y0+o,-1,0],[x0+s-7,y0+o,1,0],[x0+o,y0+7,0,-1],[x0+o,y0+s-7,0,1]); // lamps every 110 on both sides of each road
-   for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]);
+   for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]); // corner housing; index 4 = cycle phase group
    if(t!=='airport')hy.push([x0+10,y0+80]);
    if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry])}
  for(const d of DOORS){const big=d.int===club||d.int===casino||d.int===bankL;for(const o of[-1,1])bch.push([d.x+o*(big?70:48),d.y-3,Math.PI]);bn.push([d.x+(big?92:72),d.y-3])}
  for(const p of parks)for(const o of[-1,1]){bch.push([p.x+p.s/2+o*45,p.y+24,0],[p.x+p.s/2+o*45,p.y+p.s-24,Math.PI]);bn.push([p.x+p.s/2+o*75,p.y+22],[p.x+p.s/2+o*75,p.y+p.s-22])}
  for(const[x,y,ry]of sh)bch.push([x,y,ry]);
  const lam=c=>new THREE.MeshLambertMaterial({color:c}),IM=(g,m,n)=>new THREE.InstancedMesh(g,m,Math.max(1,n));
- // lamps
+ // lamps: slim pole with an arm, small tapered shade facing down and a warm bulb under it
  const post=IM(mergeGeos([[new THREE.CylinderGeometry(.9,1.3,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#2c2938'),lp.length),
-  head=IM(new THREE.BoxGeometry(7,1.6,6),new THREE.MeshBasicMaterial({color:'#ffd9a0'}),lp.length),pool=IM(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,176,90,.55)'),.4),lp.length);
- lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx);inst(post,i,x,0,y,ry);inst(head,i,x+dx*7.5,38.6,y+dz*7.5,ry);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
- // traffic lights: pole, housing and two lamp cubes per intersection corner, one red and one green
- const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),post.material,tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),red=new THREE.Color('#ff2d55'),grn=new THREE.Color('#3dd68c');
+  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),lp.length),
+  pool=IM(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,176,90,.55)'),.4),lp.length);
+ lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.4,hz);inst(hb,i,hx,38.35,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
+ // traffic lights: pole, housing and two lamp cubes per corner; colours cycle green/yellow/red in trafficStep via one instanceColor pass per phase change
+ const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),post.material,tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),
+  tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),
+  red=new THREE.Color('#ff2d55'),grn=new THREE.Color('#3dd68c'),tlY=new THREE.Color('#ffcf4d');
  tl.forEach(([x,y,dx,dz,k],i)=>{inst(tp,i,x,13,y,0);inst(th,i,x,28,y,0);inst(tc,i*2,x-dx*2.9,28,y,0);inst(tc,i*2+1,x,28,y-dz*2.9,0);tc.setColorAt(i*2,k?red:grn);tc.setColorAt(i*2+1,k?grn:red)});
+ tlPaint=ph=>{for(let i=0;i<tl.length;i++){const k=tl[i][4];for(let ax=0;ax<2;ax++){const own=(ph>>1)===(ax===k?0:1);tc.setColorAt(i*2+ax,own?(ph&1?tlY:grn):red)}}tc.instanceColor.needsUpdate=true};
  // hydrants, bins, benches, bus shelters
  const hg=mergeGeos([[new THREE.CylinderGeometry(1.8,2.2,5,8),mx(0,2.5,0)],[new THREE.SphereGeometry(1.9,8,6),mx(0,5.2,0)],[new THREE.BoxGeometry(6,1.2,1.2),mx(0,3.4,0)]]);
  const hm=IM(hg,lam('#c0283c'),hy.length);hy.forEach(([x,y],i)=>inst(hm,i,x,1,y,0));
@@ -2245,7 +2270,7 @@ let ferris=null;
  const fr=IM(mergeGeos([[new THREE.BoxGeometry(26,1,9),mx(0,11,0)],[new THREE.BoxGeometry(1,11,1),mx(-12,5.5,-3.5)],[new THREE.BoxGeometry(1,11,1),mx(12,5.5,-3.5)]]),lam('#2a2735'),sh.length),
   pn=IM(new THREE.BoxGeometry(22,8,.6),new THREE.MeshBasicMaterial({color:'#1c6b78'}),sh.length);
  sh.forEach(([x,y,ry],i)=>{inst(fr,i,x,1.3,y,ry);const c=Math.cos(ry),sn=Math.sin(ry);inst(pn,i,x-sn*3.5,6.3,y-c*3.5,ry)});
- for(const m of[post,head,pool,tp,th,tc,hm,bm,be,fr,pn]){m.count=m===tc?tl.length*2:m===tp||m===th?tl.length:m===hm?hy.length:m===bm?bn.length:m===be?bch.length:m===fr||m===pn?sh.length:lp.length;scene.add(m)}}
+ for(const m of[post,hd,hb,pool,tp,th,tc,hm,bm,be,fr,pn]){m.count=m===tc?tl.length*2:m===tp||m===th?tl.length:m===hm?hy.length:m===bm?bn.length:m===be?bch.length:m===fr||m===pn?sh.length:lp.length;scene.add(m)}}
 // neon billboards on downtown and midtown roofs
 {const names=[['Lucky Palms Casino','#c08bff'],['Velvet Palms','#ff3ea5'],['Snack & Go','#3dd68c'],['Union Bank','#ffd76a'],['Palmetto International','#29e6d6']],r=seeded(555),spots=[];
  for(const b of buildings)if((b.kind==='glass'||b.kind==='tower')&&b.H>=90&&b.w>=56&&b.x<3600&&r()<.3)spots.push(b);
