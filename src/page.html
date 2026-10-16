@@ -34,6 +34,23 @@
 <div id="wheel" hidden><div id="wheelIn"><div id="wheelMid"></div></div></div>
 <div id="touch" hidden><button id="bNose" type="button" hidden>BUMP</button><button id="bFlare" type="button" hidden>FLARE</button><button id="bUp" type="button" hidden>UP</button><button id="bDn" type="button" hidden>DOWN</button><button id="bBoom" type="button" hidden>BOOM</button><button id="bAim" type="button" hidden>AIM</button><button id="bGun" type="button">GUN</button><button id="bCar" type="button">CAR</button><button id="bFire" type="button">FIRE</button></div>
 
+<button id="phTab" type="button" hidden aria-label="Open the phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>Phone<b id="phTabN" hidden></b></button>
+<div id="phBan" role="status"></div>
+<div id="phone" role="dialog" aria-label="Phone">
+  <div id="phFrame">
+    <div id="phBar"><b id="phClock">09:00</b><i id="phDnd" hidden>Do not disturb: police</i><span id="phSt"><svg viewBox="0 0 16 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.4" y="5" width="3" height="6" rx="1"/><rect x="8.8" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.2" y="0" width="2.8" height="11" rx="1"/></svg><span id="phBat"><i id="phBatF"></i></span></span></div>
+    <div id="phScr">
+      <div id="phHome"></div>
+      <div id="phApp" hidden>
+        <div id="phHd"><button id="phBack" type="button" aria-label="Back" data-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><h3 id="phTitle"></h3></div>
+        <div id="phBody"></div>
+      </div>
+      <div id="phWarn" hidden>Eyes on the road</div>
+      <div id="phCall" hidden><span class="ph-pulse">Calling</span><b id="phCallName"></b></div>
+    </div>
+  </div>
+</div>
+<div id="phFade"></div>
 <div id="shop" hidden>
   <div class="card" role="dialog" aria-label="Gun shop">
     <h2>Gun shop</h2>
