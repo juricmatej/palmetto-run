@@ -25,10 +25,10 @@ const CARCOL=['#e8e4f0','#ff3ea5','#29e6d6','#ffc94a','#ff6b3d','#7b6bff','#3dd6
 const BAL={
   playerHp:100,heliHp:650,jetHp:520,
   vehHp:{sedan:140,taxi:140,sports:110,muscle:160,pickup:180,suv:200,van:220,police:180,armored:700},
-  wdmg:{pistol:15,smg:9,shotgun:9,mg:10,sniper:100},shotPellets:6,
+  wdmg:{pistol:15,smg:9.1,shotgun:9,mg:10,sniper:100},shotPellets:6,
   exp:{player:[100,120],veh:[260,120],air:[220,110],ped:95,self:.6,occupant:.35,sticky:1.5},
-  bulletVeh:.6,bulletAir:.3,crashMax:45,heliRocketK:.7,jetMissileK:.85,
-  npc:{gang:7,gangCar:5,police:6},
+  bulletVeh:.6,bulletAir:.3,crashMax:45,shove:18,heliWallK:.06,jetLandK:.8,heliRocketK:.7,jetMissileK:.85,
+  npc:{gang:7,gangCar:5,police:6,bank:7},
   remote:{occ:.4,car:1.2,arm:.6,air:.5}
 };
 const fall=(d,[peak,rad])=>Math.max(0,peak*(1-d/rad));
@@ -174,7 +174,7 @@ const dmgOut={},killedBy={};
 const WEAPONS=[
   {id:'pistol',name:'Pistol',price:0,cd:.2,dmg:BAL.wdmg.pistol,spread:.03,pellets:1,ammoAmt:0,ammoPrice:0,desc:'Unlimited ammo. Always on you.'},
   {id:'smg',name:'SMG',price:250,cd:.085,dmg:BAL.wdmg.smg,spread:.09,pellets:1,ammoAmt:150,ammoPrice:60,desc:'Fast and light. Good for drive-bys.'},
-  {id:'shotgun',name:'Shotgun',price:400,cd:.75,dmg:BAL.wdmg.shotgun,spread:.3,pellets:6,ammoAmt:24,ammoPrice:50,desc:'Six pellets per shot. Brutal up close.'},
+  {id:'shotgun',name:'Shotgun',price:400,cd:.75,dmg:BAL.wdmg.shotgun,spread:.3,pellets:BAL.shotPellets,ammoAmt:24,ammoPrice:50,desc:'Six pellets per shot. Brutal up close.'},
   {id:'mg',name:'Machine gun',price:700,cd:.055,dmg:BAL.wdmg.mg,spread:.07,pellets:1,ammoAmt:300,ammoPrice:120,desc:'Huge fire rate. Shreds cars.'},
   {id:'sniper',name:'Sniper rifle',price:1800,cd:1.1,dmg:BAL.wdmg.sniper,spread:0,pellets:1,speed:1900,life:1,ammoAmt:20,ammoPrice:150,desc:'One shot, one KO. Hold right-click (or press Z) to scope.'},
   {id:'rpg',name:'RPG',price:1200,cd:1.1,dmg:0,spread:.01,pellets:1,rocket:true,ammoAmt:5,ammoPrice:300,desc:'Rockets that explode on impact. Mind the blast.'},
@@ -232,7 +232,7 @@ function nearSpot(){if(!me.inside)return null;for(const p of me.inside.spots)if(
 function interact(){const p=nearSpot();if(!p||state!=='play')return;
   if(p.act==='shop')openShop();
   else if(p.act==='tip'){if(me.cash<10){feed('You need $10 to tip');return}me.cash-=10;clubHype=6;feed('The dancers love it');noise(.2,5000,.15)}
-  else if(p.act==='drink'){if(me.cash<15){feed('A drink costs $15');return}me.cash-=15;me.hp=Math.min(100,me.hp+25);drunk=Math.min(30,drunk+12);feed('Cheers! +25 health')}
+  else if(p.act==='drink'){if(me.cash<15){feed('A drink costs $15');return}me.cash-=15;me.hp=Math.min(BAL.playerHp,me.hp+25);drunk=Math.min(30,drunk+12);feed('Cheers! +25 health')}
   else if(p.act==='snack'){if(me.cash<20){feed('Snacks cost $20');return}me.cash-=20;me.hp=BAL.playerHp;feed('Full health')}
   else if(p.act==='blackjack')openBJ();
   else if(p.act==='liquor'){if(me.cash<25){feed('That costs $25');return}me.cash-=25;drunk=Math.min(60,drunk+20);noise(.15,1200,.15);feed(drunk>35?'You are hammered. Driving will be rough':'Down the hatch')}
@@ -480,7 +480,7 @@ function explode(x,y,byMe,cosmetic,ez,k=1,sk){ez=Math.max(0,ez||0);burstZ=ez;
   noise(1.1,380,.7*vol(x,y));shake=Math.max(shake,14*vol(x,y));
   for(const c of cars){const d=Math.hypot(c.x-x,c.y-y);if(d<BAL.exp.veh[1]&&ez<50){damageCar(c,fall(d,BAL.exp.veh)*k*(sk&&c===sk.car?BAL.exp.sticky:1),byMe);if(d>1&&dynamic(c)){c.vx+=(c.x-x)/d*260;c.vy+=(c.y-y)/d*260}}}
   for(const p of peds){const d=Math.hypot(p.x-x,p.y-y);if(d<BAL.exp.ped&&ez<50)knockPed(p,(p.x-x)*4,(p.y-y)*4,byMe)}
-  for(const v of[heli,...jets]){if(!v||v.dead||cosmetic&&(v===heli||v===me.jet))continue;v.hp-=fall(Math.hypot(v.x-x,v.y-y,(v.z||0)-ez),BAL.exp.air)*k}
+  for(const v of[heli,...jets]){if(!v||v.dead||cosmetic)continue;v.hp-=fall(Math.hypot(v.x-x,v.y-y,(v.z||0)-ez),BAL.exp.air)*k}
   const dm=Math.hypot(me.x-x,me.y-y);
   if(dm<BAL.exp.player[1]&&Math.abs((me.z||0)-ez)<45&&!me.heli&&!me.jet&&!cosmetic&&!(me.car&&me.car.type==='armored'))hurtMe(fall(dm,BAL.exp.player)*k*(byMe?BAL.exp.self:1)*(me.car?BAL.exp.occupant:1),null);
   if(byMe)for(const[peer,r]of remotes){const d=Math.hypot(r.x-x,r.y-y);if(d<BAL.exp.player[1]&&!r.dead&&Math.abs((r.inCar?0:(r.z||0))-ez)<50)dmgOut[peer]=(dmgOut[peer]||0)+Math.round(fall(d,BAL.exp.player)*k*(sk&&peer===sk.peer?BAL.exp.sticky:1))}
@@ -600,7 +600,7 @@ function heliStep(dt){
   const damp=Math.exp(-(airborne?1.1:6)*dt);h.vx*=damp;h.vy*=damp;const hs=Math.hypot(h.vx,h.vy);if(hs>420){h.vx*=420/hs;h.vy*=420/hs}
   const tvz=mine?up*230:-80;h.vz+=(tvz-h.vz)*Math.min(1,dt*3);
   const nx=clamp(h.x+h.vx*dt,-400,W+400),ny=clamp(h.y+h.vy*dt,-400,W+700),ng=heliGround(nx,ny);
-  if(ng>h.z+3){if(hs>160)h.hp-=hs*.06;h.vx*=-.35;h.vy*=-.35;shake=Math.max(shake,mine?6:0)}else{h.x=nx;h.y=ny}
+  if(ng>h.z+3){if(hs>160)h.hp-=hs*BAL.heliWallK;h.vx*=-.35;h.vy*=-.35;shake=Math.max(shake,mine?6:0)}else{h.x=nx;h.y=ny}
   h.z=Math.min(820,h.z+h.vz*dt);const gg=heliGround(h.x,h.y);if(h.z<gg){h.z=gg;h.vz=Math.max(0,h.vz)}
   h.tilt+=(clamp(-(h.vx*fx+h.vy*fy)/1400,-.3,.3)-h.tilt)*Math.min(1,dt*4);h.roll+=(clamp((-h.vx*fy+h.vy*fx)/1400,-.3,.3)-h.roll)*Math.min(1,dt*4);
   h.spin+=((mine||h.z>gg+1?28:0)-h.spin)*Math.min(1,dt*1.2);
@@ -639,7 +639,7 @@ function jetStep(dt){
     const nx=clamp(j.x+Math.cos(j.a)*j.speed*dt,-1800,W+1800),ny=clamp(j.y+Math.sin(j.a)*j.speed*dt,-1800,W+1800);
     if(heliGround(nx,ny)>j.z+3){j.hp=0;j.falling=true;j.vz=-60;j.speed*=.3;if(mine)shake=Math.max(shake,14);continue}
     j.vx=(nx-j.x)/Math.max(dt,1e-4);j.vy=(ny-j.y)/Math.max(dt,1e-4);j.x=nx;j.y=ny;
-    j.z=Math.min(1700,j.z+j.vz*dt);const gg=heliGround(j.x,j.y);if(j.z<gg){if(air&&j.vz<-170){j.hp-=Math.round(-j.vz*.8);if(mine)shake=Math.max(shake,10)}j.z=gg;j.vz=Math.max(0,j.vz)}
+    j.z=Math.min(1700,j.z+j.vz*dt);const gg=heliGround(j.x,j.y);if(j.z<gg){if(air&&j.vz<-170){j.hp-=Math.round(-j.vz*BAL.jetLandK);if(mine)shake=Math.max(shake,10)}j.z=gg;j.vz=Math.max(0,j.vz)}
     j.pitch+=(clamp(j.vz/420,-.55,.55)-j.pitch)*Math.min(1,dt*4);
     if(mine){me.x=j.x;me.y=j.y;me.z=j.z;me.a=j.a;me.vx=me.vy=0}}
 }
@@ -660,7 +660,7 @@ function powerStep(dt){
     if(state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside){
       for(const p of peds){if(p.down)continue;const d=Math.hypot(p.x-me.x,p.y-me.y);if(d<16){const nx=(p.x-me.x)/(d||1),ny=(p.y-me.y)/(d||1);knockPed(p,nx*520,ny*520,true)}}
       for(const c of cars){if(c.kind==='dead'||c.kind==='mine')continue;const d=Math.hypot(c.x-me.x,c.y-me.y);if(d<26&&!(c.shoveT>time)){c.shoveT=time+.6;if(c.kind==='traffic')wreck(c,true);if(c.kind==='police')c.mode='chase';
-        const nx=(c.x-me.x)/(d||1),ny=(c.y-me.y)/(d||1);c.vx=(c.vx||0)+nx*420;c.vy=(c.vy||0)+ny*420;damageCar(c,18,true);shake=Math.max(shake,6);noise(.3,500,.35)}}}}
+        const nx=(c.x-me.x)/(d||1),ny=(c.y-me.y)/(d||1);c.vx=(c.vx||0)+nx*420;c.vy=(c.vy||0)+ny*420;damageCar(c,BAL.shove,true);shake=Math.max(shake,6);noise(.3,500,.35)}}}}
   else if(crashT>0)crashT-=dt}
 
 // ---------- robberies ----------
@@ -736,7 +736,7 @@ $('bjClose').addEventListener('click',()=>closeShop());
 // ---------- VIP booth ----------
 function startLap(){if(lap)return;if(me.cash<100){feed('A private dance costs $100');return}me.cash-=100;lap={t:0,dur:20};state='cut';me.vx=me.vy=0;me.x=club.ox+386;me.y=club.oy+305;me.a=-Math.PI/2;mouse.down=false;
   try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}feed('Sit back and enjoy the show. Esc to leave early');noise(.2,4000,.12)}
-function endLap(){if(!lap)return;lap=null;state='play';me.y=club.oy+262;me.hp=Math.min(100,me.hp+15);feed('Worth every dollar. +15 health')}
+function endLap(){if(!lap)return;lap=null;state='play';me.y=club.oy+262;me.hp=Math.min(BAL.playerHp,me.hp+15);feed('Worth every dollar. +15 health')}
 
 // ---------- modals ----------
 function openModal(id){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';$(id).hidden=false}
@@ -809,7 +809,7 @@ const heist={on:false,seed:0,bits:0,drill:0,drilling:false,looted:{},carry:0,ala
 function spawnGuards(){for(let i=peds.length-1;i>=0;i--)if(peds[i].guard)peds.splice(i,1);
   for(const[room,x,y]of[[bankL,230,150],[bankL,330,250],[bankS,90,150],[bankS,270,210],[bankV,60,110],[bankV,360,110]])peds.push({x:room.ox+x,y:room.oy+y,vx:0,vy:0,a:Math.PI/2,spd:0,flee:0,fx:0,fy:0,down:0,skin:PEDCOL[Math.floor(rand()*5)],shirt:'#1d2a4a',ci:0,dir:1,ph:0,guard:true,room,cd:1})}
 function guardStep(p,dt){if(!heist.alarm||me.inside!==p.room||state!=='play')return;const dx=me.x-p.x,dy=me.y-p.y,d=Math.hypot(dx,dy);p.a=Math.atan2(dy,dx);p.cd-=dt;
-  if(p.cd<=0&&d<380){p.cd=rr(.9,1.6);const a=p.a+rr(-.09,.09);fire(p.x+Math.cos(a)*10,p.y+Math.sin(a)*10,a,'police',7)}}
+  if(p.cd<=0&&d<380){p.cd=rr(.9,1.6);const a=p.a+rr(-.09,.09);fire(p.x+Math.cos(a)*10,p.y+Math.sin(a)*10,a,'police',BAL.npc.bank)}}
 function triggerAlarm(msg){if(heist.alarm)return;heist.alarm=true;showBig('ALARM','#ff4b4b',msg+' The guards are shooting',1.8);noise(.8,900,.3)}
 function heistReset(){Object.assign(heist,{on:false,seed:0,bits:0,drill:0,drilling:false,looted:{},carry:0,alarm:false,hackLog:[],seenBits:0});spawnGuards()}
 function heistStart(seed){heistReset();heist.on=true;heist.seed=seed||Math.floor(rand()*1e6)+1;heist.briefed=true;feed(seed?'You joined the crew. Head to Union Bank (B on the radar)':'Heist started. Head to Union Bank (B on the radar). Bring friends!');closeShop()}
@@ -1164,7 +1164,7 @@ function update(dt){
   if(state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.roof&&!me.climb&&shopCd<=0){
     if(me.inside){if(Math.hypot(me.inside.exit.x-me.x,me.inside.exit.y-me.y)<16)exitInt()}
     else for(const d of DOORS)if(Math.hypot(d.x-me.x,d.y-me.y)<18){enterInt(d);break}}
-  if(state==='play'&&time-me.lastHurt>7&&me.hp<100)me.hp=Math.min(100,me.hp+5*dt);
+  if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
   // input vector
   let ix=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0),iy=(keys.KeyS||keys.ArrowDown?1:0)-(keys.KeyW||keys.ArrowUp?1:0);
@@ -1270,7 +1270,6 @@ function update(dt){
       if(!dead)for(const[peer,r]of remotes){if(r.dead)continue;if(b.z>(r.inCar?0:(r.z||0))-3&&b.z<(r.inCar?0:(r.z||0))+(r.inCar?24:26)&&segDist(r.x,r.y,b.px,b.py,b.x,b.y)<(r.inCar?16:r.inHeli||r.inJet?28:11)){dmgOut[peer]=(dmgOut[peer]||0)+(r.inCar&&r.ct==='armored'?0:Math.round(b.dmg*(r.inCar?BAL.bulletVeh:r.inHeli||r.inJet?BAL.bulletAir:1)));burst(b.x,b.y,6,r.color,140,.3);dead=true;break}}
     }
     if(!dead&&b.owner==='police'&&state==='play'){const rad=me.car?16:10;if(b.z>(me.z||0)-3&&b.z<(me.z||0)+28&&segDist(me.x,me.y,b.px,b.py,b.x,b.y)<rad){if(me.jet)me.jet.hp-=b.dmg*BAL.bulletAir;else if(me.heli)me.heli.hp-=b.dmg*BAL.bulletAir;else if(me.car){if(me.car.type!=='armored')damageCar(me.car,b.dmg*BAL.bulletVeh,false),hurtMe(b.dmg*.3,null)}else hurtMe(b.dmg,null);dead=true;burst(b.x,b.y,5,'#ff6b6b',120,.25)}}
-    if(dead&&b.rocket&&b.owner==='me'&&b.home&&b.home.air)for(const v of[typeof copHeli!=='undefined'?copHeli:null,heli,...jets])if(v&&!v.dead&&v!==me.heli&&v!==me.jet)v.hp-=fall(Math.hypot(v.x-b.x,v.y-b.y,(v.z||0)-b.z),BAL.exp.air);
     if(dead){if(b.rocket)explode(b.x,b.y,b.owner==='me',b.owner!=='me',b.z,b.heli?BAL.heliRocketK:b.jet?BAL.jetMissileK:1);bullets.splice(i,1)}
   }
   stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
