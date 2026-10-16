@@ -9,6 +9,8 @@ let VW=0,VH=0,DPR=1;
 function resize(){DPR=Math.min(window.devicePixelRatio||1,2);VW=innerWidth;VH=innerHeight;cv.width=Math.round(VW*DPR);cv.height=Math.round(VH*DPR)}
 addEventListener('resize',resize);resize();
 const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+// ?debug: scripts/smoke.mjs --eval reads window.__pr. Each section adds its own getters with if(DBG)Object.defineProperties(DBG,{...}).
+const DBG=/[?&]debug\b/.test(location.search)?(window.__pr={}):null;
 
 // ---------- world ----------
 const B=440,R=120,N=10,W=N*B+R,SW=14,TAU=Math.PI*2;
@@ -1862,8 +1864,7 @@ function start(data){
     requestAnimationFrame(loop)};
   requestAnimationFrame(loop);
 }
-// ?debug exposes live state for scripts/smoke.mjs --eval. Add getters here when a test needs a new value.
-if(/[?&]debug\b/.test(location.search))window.__pr={me,cars,peds,get job(){return job},get heat(){return heat},get state(){return state},get time(){return time}};
+if(DBG)Object.defineProperties(DBG,{me:{get:()=>me},cars:{get:()=>cars},peds:{get:()=>peds},job:{get:()=>job},heat:{get:()=>heat},state:{get:()=>state},time:{get:()=>time},weap:{get:()=>weap},owned:{get:()=>owned},cash:{get:()=>me.cash},calls:{get:()=>renderer.info.render.calls}});
 window.claude?.hot?.snapshot?.(()=>({name:myName,color:myColor,cash:me.cash,bonus10k:true,owned,ammo,weap,playing:state!=='menu'}));
 window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
 })();
