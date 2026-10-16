@@ -429,7 +429,50 @@ function hillMeshes(){
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
     out.push(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:det})))}
-  return out.concat(roadMeshes(),placeMeshes(),propMeshes())}
+  return out.concat(roadMeshes(),placeMeshes(),propMeshes(),[hikeMesh()])}
+
+// hill traffic: up to 6 cars (kind 'hill') drive the paved hill roads both ways and slow in bends. Eight hikers walk the dirt trail and the overlook as one instanced mesh.
+const HILL_RT=HILL_ROADS.map(r=>{const S=roadSamples(r,4),n=S.length,v=new Float32Array(n);
+  for(let i=0;i<n;i++){const k0=Math.max(0,i-3),k1=Math.min(n-1,i+3),turn=Math.abs(wrap(Math.atan2(S[k1][4],S[k1][3])-Math.atan2(S[k0][4],S[k0][3])));v[i]=75/(1+3*turn)}
+  return{S,v,len:S[n-1][2],loop:!!r.loop,dirt:!!r.dirt,w:r.w,name:r.name}});
+const HILL_CARROADS=HILL_RT.map((R,i)=>i).filter(i=>!HILL_RT[i].dirt);
+const HILL_WALKROADS=HILL_RT.map((R,i)=>i).filter(i=>HILL_RT[i].dirt||HILL_RT[i].name==='Overlook');
+// pose of a car or hiker on its road: position in its lane, heading along travel direction
+function hillPose(c){const R=HILL_RT[c.road],S=R.S,f=c.s/4,i=Math.min(S.length-2,Math.max(0,Math.floor(f))),t=clamp(f-i,0,1),a=S[i],b=S[i+1];
+  let ux=a[3]+(b[3]-a[3])*t,uy=a[4]+(b[4]-a[4])*t;const l=Math.hypot(ux,uy)||1;ux/=l;uy/=l;
+  const tx=ux*c.dir,ty=uy*c.dir;
+  c.x=a[0]+(b[0]-a[0])*t+ty*c.lane;c.y=a[1]+(b[1]-a[1])*t-tx*c.lane;c.a=Math.atan2(ty,tx)}
+function hillCarStep(c,dt){const R=HILL_RT[c.road],sp=R.v[clamp(Math.round(c.s/4),0,R.v.length-1)];
+  c.cur+=(sp-c.cur)*Math.min(1,2*dt);c.s+=c.dir*c.cur*dt;
+  if(R.loop)c.s=((c.s%R.len)+R.len)%R.len;else if(c.s<0||c.s>R.len){c.s=clamp(c.s,0,R.len);c.dir=-c.dir}
+  hillPose(c);c.vx=Math.cos(c.a)*c.cur;c.vy=Math.sin(c.a)*c.cur}
+// cars more than 900 from every player update every other frame (with double dt)
+function hillCarFar(c){if(Math.hypot(c.x-A.x,c.y-A.y)<=900)return false;for(const r of remotes.values())if(Math.hypot(c.x-r.x,c.y-r.y)<=900)return false;return true}
+let hillT=0,hillFrame=0;
+function hillTraffic(dt){hillFrame++;hillT-=dt;if(hillT>0)return;hillT=1.5;
+  const near=(x,y,d)=>{if(Math.hypot(x-A.x,y-A.y)<d)return true;for(const r of remotes.values())if(Math.hypot(x-r.x,y-r.y)<d)return true;return false};
+  let n=0;for(let i=cars.length-1;i>=0;i--){const c=cars[i];if(c.kind!=='hill')continue;n++;if(!near(c.x,c.y,1400)){cars.splice(i,1);n--}}
+  if(n>=6)return;
+  const road=HILL_CARROADS[Math.floor(rand()*HILL_CARROADS.length)],R=HILL_RT[road];
+  const c=mkCar(0,0,0,'hill',CARCOL[Math.floor(rand()*CARCOL.length)],'sedan');Object.assign(c,{road,s:rand()*R.len,dir:rand()<.5?1:-1,lane:Math.min(10,R.w*.22),cur:60});
+  hillPose(c);if(!near(c.x,c.y,520)&&near(c.x,c.y,1300))cars.push(c)}
+const HCAR={geo:null,mat:{}};
+function hillCarMesh(col){if(!HCAR.geo){const b=new THREE.BoxGeometry(4.4,1.6,2.3),k=new THREE.BoxGeometry(2.4,1.3,2);
+    HCAR.geo=mergeGeos([[b,new THREE.Matrix4().makeTranslation(0,1.6,0)],[k,new THREE.Matrix4().makeTranslation(-.3,3,0)]])}
+  const m=new THREE.Mesh(HCAR.geo,HCAR.mat[col]||(HCAR.mat[col]=new THREE.MeshLambertMaterial({color:col})));m.userData.body=m;m.userData.beam=new THREE.Object3D();return m}
+// hikers: eight instances, drawn as one mesh
+const HIKERS=[],HIKE={mesh:null},HIKE_COL=['#ff7a2e','#29e6d6','#ff3ea5','#ffc94a','#7b6bff','#3dd68c','#ff6b3d','#f3ecff'];
+function hikeMesh(){const g=mergeGeos([[new THREE.BoxGeometry(1.8,4.5,1.2),new THREE.Matrix4().makeTranslation(0,4.5,0)],[new THREE.SphereGeometry(1.1,8,6),new THREE.Matrix4().makeTranslation(0,7.4,0)]]);
+  const m=new THREE.InstancedMesh(g,new THREE.MeshLambertMaterial({color:'#ffffff'}),8);m.frustumCulled=false;
+  for(let i=0;i<8;i++){const road=HILL_WALKROADS[i%HILL_WALKROADS.length],R=HILL_RT[road],h={road,s:rand()*R.len,dir:rand()<.5?1:-1,v:18+rand()*10,lane:(rand()-.5)*R.w*.5,x:0,y:0,a:0};
+    hillPose(h);HIKERS.push(h);m.setColorAt(i,new THREE.Color(HIKE_COL[i]))}
+  HIKE.mesh=m;return m}
+function hikerStep(dt){if(!HIKE.mesh)return;
+  HIKERS.forEach((h,i)=>{const fr=Math.hypot(h.x-A.x,h.y-A.y)>900;if(fr&&(hillFrame&1))return;const R=HILL_RT[h.road];
+    h.s+=h.dir*h.v*(fr?2:1)*dt;if(h.s<0||h.s>R.len){h.s=clamp(h.s,0,R.len);h.dir=-h.dir}
+    hillPose(h);inst(HIKE.mesh,i,h.x,groundZ(h.x,h.y),h.y,-h.a)});
+  HIKE.mesh.instanceMatrix.needsUpdate=true}
+if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='hill').length},hikers:{get:()=>HIKERS.length}});
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
@@ -655,7 +698,7 @@ function carPitch(c){if(c.air)return Math.atan2(c.vz||0,Math.max(1,Math.hypot(c.
 function carRoll(c){if(c.air)return 0;const[gx,gy]=groundN(c.x,c.y);return -Math.atan(-gx*Math.sin(c.a)+gy*Math.cos(c.a))}
 function carCircles(c){const o=ctOf(c).len/4,fx=Math.cos(c.a)*o,fy=Math.sin(c.a)*o;return[[c.x+fx,c.y+fy],[c.x-fx,c.y-fy]]}
 function carWalls(c){let imp=0;for(const[px,py]of carCircles(c))imp=Math.max(imp,collide(c,px,py,ctOf(c).wid/2));return imp}
-const dynamic=c=>c.kind!=='traffic'&&!(c.kind==='police'&&c.mode!=='chase');
+const dynamic=c=>c.kind!=='traffic'&&c.kind!=='hill'&&!(c.kind==='police'&&c.mode!=='chase');
 function carPair(a,b){
   const ca=carCircles(a),cb=carCircles(b),rs=(ctOf(a).wid+ctOf(b).wid)/2;let imp=0;
   for(const p of ca)for(const q of cb){
@@ -2424,6 +2467,7 @@ function update(dt){
       c.cur+=((blocked?0:c.spd)-c.cur)*Math.min(1,(blocked?6:1.5)*dt);
       laneMove(c,dt,false);
     }
+    else if(c.kind==='hill'){if(hillCarFar(c)&&(hillFrame&1))continue;hillCarStep(c,dt*(hillCarFar(c)?2:1))}
     else if(c.kind==='police'){
       const d=Math.hypot(me.x-c.x,me.y-c.y);
       if(c.mode!=='chase'){c.cur+=(c.spd-c.cur)*Math.min(1,2*dt);laneMove(c,dt,heat>0);if(heat>0&&d<280&&play){c.mode='chase';c.vx=Math.cos(c.a)*c.cur;c.vy=Math.sin(c.a)*c.cur}}
@@ -2489,6 +2533,7 @@ function update(dt){
   if(!cars.some(c=>c.type==='armored'&&c.kind!=='dead')){armorWait+=dt;if(armorWait>45){const[sp]=parkSpot(600,2600);if(sp){armorWait=0;cars.push(mkCar(sp[0],sp[1],sp[2],'parked','#4a5a4c','armored'));feed('An armored truck was spotted. Find the gold square on the map')}}}
   let traffic=0;for(const c of cars)if(c.kind==='traffic')traffic++;
   if(traffic<26&&rand()<dt*4)laneSpawn('traffic',560,1500);
+  hillTraffic(dt);hikerStep(dt);
   if(peds.length<44&&rand()<dt*6)spawnPed();gangPop(dt);
   let parked=0;for(const c of cars)if(c.kind==='parked')parked++;
   if(parked<10&&rand()<dt*2){const[sp]=parkSpot(560,1500);if(sp)cars.push(mkCar(sp[0],sp[1],sp[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
@@ -3140,7 +3185,7 @@ function render(dt){
   dt=dt||1/60;
   if(meColorNow!==myColor){setShirt(meMesh,myColor);meColorNow=myColor}
   // cars
-  syncMap(carMeshes,cars,c=>carMesh(c.color,c.type),(c,m)=>{
+  syncMap(carMeshes,cars,c=>c.kind==='hill'?hillCarMesh(c.color):carMesh(c.color,c.type),(c,m)=>{
     m.visible=!far(c.x,c.y,1500);if(!m.visible)return;if(m.userData.detail)m.userData.detail.visible=!far(c.x,c.y,650);
     m.position.set(c.x,c.z||0,c.y);m.rotation.order='YZX';m.rotation.set(carRoll(c),-c.a,carPitch(c));const ud=m.userData;if(ud.brakes){const bm=c.kind==='mine'&&c.brk?brakeM:tailM;if(ud.brakes.material!==bm)ud.brakes.material=bm}if(ud.wheels){const gs=c.kind==='traffic'||c.kind==='police'&&c.mode!=='chase'?c.cur:(c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a));if(!c.air)c.wsp=gs;const sp=c.air?c.wsp||0:gs;for(const w of ud.wheels)w.rotation.z-=sp*dt/4.5}
     if(c.kind==='dead'&&!ud.dead){ud.dead=true;ud.body.material=M.char;if(ud.cabin)ud.cabin.material=[M.char,M.char];ud.beam.visible=false;if(ud.l1){ud.l1.material=ud.l2.material=M.dim;ud.glow.visible=false}}
