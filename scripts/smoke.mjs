@@ -1,6 +1,6 @@
 // Plays the built game in headless Chrome and reports every console error and uncaught exception.
 //   node scripts/smoke.mjs [--secs 8] [--pre "js"] [--keys "KeyW*2,KeyE,wait*1"] [--eval "js"] [--shot out.png] [--size 1280x800]
-// --keys runs left to right after the start screen: Code*seconds holds a key (KeyW, Space, ShiftLeft...),
+// --keys runs left to right after the start screen: Code*seconds holds a key (KeyW, Space, ShiftLeft...), KeyW+ShiftLeft*2 holds both,
 // a bare Code taps it, click*seconds holds the left mouse button on the canvas, wait*seconds idles.
 // The page loads with ?debug, so --pre (runs right after the start screen) and --eval (runs at the end) can use window.__pr.
 // Exits 1 if anything was logged as an error. Needs Node 22+ and Google Chrome.
@@ -66,7 +66,7 @@ for (const step of o.keys.split(',').map((s) => s.trim()).filter(Boolean)) {
   const [code, t = '0.1'] = step.split('*'); const s = Number(t); spent += s;
   if (code === 'wait') await sleep(s);
   else if (code === 'click') { await mouse('mousePressed'); await sleep(s); await mouse('mouseReleased'); }
-  else { await key('rawKeyDown', code); await sleep(s); await key('keyUp', code); }
+  else { const codes = code.split('+'); for (const c of codes) await key('rawKeyDown', c); await sleep(s); for (const c of codes) await key('keyUp', c); }
 }
 await sleep(Math.max(0.5, Number(o.secs) - spent));
 console.log('playing:', await js(`document.getElementById('start').hidden`));
