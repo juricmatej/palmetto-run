@@ -1760,8 +1760,8 @@ if(DBG)Object.defineProperties(DBG,{places:{get:()=>PLACES.map(p=>p.name)},look:
 const GARAGE={x:1*B+R+160,y:3*B+R+9};
 function jobCol(){return!job?'#ffc94a':job.col||(job.phase==='pickup'?'#ffc94a':'#ff3ea5')}
 function endJob(){if(job&&job.car)job.car.mark=false}
-function jobDone(reward,msg){endJob();me.cash+=reward;showBig('MISSION PASSED','#ffc94a',`+$${reward}`,2);jingle('pass');job={phase:'wait',t:4,msg:msg||'Nice work. Next job incoming...'};gainXP(60+reward*.08,'Mission');saveArsenal()}
-function jobFail(msg){endJob();jingle('fail');showBig('MISSION FAILED','#ff4b4b',msg,1.8);job={phase:'wait',t:4,msg:'Next job incoming...'}}
+function jobDone(reward,msg){endJob();me.cash+=reward;showBig('MISSION PASSED','#ffc94a',`+$${reward}`,2);jingle('pass');job={phase:'wait',t:4,msg:msg||'Nice work. Check your phone for the next job.'};gainXP(60+reward*.08,'Mission');saveArsenal()}
+function jobFail(msg){endJob();jingle('fail');showBig('MISSION FAILED','#ff4b4b',msg,1.8);job={phase:'wait',t:4,msg:'Check your phone for the next job.'}}
 const jobPos=()=>me.jet||me.heli||me.car||me;
 function newJob(force){
   const kinds=['courier','hit','steal','race','wrecker','wanted','turf'],k=force||kinds[Math.floor(rand()*kinds.length)];
@@ -1777,7 +1777,7 @@ function newJob(force){
 }
 function jobStep(dt){
   if(!job){newJob('courier');return}
-  if(job.phase==='wait'){job.t-=dt;if(job.t<=0)newJob();return}
+  if(job.phase==='wait'){job.t-=dt;return}
   const Pp=jobPos(),d=Math.hypot(job.x-Pp.x,job.y-Pp.y);
   if(job.timed){job.t-=dt;if(job.t<=0){jobFail(job.type==='wanted'?'The cops are still on you':'Out of time');return}}
   switch(job.type||'courier'){
@@ -1871,7 +1871,7 @@ function phHomeShow(){phApp=null;phAppEl.hidden=true;phHome.hidden=false;phFocus
 function phPaint(a,force){const t=phBody.cloneNode(false);a.render(t);if(!force&&t.innerHTML===phBody.innerHTML)return;const was=phNavEls().indexOf(document.activeElement);phBody.replaceChildren(...t.childNodes);if(!force&&was>=0)phFocus(was)}
 function phoneOpenNow(toMsg){
   if(phoneOpen||state!=='play')return;
-  phoneOpen=true;$('phone').classList.add('open');phBan.classList.remove('show');
+  phoneOpen=true;for(const k in keys)if(!/^Key[WASD]$/.test(k))keys[k]=false;$('phone').classList.add('open');phBan.classList.remove('show');
   try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
   mouse.down=false;touchFire=false;
   phEyes=me.car&&Math.hypot(me.car.vx,me.car.vy)>200?2.5:0;
@@ -1911,21 +1911,27 @@ const CONTACTS=[['Taxi','Cab to your waypoint, $100',phTaxi],['Lawyer','Clears 1
 
 // ---- map: the city at full size, with the waypoint and a GPS line along the roads
 const mapCv=mk('canvas','ph-map');mapCv.width=mapCv.height=560;
-function wpRoute(x,y,wx,wy){const sn=v=>Math.round((v-60)/B)*B+60,ax=sn(x),by=sn(wy);return[[x,y],[ax,y],[ax,by],[wx,by],[wx,wy]]}
+// GPS route along the road grid from the nearest intersection. Cached by the snapped start and the waypoint, so it is rebuilt only when either moves.
+let wpRC=[],wpRK='';
+function wpRouteC(x,y,wx,wy){const sn=v=>Math.round((v-60)/B)*B+60,ax=sn(x),ay=sn(y),k=ax+','+ay+','+wx+','+wy;
+  if(k!==wpRK){wpRK=k;const p=[[ax,ay],[ax,sn(wy)],[wx,sn(wy)],[wx,wy]];wpRC=p.filter((q,i)=>!i||q[0]!==p[i-1][0]||q[1]!==p[i-1][1])}
+  return wpRC}
 function mapPick(p){if(waypoint&&Math.hypot(waypoint.x-p.x,waypoint.y-p.y)<130){waypoint=null;feed('Waypoint cleared')}else{waypoint={x:p.x,y:p.y};feed('Waypoint set')}}
 mapCv.addEventListener('pointerdown',e=>{const r=mapCv.getBoundingClientRect(),k=W+500;mapCur={x:(e.clientX-r.left)/r.width*k-MO,y:(e.clientY-r.top)/r.height*k-MO};mapPick(mapCur)});
-function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:AREA[k][0],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
+const PHSHORT={airport:'Airport',hood:'Low Palms',beach:'Beach',industrial:'Docks',suburb:'Heights',park:'Lagoon',downtown:'Downtown',midtown:'Midtown'};
+function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:PHSHORT[k],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
 function phMapDraw(){
   const c=mapCv.getContext('2d'),S=560,k=S/(W+500),X=x=>(x+MO)*k,Y=y=>(y+MO)*k;
   c.setTransform(1,0,0,1,0,0);c.drawImage(miniBig,0,0,S,S);
   phDistr=phDistr||phDistricts();
-  c.textAlign='center';c.textBaseline='middle';c.font='700 26px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=10;
-  for(const d of phDistr)c.fillText(d.name,X(d.x),Y(d.y));
-  c.shadowBlur=0;c.font='700 22px "Chakra Petch",sans-serif';
+  c.textAlign='center';c.textBaseline='middle';c.font='700 22px "Chakra Petch",sans-serif';
   for(const d of DOORS){c.fillStyle='#0b0814';c.beginPath();c.arc(X(d.x),Y(d.y),17,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=3;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',X(d.x),Y(d.y)+1)}
+  c.font='700 30px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=10;
+  for(const d of phDistr)c.fillText(d.name,X(d.x),Y(d.y));
+  c.shadowBlur=0;
   for(const r of remotes.values()){if(r.dead)continue;c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(X(r.x),Y(r.y),11,0,TAU);c.fill();c.stroke()}
   if(job&&job.phase!=='wait'&&!job.noMarker){c.fillStyle=jobCol();c.beginPath();c.arc(X(job.x),Y(job.y),15,0,TAU);c.fill()}
-  if(waypoint){const rt=wpRoute(me.x,me.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.lineWidth=3;c.setLineDash([6,5]);c.beginPath();rt.forEach(([x,y],i)=>i?c.lineTo(X(x),Y(y)):c.moveTo(X(x),Y(y)));c.stroke();c.setLineDash([]);
+  if(waypoint){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.lineWidth=3;c.setLineDash([6,5]);c.beginPath();c.moveTo(X(A.x),Y(A.y));rt.forEach(([x,y])=>c.lineTo(X(x),Y(y)));c.stroke();c.setLineDash([]);
     c.fillStyle='#29e6d6';c.strokeStyle='#0b0814';c.lineWidth=3;c.beginPath();c.arc(X(waypoint.x),Y(waypoint.y),16,0,TAU);c.fill();c.stroke()}
   c.save();c.translate(X(me.x),Y(me.y));c.rotate(me.car?me.car.a:me.a);c.scale(1.9,1.9);c.fillStyle='#fff';c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.moveTo(11,0);c.lineTo(-7,8);c.lineTo(-3,0);c.lineTo(-7,-8);c.closePath();c.fill();c.stroke();c.restore();
   if(mapCur){c.strokeStyle='#ffc94a';c.lineWidth=3;c.beginPath();c.arc(X(mapCur.x),Y(mapCur.y),20,0,TAU);c.stroke()}
@@ -2009,7 +2015,7 @@ const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
 addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;
-  if(phoneOpen&&/^Arrow/.test(e.code)){phoneKey(e);return}keys[e.code]=true;
+  if(phoneOpen&&!/^Key[WASD]$/.test(e.code)){phoneKey(e);return}keys[e.code]=true;
   if(state==='menu'||state==='shop')return;
   if(phoneOpen){phoneKey(e);return}
   if(e.code==='KeyT'&&!e.repeat&&state==='play'){phoneOpenNow(false);return}
@@ -3106,7 +3112,7 @@ function drawMini(){
   // route line to the job
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[jx,jy]=edge(job.x,job.y);c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(jx,jy);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // waypoint: GPS line along the road grid
-  if(waypoint&&!me.inside){const rt=wpRoute(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();rt.forEach(([x,y],i)=>{const[px,py]=Pt(x,y);if(i)c.lineTo(px,py);else c.moveTo(px,py)});c.stroke();c.setLineDash([]);c.globalAlpha=1}
+  if(waypoint&&!me.inside){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();c.moveTo(...Pt(A.x,A.y));rt.forEach(([x,y])=>c.lineTo(...Pt(x,y)));c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // places
   c.font='700 13px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
   for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=2.5;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',px,py+1)}
