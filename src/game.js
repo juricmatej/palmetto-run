@@ -1148,7 +1148,7 @@ function update(dt){
       if(!dead)for(const[peer,r]of remotes){if(r.dead)continue;if(b.z>(r.inCar?0:(r.z||0))-3&&b.z<(r.inCar?0:(r.z||0))+(r.inCar?24:26)&&segDist(r.x,r.y,b.px,b.py,b.x,b.y)<(r.inCar?16:r.inHeli||r.inJet?28:11)){dmgOut[peer]=(dmgOut[peer]||0)+(r.inCar&&r.ct==='armored'?0:Math.round(b.dmg*(r.inCar?.6:1)));burst(b.x,b.y,6,r.color,140,.3);dead=true;break}}
     }
     if(!dead&&b.owner==='police'&&state==='play'){const rad=me.car?16:10;if(b.z>(me.z||0)-3&&b.z<(me.z||0)+28&&segDist(me.x,me.y,b.px,b.py,b.x,b.y)<rad){if(me.jet)me.jet.hp-=b.dmg;else if(me.car){if(me.car.type!=='armored')damageCar(me.car,b.dmg,false),hurtMe(b.dmg*.3,null)}else hurtMe(b.dmg,null);dead=true;burst(b.x,b.y,5,'#ff6b6b',120,.25)}}
-    if(dead&&b.rocket&&b.home)for(const v of[typeof copHeli!=='undefined'?copHeli:null,heli,...jets])if(v&&!v.dead&&Math.hypot(v.x-b.x,v.y-b.y,(v.z||0)-b.z)<60)v.hp-=120;
+    if(dead&&b.rocket&&b.owner==='me'&&b.home&&b.home.air)for(const v of[typeof copHeli!=='undefined'?copHeli:null,heli,...jets])if(v&&!v.dead&&v!==me.heli&&v!==me.jet&&Math.hypot(v.x-b.x,v.y-b.y,(v.z||0)-b.z)<60)v.hp-=120;
     if(dead){if(b.rocket)explode(b.x,b.y,b.owner==='me',b.owner!=='me',b.z);bullets.splice(i,1)}
   }
   stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
