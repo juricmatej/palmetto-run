@@ -23,6 +23,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 #hp{height:100%;width:100%;background:var(--cyan);transition:width .15s}
 #stamBar{width:150px;height:3px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
 #stam{height:100%;background:var(--cyan)}
+#nitBar{width:150px;height:5px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+#nit{height:100%;width:0;background:#4aa3ff;box-shadow:0 0 6px #4aa3ff}
 #carhp{font-size:12px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
 #job{max-width:260px;background:var(--panel);border-left:3px solid var(--gold);padding:6px 10px;font-size:14px;line-height:1.35}
 #job strong{color:var(--gold);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;display:block}
@@ -84,6 +86,13 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .wseg.lock{opacity:.38}
 #wheelMid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-family:var(--display);font-size:19px;width:38%;line-height:1.1}
 #wheelMid small{display:block;margin-top:4px;font:600 12px var(--body);color:var(--dim);line-height:1.3}
+#modTop{display:flex;gap:10px;align-items:flex-start}
+#modCats{display:flex;flex-direction:column;gap:6px;flex:0 0 132px}
+#modCats button{font:700 13px var(--body);border:1px solid #2a2340;background:#0a0814;color:var(--dim);padding:8px 6px;cursor:pointer;text-align:left}
+#modCats button.on{border-color:var(--neon);color:var(--neon);box-shadow:0 0 14px rgba(255,62,165,.25)}
+#modList{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+#modList .gun{grid-template-columns:1fr auto}
+#modClose{background:var(--neon);color:#16051a;border:0;font:16px var(--display);padding:11px;cursor:pointer}
 #lockMark{position:fixed;width:34px;height:34px;box-sizing:border-box;border:2px solid #ff3ea5;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%)}
 #settings select{background:#0a0814;color:var(--ink);border:1px solid var(--line);font:600 15px var(--body);padding:8px}
 #settings input[type=range]{width:100%;accent-color:var(--neon)}

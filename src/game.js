@@ -1290,9 +1290,45 @@ function gainXP(n,why){n=Math.round(n);if(state!=='play'||!(n>0))return;xp+=n;fe
   const nl=lvOf(xp);if(nl!==lv){lv=nl;showBig('LEVEL '+lv,'#29e6d6',unlockText(lv),2.2);saveArsenal()}lvlBar()}
 if(DBG)Object.defineProperties(DBG,{xp:{get:()=>xp},lv:{get:()=>lv},gainXP:{get:()=>gainXP}});
 
-// ---------- jobs ----------
+// ---------- mod shop ----------
+// Car mods live on c.mods={paint,eng,brk,arm,nitro,neon,rim,tint,horn}; missing keys mean stock.
 const GARAGE={x:1*B+R+160,y:3*B+R+9};
+const MODS_COL=CARCOL.concat(['#f6f4ee','#17161c']);
+const MODS_NEON=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d'];
+const MODS_RIM=['#e8e6f0','#17161c','#ffc94a','#ff3ea5','#29e6d6'];
+const MODS_TINT=['#0b0e1c','#2a2438','#4d405c'];
+const MODS_HORN=[[400,500,'Stock'],[520,660,'Air horn'],[300,380,'Muscle']];
+const MODS_PAINT_NAMES=['Stock',...CARCOL.map(c=>c),...['Pearl white','Matte black']];
+function modK(c,k){const m=c&&c.mods;if(!m)return 1;
+  if(k==='eng')return[1,1.08,1.16,1.25][m.eng|0]||1;
+  if(k==='brk')return[1,1.12,1.25][m.brk|0]||1;
+  if(k==='arm')return[1,.8,.65,.5][m.arm|0]||1;
+  return 1}
+let nitroT=0,nitroMax=3;
+function modNitroStep(dt){
+  const c=me.car,fitted=!!(c&&c.mods&&c.mods.nitro)&&state==='play'&&!me.inside&&state!=='shop',on=fitted&&keys.KeyV;
+  if(on&&nitroT>0)nitroT-=dt;else nitroT=Math.min(nitroMax,nitroT+dt/10);
+  const boost=on&&nitroT>0;
+  const toast=boost?()=>{for(let i=0;i<2;i++){const ex=c.x-Math.cos(c.a)*22,ey=c.y-Math.sin(c.a)*22;
+    parts.push({x:ex+rr(-3,3),y:ey+rr(-3,3),vx:-c.vx*.15+rr(-14,14),vy:-c.vy*.15+rr(-14,14),life:.45,max:.45,col:rand()<.6?'#4aa3ff':'#9fd4ff',k:'nitro',sz:rr(4,8)})}}:null;
+  if(boost&&rand()<dt*50)toast();
+  const nb=$('nitBar');
+  if(nb){const show=!!(c&&c.mods&&c.mods.nitro)&&nitroT<nitroMax;nb.hidden=!show;if(show)$('nit').style.width=nitroT/nitroMax*100+'%'}
+}
+function openMods(){
+  if(state!=='play')return;
+  const c=me.car;
+  if(!c){feed('Drive a car into the spray bay to tune it');return}
+  if(c.type==='armored'){feed('The shop does not touch that truck');return}
+  if(Math.ceil(heat)>=3){feed('Too hot, lose the cops first');return}
+  if(heat>0&&!cars.some(q=>q.kind==='police'&&Math.hypot(q.x-c.x,q.y-c.y)<400)){heat=0;coolT=0;feed('New colour, new car. The cops lost you')}
+  try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
+  mouse.down=false;state='shop';$('modshop').hidden=false;renderMods();setTimeout(()=>$('modClose').focus(),0)}
+$('modClose').addEventListener('click',()=>{$('modshop').hidden=true;if(!$('shop').hidden&&!document.querySelector('.gm:not([hidden])'))return;state='play';cv.focus&&cv.focus()});
 function jobCol(){return!job?'#ffc94a':job.col||(job.phase==='pickup'?'#ffc94a':'#ff3ea5')}
+const MOD_MENUS=[['paint','Paint'],['engine','Engine'],['brakes','Brakes & handling'],['armor','Armor'],['nitro','Nitro'],['neon','Neon'],['rims','Rims'],['tint','Tint'],['horn','Horn']];
+const MOD_CAT=(c,k,key,lv,price,cur,names)=>{
+  return{name:k,lv,price,owned:((c.mods||{})[key]|0)===i=>0}};
 function endJob(){if(job&&job.car)job.car.mark=false}
 function jobDone(reward,msg){endJob();me.cash+=reward;showBig('MISSION PASSED','#ffc94a',`+$${reward}`,2);jingle('pass');job={phase:'wait',t:4,msg:msg||'Nice work. Next job incoming...'};gainXP(60+reward*.08,'Mission');saveArsenal()}
 function jobFail(msg){endJob();jingle('fail');showBig('MISSION FAILED','#ff4b4b',msg,1.8);job={phase:'wait',t:4,msg:'Next job incoming...'}}
