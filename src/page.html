@@ -1,0 +1,107 @@
+<title>Palmetto Run 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Chakra+Petch:wght@400;600;700&display=swap">
+<style>/*@@STYLE@@*/</style>
+
+<canvas id="game" aria-label="Palmetto Run city"></canvas>
+<div id="vig"></div>
+<div id="scope" hidden></div>
+<div id="xh" hidden></div>
+<div class="hud" id="area" style="opacity:0"></div>
+<div class="hud" id="lock" hidden></div>
+<div class="hud" id="warn" hidden>Missile incoming</div>
+<div class="hud" id="tl">
+  <div id="cash">$0</div>
+  <div id="stars" aria-label="Wanted level">★★★★★</div>
+  <div id="hpbar"><div id="hp"></div></div>
+  <div id="weapon">Pistol<span>&infin;</span></div>
+  <div id="carhp"></div>
+  <div id="drunk" hidden></div>
+  <div id="power" hidden></div>
+  <div id="job"></div>
+</div>
+<div class="hud" id="tr">
+  <div id="netb">Connecting</div>
+  <canvas id="mini" width="300" height="300"></canvas>
+  <div id="players"></div>
+</div>
+<div class="hud" id="feed"></div>
+<div class="hud" id="hint" hidden></div>
+<div class="hud" id="big" hidden><div class="t"></div><div class="s"></div></div>
+<div id="wheel" hidden><div id="wheelIn"><div id="wheelMid"></div></div></div>
+<div id="touch" hidden><button id="bNose" type="button" hidden>BUMP</button><button id="bFlare" type="button" hidden>FLARE</button><button id="bUp" type="button" hidden>UP</button><button id="bDn" type="button" hidden>DOWN</button><button id="bBoom" type="button" hidden>BOOM</button><button id="bAim" type="button" hidden>AIM</button><button id="bGun" type="button">GUN</button><button id="bCar" type="button">CAR</button><button id="bFire" type="button">FIRE</button></div>
+
+<div id="shop" hidden>
+  <div class="card" role="dialog" aria-label="Gun shop">
+    <h2>Gun shop</h2>
+    <p class="tag" style="margin:0">Cash <b id="shopCash" style="color:var(--gold)"></b>. Equip with keys 1&ndash;5 or cycle with Q.</p>
+    <div id="shopList"></div>
+    <button id="shopClose" type="button">Back to the street</button>
+  </div>
+</div>
+<div id="bj" hidden>
+  <div class="card" role="dialog" aria-label="Blackjack">
+    <h2>Blackjack</h2>
+    <p class="tag" style="margin:0;color:#cfe9da">Dealer stands on 17. Blackjack pays 3 to 2. Cash <b id="bjCash" style="color:var(--gold)"></b></p>
+    <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
+    <div class="bjrow"><span class="bjl">You<b id="bjPv"></b></span><div class="hand" id="bjP"></div></div>
+    <div id="bjMsg"></div>
+    <div id="bjBtns"></div>
+    <button id="bjClose" type="button">Leave the table</button>
+  </div>
+</div>
+<div id="roul" class="gm" hidden><div class="card" role="dialog" aria-label="Roulette">
+  <h2 style="color:var(--gold)">Roulette</h2>
+  <div class="row" style="gap:14px;align-items:flex-start"><div id="rwheelWrap"><canvas id="rwheel" width="400" height="400"></canvas></div>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div class="msg" id="rMsg"></div><div class="row" id="rHist"></div><div class="row" id="rChips"></div></div></div>
+  <button class="rz" id="rZero" type="button">0</button><div class="rgrid" id="rGrid"></div>
+  <div class="row" id="rOut"></div><div class="row" id="rAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="slots" class="gm" hidden><div class="card" role="dialog" aria-label="Candy Cascade slots">
+  <h2 style="color:#fff;text-shadow:0 3px 0 #7b1f55">Candy Cascade</h2>
+  <p class="tag" style="margin:0;color:#fff">8 or more of the same candy anywhere pays. Wins tumble away and new candy drops in. 4 lollipops give 10 free spins with multiplier bombs.</p>
+  <div id="sgrid"></div><div class="msg" id="sMsg" style="color:#fff"></div><div class="row" id="sAct"></div>
+  <button class="b" type="button" data-close>Leave the machine</button></div></div>
+<div id="brief" class="gm" hidden><div class="card" role="dialog" aria-label="Heist board">
+  <h2 style="color:var(--gold)">The Union Job</h2><div id="bBody" style="display:flex;flex-direction:column;gap:12px"></div>
+  <div class="row" id="bAct"></div><button class="b" type="button" data-close>Close</button></div></div>
+<div id="hack" class="gm" hidden><div class="card" role="dialog" aria-label="Mainframe hack">
+  <h2>MAINFRAME://CRACK</h2>
+  <p>Guess the 3-digit code. Digits are 1&ndash;6. <b style="color:#3dd68c">Green</b> = right digit in the right spot, <b style="color:#ffc94a">yellow</b> = in the code but in another spot, <b style="color:#777">grey</b> = not in the code. 10 tries.</p>
+  <div id="hackLog"></div>
+  <div class="row"><input id="hackIn" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Code guess"><button class="b go" id="hackGo" type="button">Try</button></div>
+  <button class="b" type="button" data-close>Disconnect</button></div></div>
+<div id="start">
+  <form class="card" id="startForm">
+    <h1 class="logo">Palmetto<br>Run 3D</h1>
+    <p class="tag">A neon crime sandbox in third person. Steal a ride, run courier jobs, shake the cops, and settle scores with whoever else is in the city right now.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label for="name">Street name</label>
+      <input id="name" maxlength="16" autocomplete="off" placeholder="Nightrider">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label>Colour</label>
+      <div id="swatches"></div>
+    </div>
+    <div class="keys">
+      <kbd>Mouse</kbd><span>Look and aim (click the game to lock the mouse, Esc to free it)</span>
+      <kbd>WASD / arrows</kbd><span>Walk or drive</span>
+      <kbd>E</kbd><span>Steal or leave a car, use things indoors</span>
+      <kbd>Click / Space</kbd><span>Shoot</span>
+      <kbd>Shift</kbd><span>Sprint or handbrake</span>
+      <kbd>G</kbd><span>Detonate sticky bombs</span>
+      <kbd>Space / Shift</kbd><span>Helicopter up / down (helipad in Lagoon Park)</span>
+      <kbd>X</kbd><span>Helicopter / jet flares (break missile locks)</span>
+      <kbd>Airport</kbd><span>Steal a fighter jet: W throttle, mouse steers, Space climbs, click fires missiles</span>
+      <kbd>N</kbd><span>Use white powder: super strength (dealer in Low Palms)</span>
+      <kbd>Right-click / Z</kbd><span>Sniper scope</span>
+      <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8 / Q). Buy guns at the cyan gun shops</span>
+      <kbd>M</kbd><span>Sound on/off</span>
+    </div>
+    <div id="net">Connecting to the city…</div>
+    <button id="play" type="submit">Hit the streets</button>
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/*@@SCRIPT@@*/</script>

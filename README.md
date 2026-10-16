@@ -1,0 +1,125 @@
+# Palmetto Run
+
+A neon open-world crime sandbox that runs in the browser. Steal cars, fly an attack helicopter or a fighter jet, run missions, rob the casino, pull a co-op bank heist, and fight your friends in real time. Built with [Three.js](https://threejs.org/) r128 and plain JavaScript: no framework, no bundler, no dependencies.
+
+The game is published as a **Claude Artifact**, which gives it live multiplayer. It also runs as a normal web page (single-player).
+
+> Mature themes: guns, gangs, a strip club, gambling, and drug and alcohol use as game mechanics.
+
+## Play
+
+| Where | Multiplayer | How |
+|---|---|---|
+| Claude Artifact | Yes, everyone with the page open shares one city | Open the artifact link (must be signed in to Claude and have access) |
+| Locally | No (solo) | `npm run dev`, then open http://localhost:8080 |
+| GitHub Pages | No (solo) | Enable Pages for this repo (see below) |
+
+### Controls
+
+| Key | Action |
+|---|---|
+| Mouse | Look and aim (click the game to lock the mouse, Esc to free it) |
+| WASD / arrows | Walk or drive |
+| E | Steal or leave a vehicle, use things indoors, climb ladders |
+| Click / Space | Shoot |
+| Shift | Sprint or handbrake |
+| Hold Tab | Weapon wheel (or 1–8 / Q) |
+| Right-click / Z | Sniper scope |
+| G | Detonate sticky bombs |
+| Space / Shift | Helicopter or jet up / down |
+| X | Flares (break missile locks) |
+| N | Use white powder (super strength) |
+| M | Sound on/off |
+
+Phones get an on-screen joystick and buttons.
+
+## Develop
+
+Requires Node 18 or newer. There is nothing to install.
+
+```bash
+npm run dev     # build, then serve dist/ on http://localhost:8080
+npm run check   # syntax-check the game code
+npm run build   # write dist/artifact.html, dist/index.html and dist/2d.html
+```
+
+Edit files in `src/`, then run `npm run dev` again and reload the page.
+
+### Project layout
+
+```
+src/
+  page.html     HTML markup: HUD, menus, start screen. Contains /*@@STYLE@@*/ and /*@@SCRIPT@@*/ placeholders
+  style.css     All CSS
+  game.js       The whole game (one IIFE)
+legacy/
+  palmetto-run-2d.html   The original top-down 2D version (separate artifact)
+scripts/
+  build.mjs     Inlines style.css and game.js into page.html
+  check.mjs     Syntax check
+  serve.mjs     Local static server
+dist/           Build output (not committed)
+```
+
+### How `game.js` is organized
+
+The file is split into sections marked `// ---------- name ----------`. Search for these to find your way around:
+
+| Section | What it does |
+|---|---|
+| world | Map grid (`N`×`N` blocks of size `B`), districts, building generation, collision |
+| state | Player, interiors (`mkRoom`), doors, interaction spots |
+| cars, peds | Traffic AI on the road grid, parked cars, pedestrians |
+| Rustwater Vipers / Low Palms Kings | Gang spawning (`gangPop`) and AI (`gangStep`) |
+| combat | Bullets, rockets, explosions, damage |
+| attack helicopter, fighter jets | Flight models and weapons |
+| robberies, sticky bombs, blackjack, roulette, slots, Union Job | Activities |
+| jobs | Mission types (`newJob`, `jobStep`) |
+| input | Keyboard, mouse, pointer lock, touch |
+| multiplayer | Shared state over the artifact `room` capability (see below) |
+| ui | HUD, hints, menus |
+| update | Main simulation step |
+| 3D scene, models | Three.js scene, procedural meshes, static batching (`staticBatch`) |
+| minimap, boot | Radar and startup |
+
+Coordinates: game logic is 2D on the ground plane (`x`, `y`) with a separate height `z`. In Three.js that maps to `(x, z, y)`.
+
+### Multiplayer
+
+When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude, `room` is unavailable and the game runs solo. The badge above the minimap shows the reason.
+
+## Publish as a Claude Artifact
+
+The artifact is a single HTML page. `npm run build` produces it as `dist/artifact.html`.
+
+**Update the existing artifact (keeps the same link)**
+
+1. `npm run build`
+2. In Claude Code (desktop app or CLI), opened in this folder, ask:
+   > Publish dist/artifact.html to https://claude.ai/artifact/3pU67sVhffYYZVpghHwU3S
+
+   Claude reads the current version, then republishes. The `room` capability (multiplayer) is kept automatically.
+
+Only the artifact's owner, or someone the owner gave **edit** access to, can update that link.
+
+**Publish your own copy (contributors)**
+
+1. `npm run build`
+2. In Claude Code, ask:
+   > Publish dist/artifact.html as a new artifact with the `room` capability
+
+The `room` capability is what turns on multiplayer. Without it the artifact runs solo.
+
+**Playing with friends:** in the artifact's **Share** menu, invite each friend by email. Friends must be signed in to Claude. Visitors who arrive through a public link cannot join the shared room.
+
+## GitHub Pages (optional)
+
+The workflow in `.github/workflows/pages.yml` builds the game and deploys `dist/` to GitHub Pages on every push to `main`. To turn it on: **Settings → Pages → Source: GitHub Actions**. That copy is single-player.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)
