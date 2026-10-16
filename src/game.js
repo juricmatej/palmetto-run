@@ -69,10 +69,13 @@ const PASTEL=['#e8b4c8','#b4d8e8','#f1e3a8','#c8e8b4','#e8c8a8','#d0c4f0'];
 const CONT=['#b8432f','#2f6fb8','#d68a2f','#3d8a52','#7b6bff','#9d97ad'];
 function district(bi,bj){if(bj===N-1)return'beach';if(bi<=1)return'industrial';if(bi>=8&&bj<=5)return'airport';if(bi>=6&&bj<=3)return'suburb';if(bi>=6&&bj>=4)return'hood';if((bi===3||bi===4)&&bj<=1)return'park';if(bi>=2&&bi<=5&&bj>=2&&bj<=5)return'downtown';return'midtown'}
 const AREA={airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
+// blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
+const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
 {const r=seeded(4242);
  const mk=(list,o)=>{const[roof,trim]=o.pal||ROOFS[Math.floor(r()*ROOFS.length)];const b=Object.assign({roof,trim,vent:null,sign:false,ladder:null},o);b.sides=[shade(b.roof,.55),shade(b.roof,.8),shade(b.roof,.45),shade(b.roof,.7)];list.push(b);buildings.push(b);return b};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){
   const x0=bi*B+R,y0=bj*B+R,s=B-R,list=[];cells.push(list);const dist=district(bi,bj);
+  if(LANDBLK[bi+','+bj]){blockType.push(LANDBLK[bi+','+bj]);continue}
   if(dist==='park'){blockType.push('park');const trees=[];
     if(bi===4&&bj===0){mk(list,{x:x0+50,y:y0+50,w:s-100,h:s-100,H:.6,kind:'water',pal:['#1d6a8a','#29e6d6']});for(let i=0;i<16;i++){const a=i/16*TAU;trees.push([x0+s/2+Math.cos(a)*(s/2-24),y0+s/2+Math.sin(a)*(s/2-24),10+r()*8])}}
     else for(let i=0;i<22;i++)trees.push([x0+28+r()*(s-56),y0+28+r()*(s-56),10+r()*10]);
@@ -209,6 +212,32 @@ for(const[pk,h]of[[parks.find(p=>p.x===3*B+R&&p.y===R),hillA],[parks.find(p=>p.x
 // cells above 1 unit, for the minimap shading. Rebuild with rebuildRaised() if the heightmap changes.
 const RAISED=[];function rebuildRaised(){RAISED.length=0;for(let k=0;k<HM.a.length;k++)if(HM.a[k]>1)RAISED.push(k)}rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{groundZ:{get:()=>groundZ},ramps:{get:()=>RAMPS},terrain:{get:()=>TERRAIN.length},air:{get:()=>me.car?Math.max(0,me.car.z-groundZ(me.car.x,me.car.y)):0}});
+
+// ---------- landmarks ----------
+// Hand-placed places on the blocks in LANDBLK. Their buildings are solid boxes (kind 'lm') with a mesh in landmarkMeshes() (models section).
+// Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
+const LMS=[],LMA={spray:null,boats:[]};
+// name shown on entry (AREA banner), footprint for the minimap and the debug list
+const LANDMARKS=[{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320}];
+const LMC={wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
+// solid box: collision in buildings, a mesh in landmarkMeshes(); m is a key of LMC. H is the height above the ground.
+function lmSolid(x,y,w,h,H,m){const b={x,y,w,h,H,kind:'lm',m,roof:LMC[m]};buildings.push(b);LMS.push(b);
+  cells[clamp(Math.floor((y+h/2)/B),0,N-1)*N+clamp(Math.floor((x+w/2)/B),0,N-1)].push(b);return b}
+// Palmetto Plaza, block (2,4): x 1000 to 1320, y 1880 to 2200. Low walls with a gap on the west and east sides, a fountain, planters, a 12-high terrace with 4-high steps and a stunt ramp that drives up onto it.
+const PLAZA={x:1000,y:1880};
+lmSolid(1000,1880,320,4,3.2,'wall');lmSolid(1000,2196,320,4,3.2,'wall');              // north and south walls
+lmSolid(1000,1880,4,136,3.2,'wall');lmSolid(1000,2064,4,136,3.2,'wall');              // west wall, gap at y 2016 to 2064
+lmSolid(1316,1880,4,136,3.2,'wall');lmSolid(1316,2064,4,136,3.2,'wall');              // east wall, same gap
+lmSolid(1140,2020,40,40,3.2,'stone');                                                 // fountain basin (round in the mesh)
+for(const[x,y]of[[1010,1890],[1040,1890],[1280,1890],[1296,1890],[1010,1960],[1010,2110],[1296,1960],[1296,2110],[1010,2180],[1040,2180],[1200,2180],[1240,2180],[1280,2180]])lmSolid(x,y,14,14,4,'planter');
+addShape({kind:'plateau',x:1160,y:1950,w:200,d:80,h:4,slope:3});    // terrace, step 1
+addShape({kind:'plateau',x:1160,y:1950,w:160,d:56,h:8,slope:3});    // step 2
+addShape({kind:'plateau',x:1160,y:1950,w:120,d:32,h:12,slope:3});   // top, 12 high
+addShape({kind:'ramp',x:1160,y:2010,a:-Math.PI/2,len:40,w:24,h:12}); // drive up onto the terrace; lip at y 1970
+addShape({kind:'plateau',x:1240,y:2140,w:110,d:56,h:4,slope:2});    // stage
+// (trees, benches and lamps: see landmarkMeshes)
+rebuildRaised();
+if(DBG)Object.defineProperties(DBG,{landmarks:{get:()=>LANDMARKS.map(l=>l.name)}});
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
@@ -2409,7 +2438,7 @@ if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).lengt
 
 // blocks
 function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
-{const sw=new THREE.MeshLambertMaterial({map:walkTex}),inner={airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
+{const sw=new THREE.MeshLambertMaterial({map:walkTex}),inner={plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
  const s=B-R,swGeo=new THREE.BoxGeometry(s,1,s),inGeo=new THREE.BoxGeometry(s-2*SW,.3,s-2*SW);
  const lines=new THREE.InstancedMesh(new THREE.BoxGeometry(1.5,.3,40),new THREE.MeshBasicMaterial({color:'#5a566a'}),lots.length*27);let ln=0;
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi],cx=bi*B+R+s/2,cz=bj*B+R+s/2;
@@ -2450,6 +2479,7 @@ function footpath(x0,y0,x1,y1,w){
 }
 for(const[x0,y0,x1,y1]of[[hillA.x,hillA.y,hillA.x,440],[hillA.x,hillA.y,1440,hillA.y],[hillB.x,hillB.y,1440,hillB.y],[hillB.x,hillB.y,hillB.x,562]])scene.add(footpath(x0,y0,x1,y1,10));
 for(const s of TERRAIN)scene.add(terrainMesh(s));
+landmarkMeshes();
 // buildings
 const wallTex=canvasTex(256,256,(g)=>{g.fillStyle='#a49ebb';g.fillRect(0,0,256,256);g.fillStyle='#8c86a3';for(let y=0;y<8;y++)g.fillRect(0,y*32+29,256,3);g.fillStyle='#262233';for(let y=0;y<8;y++)for(let x=0;x<8;x++)g.fillRect(8+x*32,8+y*32,18,18)});
 const litTex=canvasTex(256,256,(g)=>{g.fillStyle='#000';g.fillRect(0,0,256,256);const r=seeded(99);for(let y=0;y<8;y++)for(let x=0;x<8;x++){const v=r();if(v<.42){g.globalAlpha=.45+r()*.55;g.fillStyle=v<.1?'#7fe9ff':v<.3?'#ffcf86':'#ff9ad5';g.fillRect(8+x*32,8+y*32,18,18)}}g.globalAlpha=1});
@@ -2463,6 +2493,7 @@ const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object
 const glassMat=new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex});
 const winMat=new THREE.MeshBasicMaterial({color:'#ffd28a'}),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
 for(const b of buildings){
+  if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
   const H=b.H,cx=b.x+b.w/2,cz=b.y+b.h/2;
   const put=(geo,mat,x,y,z,ry)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;scene.add(m);return m};
   if(b.kind==='water'){const w=new THREE.Mesh(new THREE.CircleGeometry(.5,40),new THREE.MeshLambertMaterial({color:'#12506a',emissive:'#0a3346'}));w.rotation.x=-Math.PI/2;w.scale.set(b.w+30,b.h+30,1);w.position.set(cx,1.5,cz);scene.add(w);continue}
@@ -2827,7 +2858,7 @@ function lapAnim(dt){lapDancer.visible=!!lap;if(!lap)return;const t=lap.t,ud=lap
   ud.l1.rotation.z=Math.sin(t*3.2)*.25;ud.l2.rotation.z=-Math.sin(t*3.2)*.25;ud.a1.rotation.z=0;ud.a2.rotation.z=0;ud.a1.rotation.x=-(1.9+Math.sin(t*3)*.5);ud.a2.rotation.x=1.9+Math.sin(t*3+1)*.5}
 function animInteriors(dt){
   for(const f of fireGlows){const k=f.userData.s*(.85+Math.random()*.3);f.scale.set(k,k,1)}
-  lapAnim(dt);if(clubBall)clubBall.rotation.y+=dt*.8;
+  lapAnim(dt);landmarkTick();if(clubBall)clubBall.rotation.y+=dt*.8;
   bankAnim(dt);
   if(ferris)ferris.rotation.z+=dt*.12;
   if(roul)roul.rotation.y+=dt*1.6;
@@ -3073,6 +3104,36 @@ function drawMini(){
   if(me.inside){c.fillStyle='rgba(10,8,20,.72)';c.fillRect(0,0,S,S);c.fillStyle='#f3ecff';c.font='22px Bungee,Impact,sans-serif';c.fillText('INDOORS',C,C-8);c.font='600 14px "Chakra Petch",sans-serif';c.fillStyle='#a69cc4';c.fillText(me.inside.name,C,C+18)}
   c.restore();
   c.strokeStyle='rgba(255,62,165,.7)';c.lineWidth=4;c.beginPath();c.arc(C,C,147,0,TAU);c.stroke();
+}
+// ---------- landmarks meshes ----------
+// Built after the terrain meshes and before staticBatch. Static pieces merge per material; animated ones are instanced or kept apart.
+function landmarkMeshes(){
+  const lmm={};for(const k in LMC)lmm[k]=new THREE.MeshLambertMaterial({color:LMC[k]});
+  lmm.water.emissive=new THREE.Color('#0a3346');
+  for(const b of LMS){const cx=b.x+b.w/2,cz=b.y+b.h/2,m=new THREE.Mesh(new THREE.BoxGeometry(b.w,b.H,b.h),lmm[b.m]);m.position.set(cx,groundZ(cx,cz)+b.H/2,cz);scene.add(m)}
+  // fountain: round basin, water disc, spout (the spray is animated in landmarkTick)
+  const fx=1160,fy=2040,fg=groundZ(fx,fy);
+  const basin=new THREE.Mesh(new THREE.CylinderGeometry(20,22,3.2,24),lmm.stone);basin.position.set(fx,fg+1.6,fy);scene.add(basin);
+  const wat=new THREE.Mesh(new THREE.CylinderGeometry(17,17,.3,24),lmm.water);wat.position.set(fx,fg+2.4,fy);scene.add(wat);
+  const spout=new THREE.Mesh(new THREE.CylinderGeometry(1.2,1.5,9,6),lmm.stone);spout.position.set(fx,fg+8,fy);scene.add(spout);
+  LMA.spray=new THREE.InstancedMesh(new THREE.SphereGeometry(1.1,6,4),new THREE.MeshBasicMaterial({color:'#bfeaf5',transparent:true,opacity:.8}),8);scene.add(LMA.spray);
+  // planters carry a tree each
+  const pl=LMS.filter(b=>b.m==='planter'),tr=new THREE.InstancedMesh(new THREE.CylinderGeometry(.9,1.3,8,6),new THREE.MeshLambertMaterial({color:'#4a3426'}),Math.max(1,pl.length)),
+    lf=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#2a7a4c',flatShading:true}),Math.max(1,pl.length));
+  pl.forEach((b,i)=>{const x=b.x+b.w/2,y=b.y+b.h/2,g=groundZ(x,y);inst(tr,i,x,g+4+4,y,0);inst(lf,i,x,g+4+10,y,i,6,7,6)});tr.count=lf.count=pl.length;scene.add(tr,lf);
+  // benches and lamps on the plaza walks, kept out of ramp landing zones
+  const bench=mergeGeos([[new THREE.BoxGeometry(14,1.2,4.5),new THREE.Matrix4().makeTranslation(0,3.4,0)],[new THREE.BoxGeometry(14,5,.8),new THREE.Matrix4().makeTranslation(0,6,-2.2)],[new THREE.BoxGeometry(1,3,4),new THREE.Matrix4().makeTranslation(-5.5,1.5,0)],[new THREE.BoxGeometry(1,3,4),new THREE.Matrix4().makeTranslation(5.5,1.5,0)]]);
+  const bl=[[1100,2000,0],[1220,2000,0],[1100,2090,Math.PI],[1220,2090,Math.PI]].filter(([x,y])=>!rampZone(x,y));
+  const bm=new THREE.InstancedMesh(bench,new THREE.MeshLambertMaterial({color:'#5a4030'}),Math.max(1,bl.length));bl.forEach(([x,y,r],i)=>inst(bm,i,x,groundZ(x,y)+1.3,y,r));bm.count=bl.length;scene.add(bm);
+  const lp=[[1040,2000],[1280,2000],[1040,2080],[1280,2080]].filter(([x,y])=>!rampZone(x,y)),lpo=new THREE.InstancedMesh(new THREE.CylinderGeometry(.5,.7,16,6),lmm.metal,Math.max(1,lp.length)),
+    lhd=new THREE.InstancedMesh(new THREE.SphereGeometry(1.6,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),Math.max(1,lp.length));
+  lp.forEach(([x,y],i)=>{const g=groundZ(x,y);inst(lpo,i,x,g+8,y);inst(lhd,i,x,g+16.4,y)});lpo.count=lhd.count=lp.length;scene.add(lpo,lhd);
+}
+// per-frame motion for landmarks: the fountain spray
+function landmarkTick(){
+  const sp=LMA.spray;if(!sp)return;const fx=1160,fy=2040,fg=groundZ(fx,fy);
+  for(let i=0;i<8;i++){const a=i/8*TAU+time*.6,r=7+Math.sin(time*3+i)*1.5,y=fg+6+(Math.sin(time*6+i*.9)+1)*2.2;inst(sp,i,fx+Math.cos(a)*r,y,fy+Math.sin(a)*r)}
+  sp.instanceMatrix.needsUpdate=true;
 }
 // ---------- boot ----------
 function seedWorld(){
