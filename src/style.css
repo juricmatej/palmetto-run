@@ -13,6 +13,10 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 .hud{position:fixed;pointer-events:none;z-index:2}
 #tl{top:calc(12px + env(safe-area-inset-top,0px));left:16px;display:flex;flex-direction:column;gap:6px}
 #cash{font-family:var(--display);font-size:28px;color:var(--gold);text-shadow:0 0 12px rgba(255,201,74,.5);font-variant-numeric:tabular-nums;line-height:1}
+#lvl{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cyan);letter-spacing:.08em}
+#lvl b{font-weight:700;background:var(--panel);padding:2px 8px;border-radius:999px}
+#lvl i{display:block;width:90px;height:4px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+#lvl u{display:block;height:100%;width:0;background:var(--cyan)}
 #stars{font-size:20px;letter-spacing:2px;color:#3a3450;line-height:1}
 #stars b{color:var(--gold);font-weight:400;text-shadow:0 0 8px var(--gold)}
 #hpbar{width:150px;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}
