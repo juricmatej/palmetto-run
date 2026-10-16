@@ -21,6 +21,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 #stars b{color:var(--gold);font-weight:400;text-shadow:0 0 8px var(--gold)}
 #hpbar{width:150px;height:8px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}
 #hp{height:100%;width:100%;background:var(--cyan);transition:width .15s}
+#stamBar{width:150px;height:3px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden}
+#stam{height:100%;background:var(--cyan)}
 #carhp{font-size:12px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
 #job{max-width:260px;background:var(--panel);border-left:3px solid var(--gold);padding:6px 10px;font-size:14px;line-height:1.35}
 #job strong{color:var(--gold);font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:12px;display:block}
@@ -160,5 +162,5 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #bFire{right:24px;bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 #bGun{right:44px;bottom:calc(126px + env(safe-area-inset-bottom,0px));width:58px!important;height:58px!important;font-size:11px!important}
 #bCar{right:116px;bottom:calc(24px + env(safe-area-inset-bottom,0px));width:62px!important;height:62px!important;font-size:12px!important}
-@media (max-width:560px){#mini{width:124px;height:124px}#players{min-width:110px}#cash{font-size:22px}#hpbar{width:110px}#job{max-width:190px;font-size:13px}}
+@media (max-width:560px){#mini{width:124px;height:124px}#players{min-width:110px}#cash{font-size:22px}#hpbar{width:110px}#stamBar{width:110px}#job{max-width:190px;font-size:13px}}
 @media (prefers-reduced-motion:reduce){#feed div{animation:none}}
