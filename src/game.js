@@ -3424,6 +3424,7 @@ addEventListener('keydown',e=>{
   if(capAct){capKey(e);return}
   if(e.code==='Escape'&&state==='shop')closeShop();
   if(typing())return;
+  if(e.isTrusted)padDev=false; // a real key switches the hints back to keyboard names; pad presses are synthetic
   if(phoneOpen&&!WALKC[e.code]){phoneKey(e);return}
   keys[e.code]=true;
   if(state==='menu'||state==='shop')return;
@@ -3474,7 +3475,7 @@ $('setSprintMode').addEventListener('change',e=>{settings.sprintMode=e.target.va
 // ---- binds: display names, saving, loading, the settings key list and the capture
 const KEYNAME={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Space:'Space',ShiftLeft:'Shift',ShiftRight:'Shift',ControlLeft:'Ctrl',ControlRight:'Ctrl',AltLeft:'Alt',AltRight:'Alt',Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',Backslash:'\\',Tab:'Tab',Enter:'Enter'};
 const codeName=c=>KEYNAME[c]||(/^Key/.test(c)?c.slice(3):/^Digit/.test(c)?c.slice(5):c);
-const kb=id=>[...new Set((BINDS[id]||[]).map(codeName))].join(' or ');
+const kb=id=>padDev&&PADNAME[id]?PADNAME[id]:[...new Set((BINDS[id]||[]).map(codeName))].join(' or ');
 const BINDRE=/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Arrow(Up|Down|Left|Right)|Space|Shift(Left|Right)|Control(Left|Right)|Alt(Left|Right)|Tab|Enter|Backquote|Minus|Equal|Bracket(Left|Right)|Semicolon|Quote|Comma|Period|Slash|Backslash)$/;
 const validCode=c=>typeof c==='string'&&BINDRE.test(c);
 function bindsOut(){const o={};for(const id in BINDS)o[id]=BINDS[id].slice();return o}
@@ -3560,7 +3561,7 @@ cv.addEventListener('pointerdown',e=>{
 });
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 let wheelAt=0;
-cv.addEventListener('wheel',e=>{e.preventDefault();const dy=e.deltaMode===1?e.deltaY*40:e.deltaY;if(state!=='play'||wheelOpen||Math.abs(dy)<=4||performance.now()-wheelAt<180)return;wheelAt=performance.now();if(dy>0)cycleWeapon();else prevWeapon()},{passive:false});
+cv.addEventListener('wheel',e=>{e.preventDefault();const dy=e.deltaMode===1?e.deltaY*40:e.deltaY;if(e.ctrlKey||state!=='play'||wheelOpen||Math.abs(dy)<=4||performance.now()-wheelAt<180)return;wheelAt=performance.now();if(dy>0)cycleWeapon();else prevWeapon()},{passive:false});
 cv.addEventListener('pointermove',e=>{
   if(e.pointerType==='mouse'){if(state!=='menu'&&state!=='shop'&&(document.pointerLockElement===cv||e.buttons))turn(e.movementX||0,e.movementY||0);return}
   if(e.pointerId===stick.id){let dx=(e.clientX-stick.ox)/55,dy=(e.clientY-stick.oy)/55;const l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}stick.x=dx;stick.y=dy}
@@ -3587,6 +3588,37 @@ $('bBoom').addEventListener('pointerdown',e=>{e.preventDefault();detonate()});
 $('bAim').addEventListener('pointerdown',e=>{e.preventDefault();if(weap==='sniper'&&!me.car)scoped=!scoped});
 $('bGun').addEventListener('pointerup',()=>{clearTimeout(gunHold);if(!gunHeld)cycleWeapon()});
 if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>settings},binds:{get:()=>bindsOut()},setBind:{get:()=>setBind}});
+// ---------- gamepad ----------
+// Standard Mapping, polled every frame. A button sends a synthetic key event with the first bound code of its action,
+// so the keyboard handlers above do the work. The left stick fills the stick that touch uses; the right stick calls turn().
+const PADACT={0:'interact',1:'phone',2:'nextWeapon',3:'wheel',5:'nextWeapon',6:'lockOn',7:'shoot',9:'settings',10:'sprint'};
+const PADNAME={interact:'A',phone:'B',nextWeapon:'X',wheel:'Y',prevWeapon:'LB',lockOn:'LT',shoot:'RT',settings:'Start',sprint:'L3'};
+const padState={on:false,dev:'keys',lx:0,ly:0,rx:0,ry:0,down:[],sent:0};
+let padDev=false,padPrev=[],padT=0;
+const padDZ=v=>Math.abs(v)<.15?0:v;
+function padStep(dt){
+  const pad=[...(navigator.getGamepads?navigator.getGamepads():[])].find(p=>p&&p.mapping==='standard')||null;
+  const b=pad?pad.buttons.map(x=>!!x.pressed):[],[lx=0,ly=0,rx=0,ry=0]=pad?pad.axes.map(padDZ):[];
+  Object.assign(padState,{on:!!pad,lx,ly,rx,ry,down:b.flatMap((d,i)=>d?[i]:[])});
+  for(let i=0;i<11;i++){
+    const d=!!b[i];
+    if(d===!!padPrev[i])continue;
+    padPrev[i]=d;if(d)padDev=true;
+    if(i===4){if(d&&state==='play'&&!wheelOpen)prevWeapon();continue} // LB has no key
+    const code=PADACT[i]&&BINDS[PADACT[i]][0];
+    if(!code||capAct)continue;
+    padState.sent++;
+    dispatchEvent(new KeyboardEvent(d?'keydown':'keyup',{code}));
+  }
+  if(lx||ly){if(stick.id===null||stick.id==='pad'){stick={id:'pad',ox:0,oy:0,x:lx,y:ly};padDev=true}}
+  else if(stick.id==='pad')stick={id:null,ox:0,oy:0,x:0,y:0};
+  if((rx||ry)&&state!=='menu'&&state!=='shop'){turn(rx*700*dt,ry*700*dt);padDev=true}
+  padState.dev=padDev?'pad':'keys';
+}
+(function padLoop(t){padStep(Math.min(.05,(t-padT)/1000));padT=t;requestAnimationFrame(padLoop)})(0);
+if(DBG)Object.defineProperties(DBG,{pad:{get:()=>padState}});
+// debug only: a fake Standard Mapping pad, stick pushed forward, A pressed for 0.6 s
+if(DBG)DBG.padTest=()=>{const p={id:'fake',mapping:'standard',connected:true,axes:[0,-1,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};navigator.getGamepads=()=>[p];setTimeout(()=>p.buttons[0].pressed=true,300);setTimeout(()=>{p.buttons[0].pressed=false;p.axes[1]=0},900)};
 
 // ---------- multiplayer (room presence) ----------
 let room=null,myPeer=null,netState='connecting',netWhy='';
