@@ -91,7 +91,6 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #modCats button{font:700 13px var(--body);border:1px solid #2a2340;background:#0a0814;color:var(--dim);padding:8px 6px;cursor:pointer;text-align:left}
 #modCats button.on{border-color:var(--neon);color:var(--neon);box-shadow:0 0 14px rgba(255,62,165,.25)}
 #modList{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
-#modList .gun{grid-template-columns:1fr auto}
 #modClose{background:var(--neon);color:#16051a;border:0;font:16px var(--display);padding:11px;cursor:pointer}
 #lockMark{position:fixed;width:34px;height:34px;box-sizing:border-box;border:2px solid #ff3ea5;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%)}
 #settings select{background:#0a0814;color:var(--ink);border:1px solid var(--line);font:600 15px var(--body);padding:8px}
