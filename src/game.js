@@ -3778,7 +3778,7 @@ if(DBG)Object.defineProperties(DBG,{weather:{get:()=>({clock,wx})}});
 if(DBG)DBG.setWeather=k=>{wx=k;wxLeft=rr(90,270);skyLook()};
 if(DBG)DBG.setClock=c=>{clock=c;skyLook()};
 // ---------- events ----------
-// Street events, one at a time, 90 s apart. Actors are existing peds and traffic cars within 200 units, checked at 2 Hz.
+// Street events, one at a time, 90 s apart. Actors are peds and traffic cars within 200 units, checked at 2 Hz. When the street has none, evRecruit spawns them beside the player.
 const EV_KINDS=['fight','crash','broke','rob','race'];
 const evNear=(o,r)=>Math.hypot(o.x-me.x,o.y-me.y)<(r||200);
 const evCiv=p=>!p.down&&!p.gang&&!p.guard&&!p.cop&&!p.vendor&&!p.flee&&!p.stopT&&!p.bag&&evNear(p);
@@ -3787,7 +3787,8 @@ const evPick=(L,f)=>{L=L.filter(f);return L.length?L[Math.floor(rand()*L.length)
 const evNearest=(a,f)=>{let b=null,bd=1e9;for(const c of cars)if(c!==a&&f(c)){const d=Math.hypot(c.x-a.x,c.y-a.y);if(d<bd){bd=d;b=c}}return b};
 const EVK={
   fight:{len:12,start(){ // two civilians square off, a bystander runs off
-    const a=evPick(peds,evCiv),b=a&&peds.find(q=>q!==a&&evCiv(q)&&Math.hypot(q.x-a.x,q.y-a.y)<60),r=b&&peds.find(q=>q!==a&&q!==b&&evCiv(q)&&Math.hypot(q.x-a.x,q.y-a.y)<120);
+    const L=peds.filter(evCiv).sort(()=>rand()-.5);let a,b,r;
+    for(a of L){b=L.find(q=>q!==a&&Math.hypot(q.x-a.x,q.y-a.y)<60);r=b&&L.find(q=>q!==a&&q!==b&&Math.hypot(q.x-a.x,q.y-a.y)<120);if(r)break}
     if(!r)return;
     const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;a.a=Math.atan2(b.y-a.y,b.x-a.x);b.a=a.a+Math.PI;a.stopT=b.stopT=12;r.flee=6;r.fx=mx;r.fy=my;
     return{actors:[a,b,r],mx,my}},
@@ -3814,7 +3815,21 @@ const EVK={
     a.spd=b.spd=235;return{actors:[a,b]}},
     end(e){for(const c of e.actors)if(c.kind==='traffic')c.spd=rr(95,140)}},
 };
-function eventStart(kind){const k=EVK[kind],e=k&&k.start();if(!e)return false;eventState=Object.assign({kind,t0:time,len:k.len,actors:[]},e);return true}
+// The ambient crowd spawns 450 to 1500 units from the start point, so a player standing elsewhere often has no actor within 200.
+// evRecruit adds what the kind needs: sidewalk peds on the block edge nearest the player, or a traffic car level with the player on the nearest lane.
+const evSide=()=>{
+  const bi=clamp(Math.floor((me.x-R/2)/B),0,N-1),bj=clamp(Math.floor((me.y-R/2)/B),0,N-1),x0=bi*B+R+7,y0=bj*B+R+7,x1=(bi+1)*B-7,y1=(bj+1)*B-7;
+  const x=clamp(me.x,x0,x1),y=clamp(me.y,y0,y1),dd=[x-x0,x1-x,y-y0,y1-y];
+  return[[x0,y],[x1,y],[x,y0],[x,y1]][dd.indexOf(Math.min(...dd))];
+};
+const evRecruit=kind=>{
+  if(kind==='fight'||kind==='rob'){for(let n=kind==='fight'?3:1;n--;){const[x,y]=evSide();spawnPed(x+rr(-15,15),y+rr(-15,15))}return}
+  let L=null;const r0=Math.floor(me.y/B); // the lane nearest the player's y is never more than 196 away
+  for(let r=r0;r<=r0+1&&r<=N;r++)for(const d of[0,2]){const y=r*B+laneOff(d);if(!L||Math.abs(y-me.y)<Math.abs(L.y-me.y))L={d,road:r,y}}
+  const k=Math.floor(me.x/B),c=mkCar(0,0,L.d*Math.PI/2,'traffic',CARCOL[Math.floor(rand()*CARCOL.length)]);
+  c.d=L.d;c.road=L.road;c.cross=POS(L.d)?k+1:k;setAlong(c,me.x);decide(c,false);c.spd=rr(95,140);c.cur=c.spd*.6;cars.push(c);
+};
+function eventStart(kind){const k=EVK[kind];if(!k)return false;let e=k.start();if(!e){evRecruit(kind);e=k.start()}if(!e)return false;eventState=Object.assign({kind,t0:time,len:k.len,actors:[]},e);return true}
 let eventState=null,eventNext=8,eventCheck=0,eventWant=null;
 function eventStep(dt){ // runs the 2 Hz check; a finished event sets the next start 90 s later
   eventCheck-=dt;if(eventCheck>0)return;eventCheck=.5;
@@ -3823,7 +3838,7 @@ function eventStep(dt){ // runs the 2 Hz check; a finished event sets the next s
   if(state==='play'&&!me.inside&&time>=eventNext&&eventStart(eventWant||EV_KINDS[Math.floor(rand()*EV_KINDS.length)]))eventWant=null;
 }
 if(DBG)Object.defineProperties(DBG,{events:{get:()=>eventState}});
-if(DBG)DBG.eventTest=k=>{eventWant=k;eventNext=0}; // starts that kind as soon as actors are within 200 units
+if(DBG)DBG.eventTest=k=>{eventWant=k;eventNext=0}; // starts that kind at the next 2 Hz check, bringing its actors if the street has none
 // ---------- races ----------
 // Street races on three loops of the road grid. Intersection (i,j) sits at (i*B+60, j*B+60). Each loop has 6 checkpoints, about 2.6 km.
 // Rivals are traffic cars with c.rv set: decide() steers them toward c.rv.g, and they drive the lanes like traffic.
