@@ -831,7 +831,10 @@ function wreck(c,byMe){ // a traffic car leaves its lane; the driver bails
 }
 
 // ---------- police ----------
-let lastSeen=null,unseenT=0,copHeli=null,blockCd=0;
+let lastSeen=null,unseenT=0,copHeli=null,blockCd=0,policeBusy=false;
+// The world anchor for police aim: while the player is indoors this is the door, never the
+// interior coordinates, so no cruiser, cop or searchlight can track through a wall.
+const copX=()=>A.x,copY=()=>A.y;
 const spikes=[];
 function blockedLine(x1,y1,x2,y2){
   let hit=false;
@@ -842,13 +845,13 @@ function blockedLine(x1,y1,x2,y2){
 }
 function copStep(c,dt){
   const stn=Math.ceil(heat-.001),play=state==='play';
-  let tx=me.x,ty=me.y;
+  let tx=copX(),ty=copY();
   if(c.mode==='block'){ // roadblock cruiser: parked until you come within 120, then it joins the chase
     if(heat<=0||!play){c.vx=c.vy=0;return}
-    if(!c.chase&&Math.hypot(me.x-c.x,me.y-c.y)>120)return;
+    if(!c.chase&&Math.hypot(copX()-c.x,copY()-c.y)>120)return;
     c.chase=true;c.mode='chase';
   }
-  const d=Math.hypot(me.x-c.x,me.y-c.y);
+  const d=Math.hypot(copX()-c.x,copY()-c.y);
   if(c.mode!=='chase'){c.cur+=(c.spd-c.cur)*Math.min(1,2*dt);laneMove(c,dt,heat>0);if(heat>0&&d<280&&play){c.mode='chase';c.vx=Math.cos(c.a)*c.cur;c.vy=Math.sin(c.a)*c.cur}}
   else{
     let thr=0,st=0;
@@ -862,20 +865,20 @@ function copStep(c,dt){
       const sp=Math.hypot(c.vx,c.vy);c.stuckT=sp<25&&thr>.5?c.stuckT+dt:0;if(c.stuckT>1){c.revT=.9;c.stuckT=0}
       if(c.revT>0){c.revT-=dt;thr=-1;st=-st}
       c.shootT-=dt;
-      if(stn>=2&&c.shootT<=0&&d<300&&!c.burn){c.shootT=rr(1.2,2);const a=Math.atan2(me.y-c.y,me.x-c.x)+rr(-.12,.12);
-        if(!blockedLine(c.x,c.y,me.x,me.y))fire(c.x+Math.cos(a)*16,c.y+Math.sin(a)*16,a,'police',BAL.npc.police)}
-      if(!c.copped&&stn===1&&d<140&&!me.car&&!me.heli&&!me.jet&&Math.hypot(c.vx,c.vy)<20){c.copped=true;spawnCop(c)}
+      if(stn>=2&&c.shootT<=0&&d<300&&!c.burn&&!me.inside){c.shootT=rr(1.2,2);const a=Math.atan2(copY()-c.y,copX()-c.x)+rr(-.12,.12);
+        if(!blockedLine(c.x,c.y,copX(),copY()))fire(c.x+Math.cos(a)*16,c.y+Math.sin(a)*16,a,'police',BAL.npc.police)}
+      if(!c.copped&&stn===1&&d<140&&!me.inside&&!me.car&&!me.heli&&!me.jet&&Math.hypot(c.vx,c.vy)<20){c.copped=true;spawnCop(c)}
     }
     if(c.burn)thr=st=0;
     drive(c,thr,st,false,dt);const imp=carWalls(c);if(imp>140)damageCar(c,Math.min(BAL.crashMax,(imp-140)*.05),false);
   }
 }
 function spawnCop(c){ // a foot cop steps out beside a stopped cruiser
-  const a=c.a+1.57;
+  const a=c.a+1.57;policeBusy=true;
   peds.push({x:c.x+Math.cos(a)*30,y:c.y+Math.sin(a)*30,vx:0,vy:0,a:a,spd:150,flee:0,fx:0,fy:0,down:0,skin:PEDCOL[Math.floor(rand()*5)],shirt:'#1e2a4d',fem:false,hair:'#1e2a4d',skirt:null,ci:0,dir:1,ph:rand()*TAU,kind:'cop',brave:'coward',cop:true,cd:rr(.8,1.6),armed:0,arT:0});
 }
 function copPedStep(p,i,dt,stn){
-  const d=Math.hypot(me.x-p.x,me.y-p.y);
+  const d=Math.hypot(copX()-p.x,copY()-p.y);
   if(p.down){p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);collide(p,p.x,p.y,6);if(p.down<=0)peds.splice(i,1);return}
   p.armed=stn>=2?9:0;
   let vx=0,vy=0;
@@ -918,13 +921,13 @@ function copHeliStep(dt,st){ // hovers at 150, hunts a point 80 behind you, shoo
   if(h.dead){h.wait-=dt;if(h.wait<=0&&st>=4)copHeli=spawnCopHeli();return}
   if(h.falling){h.vz=(h.vz||0)-320*dt;h.z+=(h.vz||0)*dt;h.a+=dt*4;h.x+=h.vx*dt;h.y+=h.vy*dt;
     const g=groundZ(h.x,h.y);if(h.z<=g){h.z=g;h.dead=true;h.wait=30;explode(h.x,h.y,false,false,h.z);addHeat(.5)}return}
-  const pa=me.car?me.car.a:me.a,tx=me.x-Math.cos(pa)*80,ty=me.y-Math.sin(pa)*80,dx=tx-h.x,dy=ty-h.y,d=Math.hypot(dx,dy)||1,sp=Math.min(260,d*2);
+  const pa=me.car?me.car.a:me.a,tx=copX()-Math.cos(pa)*80,ty=copY()-Math.sin(pa)*80,dx=tx-h.x,dy=ty-h.y,d=Math.hypot(dx,dy)||1,sp=Math.min(260,d*2);
   h.vx+=(dx/d*sp-h.vx)*Math.min(1,dt*1.5);h.vy+=(dy/d*sp-h.vy)*Math.min(1,dt*1.5);
   h.x+=h.vx*dt;h.y+=h.vy*dt;h.a+=wrap(Math.atan2(dy,dx)-h.a)*Math.min(1,dt*3);h.z=150;
   if(h.hp<=0){h.falling=true;h.vz=0;return}
   h.shootT-=dt;
-  if(st>=5&&h.shootT<=0){h.shootT=2.5;fireZ=h.z-groundZ(h.x,h.y);fireSlope=clamp((groundZ(me.x,me.y)+2-h.z)/(Math.hypot(me.x-h.x,me.y-h.y)||1),-3,2);
-    for(let i=0;i<3;i++){const a=Math.atan2(me.y-h.y,me.x-h.x)+rr(-.42,.42);fire(h.x,h.y,a,'police',8)} // sprayed from a hovering platform
+  if(st>=5&&h.shootT<=0&&!me.inside){h.shootT=2.5;fireZ=h.z-groundZ(h.x,h.y);fireSlope=clamp((groundZ(copX(),copY())+2-h.z)/(Math.hypot(copX()-h.x,copY()-h.y)||1),-3,2);
+    for(let i=0;i<3;i++){const a=Math.atan2(copY()-h.y,copX()-h.x)+rr(-.42,.42);fire(h.x,h.y,a,'police',8)} // sprayed from a hovering platform
     fireZ=12;fireSlope=0}
 }
 function policeStep(dt){
@@ -935,7 +938,7 @@ function policeStep(dt){
     for(const p of peds)if(!seen&&p.cop&&!p.down&&Math.hypot(p.x-me.x,p.y-me.y)<430&&!blockedLine(p.x,p.y,me.x,me.y))seen=true;
     if(!seen&&copHeli&&!copHeli.dead&&!copHeli.falling&&Math.hypot(copHeli.x-me.x,copHeli.y-me.y)<650)seen=true;
   }
-  if(seen){lastSeen={x:me.x,y:me.y};unseenT=0}else if(heat>0)unseenT+=dt; // no heat, no one is watching
+  if(seen){lastSeen={x:me.x,y:me.y};unseenT=0;policeBusy=true}else if(heat>0)unseenT+=dt; // no heat, no one is watching
   coolT=seen?0:coolT+dt; // pdPay reads coolT as the time since the cops last saw you
   const pv=heat;
   if(heat>0){ // hide: waited out the search, or sat outside the search circle
@@ -945,9 +948,10 @@ function policeStep(dt){
   if(heat===0&&pv>0){
     if(maxHeatThisChase>=2)gainXP(40*maxHeatThisChase,'Lost the cops');
     feed('You lost the cops');
-    for(let i=cars.length-1;i>=0;i--)if(cars[i].mode==='block')cars.splice(i,1);
-    spikes.length=0;copHeli=null;lastSeen=null;unseenT=0;blockCd=0;
   }
+  // heat can be cleared outside this step (a door, a place, the safehouse, the lawyer): never leave
+  // police property in the world behind it, or the helicopter stalks the player with no chase left
+  if(heat===0&&policeBusy)policeClear();
   if(heat>maxHeatThisChase)maxHeatThisChase=heat;
   if(heat===0){maxHeatThisChase=0;unseenT=0;lastSeen=null}
   // population: one cruiser per star, SWAT vans at 5, roadblocks at 3, the helicopter at 4
@@ -957,7 +961,7 @@ function policeStep(dt){
     else if((c.kind==='parked'||c.kind==='dead'||c.kind==='traffic')&&d>1700&&!(c.type==='armored'&&c.kind!=='dead')&&!c.mark){cars.splice(i,1)}}
   if(pol<want&&state==='play'&&rand()<dt*.3){const c=laneSpawn('police',650,1000);
     if(c&&st>=5&&rand()<.5){c.type='armored';c.color='#1d2433';c.hp=400}} // half the new 5 star cruisers are SWAT vans
-  if(!copHeli&&st>=4&&state==='play')copHeli=spawnCopHeli();
+  if(!copHeli&&st>=4&&state==='play'){copHeli=spawnCopHeli();policeBusy=true}
   if(copHeli)copHeliStep(dt,st);
   // roadblocks at 3 or more stars, only while you drive: two cruisers nose to nose across the road ahead, spike strip between them
   blockCd-=dt;
@@ -971,17 +975,17 @@ function policeStep(dt){
       if(!free)continue;
       for(const s of[1,-1]){const b=mkCar(bx+(vert?50*s:0),by+(vert?0:50*s),vert?(1+s)*Math.PI/2:-s*Math.PI/2,'police','#e9e9f2');
         b.mode='block';b.cop=true;b.spd=0;b.cur=0;cars.push(b)}
-      spikes.push({x:bx,y:by,a:vert?0:Math.PI/2,l:70});
+      spikes.push({x:bx,y:by,a:vert?0:Math.PI/2,l:70});policeBusy=true;
       blockCd=25;break;
     }
   }
   spikeStep(dt);
   for(let i=peds.length-1;i>=0;i--){const p=peds[i];if(p&&p.cop)copPedStep(p,i,dt,st)}
 }
-function policeClear(){ // respawn and die('BUSTED') drop everything the police own
+function policeClear(){ // respawn, die('BUSTED') and any outside heat reset drop everything the police own
   for(let i=peds.length-1;i>=0;i--)if(peds[i].cop)peds.splice(i,1);
   for(let i=cars.length-1;i>=0;i--)if(cars[i].mode==='block')cars.splice(i,1);
-  spikes.length=0;copHeli=null;lastSeen=null;unseenT=0;blockCd=0;
+  spikes.length=0;copHeli=null;lastSeen=null;unseenT=0;blockCd=0;policeBusy=false;
 }
 if(DBG)Object.defineProperties(DBG,{unseenT:{get:()=>unseenT},lastSeen:{get:()=>lastSeen},copHeli:{get:()=>copHeli},spikes:{get:()=>spikes},addHeat:{get:()=>addHeat}});
 if(DBG)Object.defineProperties(DBG,{spawnHeli:{get:()=>()=>copHeli=spawnCopHeli()}}); // debug only: drop a helicopter into the world through the real spawn call
@@ -4488,10 +4492,10 @@ function copHeliDraw(dt){
   copHeliObj.userData.rotor.rotation.y+=dt*(h.falling?46:26);copHeliObj.userData.trotor.rotation.z+=dt*(h.falling?70:40);
   const beam=!h.falling;copHeliCone.visible=copHeliSpot.visible=beam;
   if(!beam)return;
-  const tz=groundZ(me.x,me.y)+1,dx=me.x-h.x,dy=tz-h.z,dz=me.y-h.y,len=Math.hypot(dx,dy,dz)||1;
+  const tz=groundZ(copX(),copY())+1,dx=copX()-h.x,dy=tz-h.z,dz=copY()-h.y,len=Math.hypot(dx,dy,dz)||1;
   copHeliAim.set(-dx,-dy,-dz).divideScalar(len);copHeliCone.quaternion.setFromUnitVectors(copHeliUp,copHeliAim);
   copHeliCone.position.set(h.x+dx/2,h.z+dy/2,h.y+dz/2);const rad=clamp(len*.22,16,40);copHeliCone.scale.set(rad,len,rad);
-  copHeliSpot.position.set(me.x,tz+.5,me.y);const s=44+Math.sin(time*9)*3;copHeliSpot.scale.set(s,s,1);
+  copHeliSpot.position.set(copX(),tz+.5,copY());const s=44+Math.sin(time*9)*3;copHeliSpot.scale.set(s,s,1);
 }
 {const pad=new THREE.Mesh(new THREE.CircleGeometry(62,40),lam('#2a2733'));pad.rotation.x=-Math.PI/2;pad.position.set(PAD.x,1.7,PAD.y);scene.add(pad);
  const hT=canvasTex(256,256,(g)=>{g.strokeStyle='#ffc94a';g.lineWidth=12;g.beginPath();g.arc(128,128,112,0,TAU);g.stroke();g.fillStyle='#f3ecff';g.font='170px Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('H',128,138)});
