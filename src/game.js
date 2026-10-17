@@ -1148,6 +1148,7 @@ function hurtMe(amt,from){
 }
 function die(word,fine){
   if(state!=='play')return;if(word==='WASTED'&&placesRevive())return;if(heist.carry){feed('You dropped the gold');heist.carry=0}
+  if(mission)msDie(word);
   state='dead';deadT=3.2;me.hp=0;
   if(me.lastHitBy&&time-me.lastHitT<5&&remotes.has(me.lastHitBy)){killedBy[me.lastHitBy]=(killedBy[me.lastHitBy]||0)+1;feed(`${remotes.get(me.lastHitBy).name} wasted you`)}
   if(me.car){leaveCar(true)}if(me.jet)me.jet=null;
@@ -1157,6 +1158,7 @@ function die(word,fine){
 function respawn(){for(const q of peds){q.calling=0;q.fight=0;q.armed=0}handsUp=false;me.inside=null;me.heli=null;me.jet=null;me.z=0;jvz=0;stam=1;stamOut=false;me.roof=null;me.climb=null;drunk=0;
   const[x,y]=job&&job.respawn||hospitalSpot();me.x=x;me.y=y;me.z=groundZ(x,y);me.vx=me.vy=0;me.hp=BAL.playerHp;me.inv=2.5;me.bustT=0;heat=0;state='play';hideBig();
   for(let i=cars.length-1;i>=0;i--)if(cars[i].kind==='police')cars.splice(i,1);
+  if(msDeath){showBig('MISSION FAILED','#ff4b4b',msDeath,3.5);msDeath=null}
 }
 
 // ---------- enter / exit ----------
@@ -1166,6 +1168,7 @@ function tryLadder(){const n=nearLadder();if(!n)return false;me.climb={b:n.b,up:
 function toggleCar(){
   if(lap){endLap();return}
   if(state!=='play')return;
+  {const q=msNear();if(q){if(!q.def)feed(q.c.name+' has no more work for you');else if(q.locked)feed(q.def.title+' needs level '+q.def.level);else startMission(q.def.id);return}}
   if(me.inside){interact();return}
   if(me.heli){const h=me.heli,g=heliGround(h.x,h.y);if(h.z-g>14){feed('Land first. Hold Shift to descend');return}
     me.heli=null;const rb=g>2?roofAt(h.x,h.y):null;
@@ -2602,6 +2605,7 @@ function jobDone(reward,msg){endJob();me.cash+=reward;showBig('MISSION PASSED','
 function jobFail(msg){endJob();jingle('fail');showBig('MISSION FAILED','#ff4b4b',msg,1.8);job={phase:'wait',t:4,msg:'Check your phone for the next job.'}}
 const jobPos=()=>me.jet||me.heli||me.car||me;
 function newJob(force){
+  if(mission)return;
   const kinds=['courier','hit','steal','race','wrecker','wanted','turf'],k=force||kinds[Math.floor(rand()*kinds.length)];
   if(k==='hit'){const c=laneSpawn('traffic',700,1400);if(c){c.color='#d23c5a';c.mark=true;job={type:k,phase:'go',car:c,x:c.x,y:c.y,title:'Hit job',text:'Destroy the marked red car.',col:'#ff4b4b',reward:1500,t:120,timed:true};return}}
   if(k==='steal'){const[sp]=parkSpot(700,1600);if(sp){const c=mkCar(sp[0],sp[1],sp[2],'parked','#e8c547','sports');c.color='#e8c547';c.mark=true;cars.push(c);job={type:k,phase:'go',car:c,x:c.x,y:c.y,title:'Grand theft',text:'Steal the gold sports car.',col:'#ffc94a',reward:2000};return}}
@@ -2614,6 +2618,7 @@ function newJob(force){
   const[x,y]=pointAway(500,1200);job={type:'courier',phase:'pickup',x,y,title:'Courier · pickup',text:'Grab the package at the gold marker.',col:'#ffc94a'};
 }
 function jobStep(dt){
+  missionStep(dt);if(mission)return; // story missions run instead of random jobs
   if(!job){newJob('courier');return}
   if(job.phase==='wait'){job.t-=dt;return}
   const Pp=jobPos(),d=Math.hypot(job.x-Pp.x,job.y-Pp.y);
@@ -2632,6 +2637,206 @@ function jobStep(dt){
     case'wanted':job.text=`Lose the cops. ${Math.ceil(heat)} star${Math.ceil(heat)===1?'':'s'} left.`;if(heat<=0)jobDone(job.reward);break;
   }
 }
+
+// ---------- missions ----------
+// Story missions: typed steps from three contacts, one at a time in `mission`. Random jobs pause while one runs.
+// Places used by the missions. MS_ROUTE is the grey sedan's drive along the road grid from downtown to the casino.
+const MS_REPO={x:2849,y:715},MS_BUY={x:4150,y:1400},MS_VAN={x:567,y:1560},MS_TRUCK={x:1380,y:2260},MS_HOME={x:2040,y:1889};
+const MS_ROUTE=[[1380,1820],[1380,1380],[940,1380],[940,2260],[1380,2260],[1380,3140],[1820,3140],[1820,2260],[2260,2260],[2260,1380],[2700,1380],[2700,940],[2040,940]];
+const MISSIONS=[
+  {id:'repo',contact:'rosa',title:'Repo Man',level:2,reward:2500,xp:300,col:'#ff3ea5',intro:'Rosa has a car to take back in Palm Heights.',
+    steps:[
+      {type:'talk',who:'Rosa',text:'A deadbeat in Palm Heights stopped paying for his sports car. Bring it back. His two friends are watching it, so be quick and be armed.'},
+      {type:'steal',guards:2,spawn:{type:'sports',color:'#17161c',x:MS_REPO.x,y:MS_REPO.y,a:0},text:'Steal the black sports car. Two armed guards are watching it.'},
+      {type:'lose',stars:2,text:'Lose the cops. Two stars.'},
+      {type:'goto',veh:true,x:GARAGE.x,y:GARAGE.y,r:60,text:'Drive it to the docks garage.'},
+      {type:'talk',who:'Rosa',text:'New plates, new paint. Take it to my buyer at the airport fence. He pays by condition, so do not scratch it.'},
+      {type:'deliver',veh:true,scaleByHp:true,x:MS_BUY.x,y:MS_BUY.y,r:70,text:'Deliver the car to the buyer at the airport fence. He pays by condition.'},
+    ]},
+  {id:'accountant',contact:'vic',title:'The Accountant',level:4,reward:4000,xp:450,col:'#ffc94a',intro:'Vic wants the casino books back tonight.',
+    steps:[
+      {type:'talk',who:'Vic',text:'One of the casino accountants is skimming the books. He drives a grey sedan downtown. Follow him, but keep your distance.'},
+      {type:'follow',t:60,spd:165,spawn:{type:'sedan',color:'#9d97ad',x:1820,y:1820,a:Math.PI},route:MS_ROUTE,text:'Follow the grey sedan from downtown. Stay 60 to 380 units back.'},
+      {type:'kill',n:3,at:'car',text:'He stopped at the casino. Take out his three bodyguards.'},
+      {type:'collect',car:true,text:'Grab the ledger from the sedan.'},
+      {type:'lose',stars:2,text:'Lose the cops. Two stars.'},
+      {type:'goto',x:MS_HOME.x,y:MS_HOME.y,r:70,text:'Get back to the safehouse.'},
+    ]},
+  {id:'armored',contact:'vic',title:'Armored Car',level:7,reward:8000,xp:700,col:'#ffc94a',intro:'Vic has a line on an armored truck moving cash.',
+    steps:[
+      {type:'talk',who:'Vic',text:'An armored truck is moving cash across the city tonight. Hit its escorts first, then crack the truck open. Bullets bounce off it, bring something loud.'},
+      {type:'goto',truck:true,r:110,text:'Get to the armored truck. It is the gold square on the map.'},
+      {type:'destroy',cruisers:2,text:'Destroy the two escort cruisers.'},
+      {type:'destroy',doors:true,text:'Blast the truck below 50 percent. Sticky bombs work best.'},
+      {type:'collect',n:3,spread:60,text:'Collect the three cash bags.'},
+      {type:'lose',stars:3,text:'Lose the cops. Three stars.'},
+      {type:'deliver',x:MS_HOME.x,y:MS_HOME.y,r:70,text:'Deliver the cash to the safehouse.'},
+    ]},
+  {id:'dock',contact:'dex',title:'Dock War',level:5,reward:5000,xp:550,col:'#9a5ad8',intro:'Dex needs a Kings van out of the docks.',
+    steps:[
+      {type:'talk',who:'Dex',text:'Vipers are leaning on one of our vans down at the docks. Hold them off, then bring the van to Low Palms in one piece.'},
+      {type:'goto',spawn:{type:'van',color:'#7b3fb8',x:MS_VAN.x,y:MS_VAN.y,a:Math.PI/2},r:120,text:'Get to the docks. The Kings van is the marker.'},
+      {type:'defend',t:90,hp:300,text:'Defend the Kings van for 90 seconds. Vipers come in waves.'},
+      {type:'steal',lost:'The van is wrecked',text:'The van is clear. Get in and take it.'},
+      {type:'deliver',veh:true,minHp:.3,x:KINGSHQ.x,y:KINGSHQ.y,r:90,text:'Deliver the van to Low Palms. Below 30 percent and the Kings lose it.'},
+    ]},
+];
+// Contacts stand at fixed spots. `list` is the missions this contact hands out in order.
+const MCON=[
+  {id:'vic',name:'Vic',short:'V',col:'#ffc94a',x:2104,y:1893,fa:Math.PI/2,list:['accountant','armored']},
+  {id:'rosa',name:'Rosa',short:'R',col:'#ff3ea5',x:636,y:1453,fa:-Math.PI/2,list:['repo']},
+  {id:'dex',name:'Dex',short:'D',col:'#9a5ad8',x:3230,y:2352,fa:Math.PI/2,list:['dock']},
+];
+const msById=id=>MISSIONS.find(m=>m.id===id);
+let mission=null,msRetry=null,msDeath=null,msGrp=null,msCyl=null,msRing=null;
+const msDone={};
+try{const a=JSON.parse(localStorage.getItem('pr3d-missions')||'[]');if(Array.isArray(a))for(const id of a)if(msById(id))msDone[id]=true}catch(_){}
+function msSave(){try{localStorage.setItem('pr3d-missions',JSON.stringify(MISSIONS.filter(m=>msDone[m.id]).map(m=>m.id)))}catch(_){}}
+const msStep=()=>mission?mission.def.steps[mission.i]:null;
+function msCar(s){const c=mkCar(s.x,s.y,s.a||0,'parked',s.color||'#e8e4f0',s.type);c.mark=true;c.ms=true;cars.push(c);return c}
+function msGuards(n,x,y,spread){const s=spread||40,a=[];for(let i=0;i<n;i++){const px=x+rr(-s,s),py=y+rr(-s,s);
+  const p={x:px,y:py,vx:0,vy:0,a:rand()*TAU,spd:0,flee:0,fx:0,fy:0,down:0,skin:PEDCOL[Math.floor(rand()*5)],shirt:'#5a2a8a',ci:0,dir:1,ph:rand()*TAU,gang:true,gname:'Vipers',hx:px,hy:py,cd:rr(.4,1),aggro:true,yelled:true,msG:true};peds.push(p);a.push(p)}return a}
+// Every object the mission owns carries its own flag (ms, msG) so cleanup never touches world traffic.
+function msClear(){
+  if(msGrp)msGrp.visible=false;
+  for(let i=cars.length-1;i>=0;i--){const c=cars[i];if(!c.ms)continue;c.ms=false;c.mark=false;if(c!==me.car&&c.kind!=='dead')cars.splice(i,1)}
+  for(let i=peds.length-1;i>=0;i--)if(peds[i].msG)peds.splice(i,1);
+  for(let i=pickups.length-1;i>=0;i--)if(pickups[i].ms)pickups.splice(i,1);
+}
+function msBeacon(col,x,y){
+  if(!msGrp){msCyl=new THREE.Mesh(new THREE.CylinderGeometry(15,15,160,24,1,true),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.26,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));msCyl.position.y=80;
+    msRing=new THREE.Mesh(new THREE.RingGeometry(15,19,32),new THREE.MeshBasicMaterial({color:col,side:THREE.DoubleSide}));msRing.rotation.x=-Math.PI/2;msRing.position.y=1.8;
+    msGrp=new THREE.Group();msGrp.add(msCyl,msRing);scene.add(msGrp)}
+  msGrp.visible=true;msCyl.material.color.set(col);msRing.material.color.set(col);msCyl.material.opacity=.2+Math.sin(time*4)*.06;
+  msGrp.position.set(x,groundZ(x,y),y)}
+function msWhere(){
+  const st=msStep();if(!st)return null;
+  if(st.type==='goto'||st.type==='deliver')return mission.ax===null?null:[mission.ax,mission.ay];
+  if(st.type==='steal'||st.type==='follow'||st.type==='kill'||st.type==='defend'||st.type==='destroy')return mission.car?[mission.car.x,mission.car.y]:null;
+  if(st.type==='collect'){const p=mission.pk.find(p=>pickups.includes(p));return p?[p.x,p.y]:null}
+  return null}
+function msBegin(){
+  const st=msStep();if(!st)return;
+  mission.t=st.time||0;mission.tt=st.type==='talk'?(st.talk||3):(st.t||0);
+  mission.n=0;mission.msg='';mission.nearT=0;mission.pk=[];mission.g=0;
+  mission.ax=st.x===undefined?null:st.x;mission.ay=st.y===undefined?null:st.y;
+  if(st.spawn){mission.car=msCar(st.spawn);if(st.type==='goto'){mission.ax=mission.car.x;mission.ay=mission.car.y}}
+  if(st.type==='follow'&&mission.car){mission.car.hold=4;mission.car.wp=0}
+  if(st.type==='goto'&&st.truck){const t=cars.find(c=>c.type==='armored'&&c.kind!=='dead'&&!c.ms)||msCar({type:'armored',x:MS_TRUCK.x,y:MS_TRUCK.y,a:0});
+    t.mark=true;t.ms=true;mission.car=t;mission.ax=t.x;mission.ay=t.y;feed('The armored truck is marked on your map')}
+  if(st.type==='steal'&&mission.car)mission.car.mark=true;
+  if(st.type==='defend'&&mission.car){const v=mission.car;v.mark=true;if(st.hp){v.hp=st.hp;v.msMax=st.hp}}
+  if(st.type==='destroy'&&st.cruisers&&mission.car){const t=mission.car;mission.cruisers=[];
+    for(const dx of[-46,46]){const c=mkCar(t.x+dx,t.y,t.a,'parked','#e9e9f2','police');c.mark=true;c.ms=true;cars.push(c);mission.cruisers.push(c)}}
+  if(st.type==='kill'){const a=st.at==='car'&&mission.car?mission.car:A;mission.guards=msGuards(st.n||3,a.x,a.y,45)}
+  if(st.type==='collect'){const s=st.spread||16,x=mission.car?mission.car.x:(mission.ax||A.x),y=mission.car?mission.car.y:(mission.ay||A.y);
+    for(let i=0;i<(st.n||1);i++){const p={x:x+rr(-s,s),y:y+rr(-s,s),amt:0,t:900,ms:true};pickups.push(p);mission.pk.push(p)}}
+  if(st.type==='lose'&&heat<=0){heat=st.stars||2;coolT=0}
+}
+// One handler per step type. Return 'next', 'fail:<reason>' or nothing.
+const MSH={
+  talk(st,dt){if((mission.tt-=dt)<=0)return'next'},
+  goto(st,dt){
+    const c=mission.car;
+    if(st.veh){if(!c||!cars.includes(c)||c.kind==='dead'||c.burn)return'fail:The ride got wrecked';
+      if(me.car!==c){mission.msg='Bring the mission car';return}}
+    const px=me.car?me.car.x:A.x,py=me.car?me.car.y:A.y,d=Math.hypot(mission.ax-px,mission.ay-py);
+    if(d<(st.r||50)){if(st.inVehicle&&!me.car){mission.msg='Get in a car first';return}return'next'}
+    mission.msg=Math.round(d/10)+' m to go'},
+  steal(st,dt){
+    const c=mission.car;if(!c||!cars.includes(c)||c.kind==='dead'||c.burn)return'fail:'+(st.lost||'The car got wrecked');
+    if(st.guards&&!mission.g&&Math.hypot(c.x-A.x,c.y-A.y)<650){mission.g=1;mission.guards=msGuards(st.guards,c.x,c.y,50)}
+    if(me.car===c)return'next';mission.msg='Get in the car'},
+  follow(st,dt){
+    const c=mission.car;if(!c||!cars.includes(c)||c.kind==='dead'||c.burn)return'fail:You lost them';
+    if(c.hold>0)c.hold-=dt;
+    else if(c.wp<st.route.length){const tx=st.route[c.wp][0],ty=st.route[c.wp][1],dx=tx-c.x,dy=ty-c.y,mv=(st.spd||165)*dt;
+      if(Math.hypot(dx,dy)<=mv+4)c.wp++;else{const a=Math.atan2(dy,dx);c.a=a;c.x+=Math.cos(a)*mv;c.y+=Math.sin(a)*mv;carWalls(c)}}
+    const d=Math.hypot(c.x-A.x,c.y-A.y);
+    if(d<60){mission.nearT+=dt;if(mission.nearT>3)return'fail:You were spotted'}else mission.nearT=0;
+    if(d>450)return'fail:You lost them';
+    mission.msg=Math.round(d/10)+' m behind';
+    if((mission.tt-=dt)<=0||c.wp>=st.route.length)return'next'},
+  kill(st){
+    const left=(mission.guards||[]).filter(p=>!p.down&&peds.includes(p)).length;
+    if(!left)return'next';mission.msg='Bodyguards left: '+left},
+  defend(st,dt){
+    const v=mission.car,max=v&&(v.msMax||ctOf(v).hp);
+    if(!v||!cars.includes(v)||v.kind==='dead'||v.burn)return'fail:The Kings van was destroyed';
+    if(Math.hypot(v.x-A.x,v.y-A.y)>420)return'fail:You left the van alone';
+    mission.msg=`Van ${Math.max(0,Math.round(v.hp/max*100))} percent · ${Math.max(0,Math.ceil(mission.tt))}s`;
+    if((mission.tt-=dt)<=0)return'next';
+    const near=(mission.guards||[]).filter(p=>!p.down&&peds.includes(p)&&Math.hypot(p.x-v.x,p.y-v.y)<340).length;
+    if(near&&rand()<dt*1.1*near){damageCar(v,6,false);parts.push({x:v.x+rr(-24,24),y:v.y+rr(-24,24),vx:0,vy:0,life:.06,max:.06,col:'#ffe9a8',k:'flash',sz:10})}
+    if(st.t-mission.tt>(mission.n+1)*(st.wave||15)){mission.n++;feed('Vipers are moving in');mission.guards=(mission.guards||[]).concat(msGuards(2+Math.min(3,mission.n),Math.max(446,v.x-rr(60,180)),v.y+rr(-140,140),40))}},
+  collect(st){
+    const left=mission.pk.filter(p=>pickups.includes(p)).length;
+    if(!left)return'next';mission.msg=`Collected ${mission.pk.length-left} of ${mission.pk.length}`},
+  destroy(st){
+    const t=mission.car;
+    if(st.cruisers){const left=(mission.cruisers||[]).filter(c=>cars.includes(c)&&c.kind!=='dead'&&!c.burn).length;
+      if(!left)return'next';mission.msg='Escorts left: '+left}
+    else{const max=t?ctOf(t).hp:1;if(t&&(t.kind==='dead'||t.hp<=max*.5))return'next';mission.msg='Truck at '+Math.round(Math.max(0,t?t.hp/max:0)*100)+' percent'}},
+  lose(st){mission.msg=Math.max(0,Math.ceil(heat))+' star'+(Math.ceil(heat)===1?'':'s')+' left';if(heat<=0)return'next'},
+  deliver(st){
+    const c=mission.car;
+    if(st.veh){if(!c||!cars.includes(c))return'fail:The ride is gone';
+      if(c.kind==='dead'||c.burn)return'fail:It fell apart on the way';
+      const max=c.msMax||ctOf(c).hp;if(st.minHp&&c.hp<max*st.minHp)return'fail:It is too beaten up. The deal is off'}
+    const px=st.veh?c.x:(me.car?me.car.x:A.x),py=st.veh?c.y:(me.car?me.car.y:A.y),d=Math.hypot(mission.ax-px,mission.ay-py);
+    if(d<(st.r||60)&&(!st.veh||Math.hypot(A.x-c.x,A.y-c.y)<120)){if(st.scaleByHp)mission.scale=clamp(c.hp/(c.msMax||ctOf(c).hp),0,1);return'next'}
+    mission.msg=Math.round(d/10)+' m to go'},
+};
+function msPed(q){const p=spawnPed(q.x,q.y);p.kind='chat';p.fa=q.fa;p.ph=rand()*TAU;p.contact=q.id;p.shirt=q.col;p.bark=null;p.stopT=0;return p}
+function msSeed(){
+  for(const q of MCON){q.ped=msPed(q);
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:canvasTex(128,128,g=>{g.fillStyle='#0b0814';g.beginPath();g.arc(64,64,56,0,TAU);g.fill();g.strokeStyle=q.col;g.lineWidth=10;g.stroke();
+      g.fillStyle=q.col;g.font='86px Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(q.short,64,70)}),depthTest:false,transparent:true}));
+    s.scale.set(26,26,1);s.renderOrder=10;s.position.set(q.x,36,q.y);scene.add(s);
+    const r=new THREE.Mesh(new THREE.RingGeometry(12,16,32),new THREE.MeshBasicMaterial({color:q.col,side:THREE.DoubleSide}));r.rotation.x=-Math.PI/2;r.position.set(q.x,1.6,q.y);scene.add(r);shopRings.push(r)}}
+function msNextMission(c){if(msRetry&&c.list.includes(msRetry))return msById(msRetry);return MISSIONS.find(m=>m.contact===c.id&&!msDone[m.id])||null}
+function msNear(){
+  if(mission||me.car||me.heli||me.jet||me.inside||me.roof||state!=='play')return null;
+  for(const c of MCON)if(Math.hypot(c.x-A.x,c.y-A.y)<44){const def=msNextMission(c);return{c,def,retry:!!(def&&msRetry===def.id),locked:!!(def&&lv<def.level)}}
+  return null}
+function startMission(id,force){
+  const def=msById(id);
+  if(!def||mission||state!=='play')return;
+  if(!force&&lv<def.level){feed(`${def.title} needs level ${def.level}`);return}
+  msClear();endJob();job=null;hideBig();
+  mission={def,i:0,t:0,tt:0,n:0,msg:'',pk:[]};msRetry=null;msDeath=null;
+  msBegin();
+  showBig('MISSION STARTED','#29e6d6',`${def.title} · Level ${def.level}`,1.8);
+  feed('New mission: '+def.title+'. '+def.intro)}
+function msPass(){
+  if(!mission)return;
+  const def=mission.def,sc=mission.scale,pay=Math.round(def.reward*(sc===undefined?1:(.4+.6*clamp(sc,0,1))));
+  msClear();me.cash+=pay;gainXP(def.xp,'Mission');
+  msDone[def.id]=true;msSave();mission=null;msRetry=null;jingle('pass');
+  showBig('MISSION PASSED','#ffc94a',`${def.title} · +$${pay.toLocaleString('en-US')}`,3);saveArsenal()}
+function msFail(reason){
+  if(!mission)return;
+  msRetry=mission.def.id;msClear();mission=null;jingle('fail');
+  showBig('MISSION FAILED','#ff4b4b',reason,3.5);
+  feed('Mission failed: '+reason+' Retry at the contact')}
+function msDie(word){
+  if(!mission)return;
+  msRetry=mission.def.id;msDeath=(word==='BUSTED'?'The cops busted you.':'You died.')+' Retry at the contact.';
+  msClear();mission=null;jingle('fail')}
+function skipTalk(){if(mission&&msStep().type==='talk')mission.tt=0}
+function missionStep(dt){
+  for(const q of MCON){if(!q.ped||!peds.includes(q.ped)){if(Math.hypot(q.x-A.x,q.y-A.y)<1500)q.ped=msPed(q)}
+    else if(!q.ped.down&&!q.ped.flee&&Math.hypot(q.ped.x-q.x,q.ped.y-q.y)>60){q.ped.x=q.x;q.ped.y=q.y;q.ped.vx=q.ped.vy=0}}
+  if(state!=='play'||!mission){if(msGrp)msGrp.visible=false;return}
+  const st=msStep(),def=mission.def;
+  if(mission.t>0){mission.t-=dt;if(mission.t<=0){msFail('Out of time');return}}
+  const r=MSH[st.type]?MSH[st.type](st,dt):null;
+  if(r==='next'){mission.i++;if(mission.i>=def.steps.length){msPass();return}msBegin()}
+  else if(r&&r.slice(0,5)==='fail:'){msFail(r.slice(5));return}
+  const w=msWhere();
+  if(w&&!me.inside)msBeacon(def.col,w[0],w[1]);else if(msGrp)msGrp.visible=false}
+if(DBG)Object.defineProperties(DBG,{mission:{get:()=>mission&&{id:mission.def.id,i:mission.i}},startMission:{get:()=>startMission},MISSIONS:{get:()=>MISSIONS.map(m=>m.id)}});
+if(DBG)Object.defineProperties(DBG,{skipTalk:{get:()=>skipTalk}});
 
 // ---------- movement ----------
 // stamina, jump, roof drops, hands up and horn
@@ -3055,11 +3260,22 @@ function ui(dt){phoneStep(dt);
   {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
   {const bi=clamp(Math.floor(A.x/B),0,N-1),bj=clamp(Math.floor(A.y/B),0,N-1),dn=me.inside?null:(landmarkKey(A.x,A.y)||(A.y<0?'hills':A.y>W?'beach':district(bi,bj)));if(dn!==ui.area){ui.area=dn;const el=$('area');if(dn){el.replaceChildren();const sm=document.createElement('small');sm.textContent=AREA[dn][1];el.append(document.createTextNode(AREA[dn][0]),sm);el.style.opacity=1;clearTimeout(ui.areaT);ui.areaT=setTimeout(()=>el.style.opacity=0,3500)}}}
   $('carhp').textContent=me.jet?`Fighter jet ${Math.max(0,Math.round(me.jet.hp/BAL.jetHp*100))}% · ${Math.round(me.jet.speed*.6)} km/h · ${Math.round((me.jet.z-heliGround(me.jet.x,me.jet.y))/10)} m up`:me.heli?`Attack helicopter ${Math.max(0,Math.round(me.heli.hp/BAL.heliHp*100))}% · ${Math.round((me.heli.z-heliGround(me.heli.x,me.heli.y))/10)} m up`:me.car?(me.car.burn?'Car on fire! Get out (E)':`${ctOf(me.car).name} ${Math.max(0,Math.round(me.car.hp/ctOf(me.car).hp*100))}%`):'';
-  const j=$('job');j.replaceChildren();{const jt=document.createElement('strong'),jx=document.createElement('span');
+  const j=$('job');j.replaceChildren();
+  if(mission){
+    const jt=document.createElement('strong'),st=mission.def.steps[mission.i],col=mission.def.col;
+    jt.textContent=mission.def.title;jt.style.color=col;j.style.borderLeftColor=col;
+    const s1=document.createElement('span');s1.textContent=`Step ${mission.i+1} of ${mission.def.steps.length}`;
+    const s2=document.createElement('span');s2.textContent=st.type==='talk'?`${st.who}: ${st.text}`:(st.text||'');
+    j.append(jt,s1,s2);
+    const secs=(st.type==='talk'||st.type==='follow'||st.type==='defend')?mission.tt:(st.time?mission.t:0);
+    if(secs>0){const tm=document.createElement('div');tm.style.cssText='color:var(--gold);font-weight:700;margin-top:2px';tm.textContent=`${Math.max(0,Math.ceil(secs))}s left`;j.appendChild(tm)}
+    if(mission.msg){const mm=document.createElement('div');mm.textContent=mission.msg;j.appendChild(mm)}
+    const w=msWhere();if(w&&!me.inside){const px=me.car?me.car.x:me.x,py=me.car?me.car.y:me.y,dd=document.createElement('div');dd.style.cssText='color:var(--gold);font-weight:700;margin-top:2px';dd.textContent=Math.round(Math.hypot(w[0]-px,w[1]-py)/10)+' m away';j.appendChild(dd)}
+  }else{const jt=document.createElement('strong'),jx=document.createElement('span');
     if(!job||job.phase==='wait'){jt.textContent='Missions';jx.textContent=job&&job.msg?job.msg:'Waiting for the next job...'}
     else{jt.textContent=job.title||'Mission';jx.textContent=job.text+(job.timed?` ${Math.max(0,Math.ceil(job.t))}s left.`:'')+(job.reward?` $${job.reward}`:'')}
-    jt.style.color=job&&job.col||'';j.style.borderLeftColor=job&&job.col||'';j.append(jt,jx)}
-  if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const px=me.car?me.car.x:me.x,py=me.car?me.car.y:me.y,dd=document.createElement('div');dd.style.cssText='color:var(--gold);font-weight:700;margin-top:2px';dd.textContent=Math.round(Math.hypot(job.x-px,job.y-py)/10)+' m away';j.appendChild(dd)}
+    jt.style.color=job&&job.col||'';j.style.borderLeftColor=job&&job.col||'';j.append(jt,jx);
+    if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const px=me.car?me.car.x:me.x,py=me.car?me.car.y:me.y,dd=document.createElement('div');dd.style.cssText='color:var(--gold);font-weight:700;margin-top:2px';dd.textContent=Math.round(Math.hypot(job.x-px,job.y-py)/10)+' m away';j.appendChild(dd)}}
   // players
   const pl=$('players');
   if(room){
@@ -3076,6 +3292,8 @@ function ui(dt){phoneStep(dt);
     else if(me.inside){const p=nearSpot();t=p?(isTouch?'Tap CAR: ':'E: ')+p.label:''}
     else if(nearLadder()){t=(isTouch?'Tap CAR: ':'E: ')+(nearLadder().up?'Climb the ladder':'Climb down')}
     else if(me.roof){t=''}
+    else if(msNear()){const q=msNear(),sn=isTouch?'Tap CAR: ':'E: ';
+      t=!q.def?`${q.c.name} has no more work`:q.locked?`${q.def.title} needs level ${q.def.level}`:sn+(q.retry?'retry ':'start ')+`${q.def.title} · Lv ${q.def.level} · $${q.def.reward.toLocaleString('en-US')}`}
     else if(nearDealer()){t=(isTouch?'Tap CAR: ':'E: ')+'Buy a bag of white powder ($200)'}
     else{const c=nearestCar();if(c)t=(isTouch?'Tap CAR — ':'E — ')+(c.kind==='traffic'?'jack this car':c.kind==='police'?'steal the cruiser':'take this car');else{const q=talkTarget();if(q)t=(isTouch?'Tap CAR: ':'E: ')+(robbing(q)?'rob':'talk')}}}
   if(!t&&state==='play'&&!me.car&&!isTouch&&document.pointerLockElement!==cv)t='Click the game to aim with your mouse';
@@ -4071,6 +4289,10 @@ function drawMini(){
   for(const b of stickies){if(!inView(b.x,b.y))continue;const[px,py]=Pt(b.x,b.y);c.fillStyle=Math.sin(time*10)>0?'#ff4b4b':'#5a1a1a';c.beginPath();c.arc(px,py,3.5,0,TAU);c.fill()}
   // job marker
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[px,py,e]=edge(job.x,job.y);c.fillStyle=col;c.beginPath();c.arc(px,py,e?7:9,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
+  // mission marker and contact icons
+  if(mission){const w=msWhere();if(w&&!me.inside){const[px,py,e]=edge(w[0],w[1]);c.strokeStyle=mission.def.col;c.globalAlpha=.5;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(px,py);c.stroke();c.setLineDash([]);c.globalAlpha=1;
+    c.fillStyle=mission.def.col;c.beginPath();c.arc(px,py,e?7:9,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}}
+  for(const q of MCON){const[px,py]=edge(q.x,q.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=q.col;c.lineWidth=2.5;c.stroke();c.fillStyle=q.col;c.fillText(q.short,px,py+1)}
   // waypoint pin
   if(waypoint&&!me.inside){const[px,py,e]=edge(waypoint.x,waypoint.y);c.fillStyle='#29e6d6';c.beginPath();c.arc(px,py,e?6:8,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
   // friends
@@ -4162,7 +4384,7 @@ function seedWorld(){
 for(const[x,y]of VENDORS){const p=spawnPed(x,y);p.kind='vendor';p.vendor=true;p.hx=x;p.hy=y}
   for(let i=0;i<10;i++){const[s]=parkSpot(40,1300);if(s)cars.push(mkCar(s[0],s[1],s[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
   cars.push(mkCar(4*B+R+40,4*B+108,0,'parked','#ff3ea5','sports'));
-  newJob('courier');spawnGuards();
+  newJob('courier');spawnGuards();msSeed();
 }
 const SWATCH=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d','#4aa3ff','#f3ecff'];
 function start(data){
