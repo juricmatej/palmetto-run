@@ -346,47 +346,112 @@ function placeMeshes(){
     add(new THREE.BoxGeometry(36,12,24),white,x,h+6,y);add(new THREE.BoxGeometry(38,2,28),roofM,x,h+13,y);
     add(new THREE.PlaneGeometry(14,9),poolM,x+14,h+.4,y+20).rotation.x=-Math.PI/2;
     for(const sx of[-22,22])add(new THREE.BoxGeometry(2,6,2),steel,x+sx,h+3,y+31)}
-  // observatory door-less car park edge and campsite
-  const cy=-430,ch=hillBase(430,cy);
-  add(new THREE.CylinderGeometry(7,7,1.4,10),new THREE.MeshLambertMaterial({color:'#4a4650'}),430,ch+.7,cy);
+  // campsite: fire ring with logs as seats, two tents, a picnic table and a lantern. Every piece sits on groundZ.
+  const cy=-430,ch=hillBase(430,cy),gzAt=(x,y)=>groundZ(x,y),tr3=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+  const stoneG=new THREE.IcosahedronGeometry(1.3,0).scale(1,.55,1),stoneM=new THREE.MeshLambertMaterial({color:'#4a4650',flatShading:true});
+  for(let k=0;k<9;k++){const a=k/9*TAU,x=430+Math.cos(a)*4.6,y=cy+Math.sin(a)*4.6;add(stoneG,stoneM,x,gzAt(x,y)+.3,y)}
+  const logG=new THREE.CylinderGeometry(.8,.8,7,6).rotateZ(Math.PI/2);
+  for(const a of[.6,2.7,4.8]){const x=430+Math.cos(a)*8,y=cy+Math.sin(a)*8;add(logG,wood,x,gzAt(x,y)+.8,y,-a-Math.PI/2)}
   glowAt(430,ch+6,cy,22,22,'rgba(255,150,60,1)');
-  for(const[x,y,a]of[[410,-446,.4],[440,-410,1.1],[452,-448,2.3]])add(new THREE.ConeGeometry(16,20,4),tentM[Math.floor(a*3)%3],x,ch+10,y,a*Math.PI);
-  for(const[x,y]of[[400,-418],[456,-436]]){add(new THREE.BoxGeometry(16,1,8),wood,x,ch+6,y);add(new THREE.BoxGeometry(14,4,1),wood,x,ch+2,y)}
+  const tentG=tentGeo();
+  for(const[x,y,a]of[[410,-446,.4],[440,-410,1.1],[452,-448,2.3]])add(tentG,tentM[Math.floor(a*3)%3],x,gzAt(x,y)-.2,y,a*Math.PI);
+  const pic=mergeGeos([[new THREE.BoxGeometry(14,.6,5),tr3(0,3.7,0)],[new THREE.BoxGeometry(14,.5,2),tr3(0,1.6,-4)],[new THREE.BoxGeometry(14,.5,2),tr3(0,1.6,4)],
+    ...[[-6,1.7,-1.8],[6,1.7,-1.8],[-6,1.7,1.8],[6,1.7,1.8]].map(([x,y,z])=>[new THREE.BoxGeometry(.6,3.4,.6),tr3(x,y,z)]),
+    ...[[-6,.8,-4],[6,.8,-4],[-6,.8,4],[6,.8,4]].map(([x,y,z])=>[new THREE.BoxGeometry(.6,1.6,.6),tr3(x,y,z)])]);
+  add(pic,wood,414,gzAt(414,-420),-420);
+  const lx=447,ly=-424,lg=gzAt(lx,ly);add(new THREE.CylinderGeometry(.25,.3,5,5),steel,lx,lg+2.5,ly);add(new THREE.BoxGeometry(1.4,1.6,1.4),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),lx,lg+5.3,ly);
+  glowAt(lx,lg+5.5,ly,9,9,'rgba(255,200,120,1)');
   // radio tower on the second peak: a mast with a red beacon
   const T0=T.x,T1=T.y,th=hillBase(T0,T1);
   add(new THREE.CylinderGeometry(1.2,4,150,6),steel,T0,th+75,T1);add(new THREE.BoxGeometry(14,6,14),steel,T0,th+3,T1);
   add(new THREE.SphereGeometry(2.2,8,6),redM,T0,th+152,T1);glowAt(T0,th+152,T1,30,30,'rgba(255,45,85,1)');
   const wat=new THREE.Mesh(new THREE.CircleGeometry(LAKE.r+4,48),new THREE.MeshLambertMaterial({color:'#1a5a70',emissive:'#0a3346'}));wat.rotation.x=-Math.PI/2;wat.position.set(LAKE.x,LAKE.water,LAKE.y);out.push(wat);
   return out}
-// instanced scatter on the hills: pines and scrub on gentle ground, rocks on steep faces, palms on the terraces, trail posts. Clear of roads, pads and the lake.
+// hill scatter: scrub on gentle ground and palms on the mansion terraces. Trees, boulders, reeds and the trail fence are in countryMeshes().
+const HILL_RP=[];for(const r of HILL_ROADS)for(const[x,y]of roadSamples(r,12))HILL_RP.push([x,y,r.w/2]);
+// a spot clear of roads (clear units past the edge), pads and the lake (lake units past its rim)
+function hillFree(x,y,clear,lake){if(y>-60||x<0||x>W+250||Math.hypot(x-LAKE.x,y-LAKE.y)<LAKE.r+(lake??30))return false;
+  for(const p of PADS)if(Math.abs(x-p.x)<p.hw+12&&Math.abs(y-p.y)<p.hd+12)return false;
+  for(const q of HILL_RP)if(Math.hypot(x-q[0],y-q[1])<q[2]+clear)return false;return true}
 function propMeshes(){
-  const rq=seeded(88),RP=[];for(const r of HILL_ROADS)for(const[x,y]of roadSamples(r,12))RP.push([x,y,r.w/2]);
-  const free=(x,y,clear)=>{if(y>-60||x<0||x>W+250||Math.hypot(x-LAKE.x,y-LAKE.y)<LAKE.r+30)return false;
-    for(const p of PADS)if(Math.abs(x-p.x)<p.hw+12&&Math.abs(y-p.y)<p.hd+12)return false;
-    for(const q of RP)if(Math.hypot(x-q[0],y-q[1])<q[2]+clear)return false;return true};
-  const pine=[],scrub=[],rock=[];
-  for(let n=0;n<5000;n++){const x=rq()*(W+250),y=-2380+rq()*2320;if(!free(x,y,14))continue;
+  const rq=seeded(88),scrub=[];
+  for(let n=0;n<5000;n++){const x=rq()*(W+250),y=-2380+rq()*2320;if(!hillFree(x,y,14))continue;
     const[gx,gy]=groundN(x,y),sl=Math.hypot(gx,gy),h=groundZ(x,y);
-    if(sl>.35&&rock.length<320&&rq()<.6)rock.push([x,y,h,rq()]);
-    else if(sl<.5&&h>4&&pine.length<800&&rq()<.4)pine.push([x,y,h,rq()]);
-    else if(scrub.length<1000&&rq()<.6)scrub.push([x,y,h,rq()])}
+    if(sl<.35&&scrub.length<1000&&rq()<.6)scrub.push([x,y,h,rq()])}
   const fl=m=>{m.frustumCulled=false;return m};
-  const pT=fl(new THREE.InstancedMesh(new THREE.CylinderGeometry(.6,.9,7,5),new THREE.MeshLambertMaterial({color:'#4a3426'}),pine.length)),
-    pL=fl(new THREE.InstancedMesh(new THREE.ConeGeometry(6,18,6),new THREE.MeshLambertMaterial({color:'#2f5a3a',flatShading:true}),pine.length)),
-    sc=fl(new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#5e7a3a',flatShading:true}),scrub.length)),
-    rk=fl(new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#6e655c',flatShading:true}),rock.length));
-  pine.forEach(([x,y,h,r],i)=>{const s=.7+r*.5;inst(pT,i,x,h+3.5*s,y,0,s,s,s);inst(pL,i,x,h+16*s*.5+3.5*s,y,r*6.28,s,s,s)});
+  const sc=fl(new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#5e7a3a',flatShading:true}),scrub.length));
   scrub.forEach(([x,y,h,r],i)=>{const s=2+r*2.5;inst(sc,i,x,h+s*.3,y,r*6.28,s,s*.6,s)});
-  rock.forEach(([x,y,h,r],i)=>{const s=1.5+r*3;inst(rk,i,x,h+s*.3,y,r*6.28,s,s*.7,s)});
   // palms: two per mansion, trunk and crown
   const palms=MANSION_SITES.flatMap(([x,y])=>{const h=hillBase(x,y);return[[x-26,y+12,h],[x+26,y+12,h]]});
   const pt=fl(new THREE.InstancedMesh(new THREE.CylinderGeometry(.5,.8,12,5),new THREE.MeshLambertMaterial({color:'#6b4a2e'}),palms.length)),
     pc=fl(new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshLambertMaterial({color:'#2f7a48',flatShading:true}),palms.length));
   palms.forEach(([x,y,h],i)=>{inst(pt,i,x,h+6,y);inst(pc,i,x,h+13,y,i,5,1.6,5)});
-  // trail posts every 45 units along the dirt trail
-  const tp=HILL_ROADS.find(r=>r.dirt),tS=roadSamples(tp,45),tpost=fl(new THREE.InstancedMesh(new THREE.BoxGeometry(.6,3,.6),new THREE.MeshLambertMaterial({color:'#7a5a3c'}),tS.length));
-  tS.forEach(([x,y],i)=>inst(tpost,i,x,groundZ(x,y)+1.5,y));
-  return[pT,pL,sc,rk,pt,pc,tpost]}
+  return[sc,pt,pc]}
+// clusters of trees on the lake rim, beside the roads and on the slopes. Conifers stack three cones on a trunk, broadleaf trees have one round crown. Merged into five meshes.
+let TREE_N=0;
+function treeMeshes(){
+  const tq=seeded(91),L={cd:[],cl:[],bd:[],bl:[],tr:[]},CN=[new THREE.ConeGeometry(4.4,7,6,1,true),new THREE.ConeGeometry(3.3,6,6,1,true),new THREE.ConeGeometry(2.1,5,6,1,true)],
+    trunkG=new THREE.CylinderGeometry(.45,.7,4,5,1,true),crownG=new THREE.IcosahedronGeometry(1,0),C=[];
+  for(let k=0;k<4000&&C.length<60;k++){const u=tq();let x,y;
+    if(u<.4){const a=tq()*TAU,r=LAKE.r+12+tq()*16;x=LAKE.x+Math.cos(a)*r;y=LAKE.y+Math.sin(a)*r}
+    else if(u<.7){const q=HILL_RP[Math.floor(tq()*HILL_RP.length)],a=tq()*TAU,d=q[2]+10+tq()*24;x=q[0]+Math.cos(a)*d;y=q[1]+Math.sin(a)*d}
+    else{x=tq()*(W+250);y=-2380+tq()*2320}
+    if(hillFree(x,y,10,8)&&groundZ(x,y)>LAKE.water+1)C.push([x,y])}
+  let n=0;
+  for(const[cx,cy]of C){const cnt=4+Math.floor(tq()*6),broad=tq()<.3;
+    for(let i=0;i<cnt;i++){const a=tq()*TAU,d=Math.sqrt(tq())*11,x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d;
+      if(!hillFree(x,y,6,8)||groundZ(x,y)<LAKE.water+1)continue;
+      const s=.8+tq()*.6,dark=tq()<.5,M=new THREE.Matrix4().compose(new THREE.Vector3(x,groundZ(x,y)-.3,y),new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),tq()*TAU),new THREE.Vector3(s,s,s));
+      const part=(geo,key,py,sx,sy,sz)=>L[key].push([geo,new THREE.Matrix4().multiplyMatrices(M,new THREE.Matrix4().compose(new THREE.Vector3(0,py,0),new THREE.Quaternion(),new THREE.Vector3(sx||1,sy||1,sz||1)))]);
+      n++;
+      if(broad){part(trunkG,'tr',2.5);part(crownG,dark?'bd':'bl',6.6,3.4,2.8,3.4)}
+      else{const k2=dark?'cd':'cl';part(trunkG,'tr',2);part(CN[0],k2,7);part(CN[1],k2,9.5);part(CN[2],k2,11.5)}}}
+  TREE_N=n;
+  const mat=c=>new THREE.MeshLambertMaterial({color:c,flatShading:true}),M2=(list,m)=>list.length?new THREE.Mesh(mergeGeos(list),m):null;
+  return[M2(L.cd,mat('#2a4f36')),M2(L.cl,mat('#3d6e46')),M2(L.bd,mat('#4f7a3a')),M2(L.bl,mat('#6f8f3e')),M2(L.tr,mat('#4a3426'))].filter(Boolean)}
+// boulders in groups: at the foot of steep faces (a step downhill from the cliff), on gentle slopes, and a few on the lake shore
+function boulderMeshes(){
+  const bq=seeded(93),ST=new THREE.IcosahedronGeometry(1,0),list=[],up=new THREE.Vector3(0,1,0);let groups=0;
+  const rock=(x,y,s)=>list.push([ST,new THREE.Matrix4().compose(new THREE.Vector3(x,groundZ(x,y)+s*.2,y),new THREE.Quaternion().setFromAxisAngle(up,bq()*TAU),new THREE.Vector3(s,s*.7,s))]);
+  for(let k=0;k<4000&&groups<44;k++){const x=bq()*(W+250),y=-2380+bq()*2320;if(!hillFree(x,y,8))continue;
+    const[gx,gy]=groundN(x,y),sl=Math.hypot(gx,gy);let cx=x,cy=y;
+    if(sl>.42){const d=9+bq()*6;cx=x-gx/sl*d;cy=y-gy/sl*d;if(!hillFree(cx,cy,6))continue}
+    else if(sl<.15)continue;
+    groups++;
+    for(let i=0,m=3+Math.floor(bq()*4);i<m;i++){const bx=cx+(bq()-.5)*10,by=cy+(bq()-.5)*10;if(hillFree(bx,by,4))rock(bx,by,1.4+bq()*2.6)}}
+  for(let i=0;i<40;i++){const a=bq()*TAU,r=LAKE.r+6+bq()*8,x=LAKE.x+Math.cos(a)*r,y=LAKE.y+Math.sin(a)*r;if(groundZ(x,y)>LAKE.water+.6&&y<-60)rock(x,y,1+bq()*.9)}
+  return new THREE.Mesh(mergeGeos(list),new THREE.MeshLambertMaterial({color:'#6e655c',flatShading:true}))}
+// reed tufts on the bank just above the waterline
+function reedMesh(){
+  const rq=seeded(95),RG=new THREE.ConeGeometry(.35,1,3,1,true),list=[];
+  for(let k=0;k<200;k++){const a=rq()*TAU,r=LAKE.r+10+rq()*16,x=LAKE.x+Math.cos(a)*r,y=LAKE.y+Math.sin(a)*r;
+    if(y>-60||groundZ(x,y)<LAKE.water+.8)continue;
+    for(let t=0;t<4;t++){const px=x+(rq()-.5)*3,pz=y+(rq()-.5)*3,hh=2.5+rq()*2.5,g=groundZ(px,pz);if(g<LAKE.water+.5)continue;
+      list.push([RG,new THREE.Matrix4().compose(new THREE.Vector3(px,g+hh/2,pz),new THREE.Quaternion().setFromEuler(new THREE.Euler((rq()-.5)*.2,0,(rq()-.5)*.2)),new THREE.Vector3(1,hh,1))])}}
+  return new THREE.Mesh(mergeGeos(list),new THREE.MeshLambertMaterial({color:'#4d6b3a',flatShading:true}))}
+// post and rail fence along both verges of the dirt trail, 2 units clear of the edge
+function dirtFence(){
+  const tp=HILL_ROADS.find(r=>r.dirt),S=roadSamples(tp,8),n=S.length,hw=tp.w/2,list=[],post=new THREE.BoxGeometry(.5,2.4,.5),rail=new THREE.BoxGeometry(1,.4,.25),up=new THREE.Vector3(0,1,0);
+  for(const sg of[1,-1]){const P=S.map(([x,y,,ux,uy])=>[x-uy*sg*(hw+2),y+ux*sg*(hw+2)]);
+    for(let i=0;i<n;i++){const[px,pz]=P[i],g=groundZ(px,pz);
+      if(i%3===0)list.push([post,new THREE.Matrix4().makeTranslation(px,g+1.2,pz)]);
+      if(i+1<n){const[qx,qz]=P[i+1],dx=qx-px,dz=qz-pz,ry=Math.atan2(-dz,dx),mx=(px+qx)/2,mz=(pz+qz)/2;
+        for(const h of[.9,1.9])list.push([rail,new THREE.Matrix4().compose(new THREE.Vector3(mx,groundZ(mx,mz)+h,mz),new THREE.Quaternion().setFromAxisAngle(up,ry),new THREE.Vector3(Math.hypot(dx,dz)+.2,1,1))])}}}
+  return new THREE.Mesh(mergeGeos(list),new THREE.MeshLambertMaterial({color:'#8a6a44'}))}
+// trail junction: the Overlook road leaves Canyon Road at (1200,-950). The sign stands on the east verge and faces west.
+function trailSign(){
+  const x=1244,y=-958,g=groundZ(x,y),tx=canvasTex(256,96,(c,w,h)=>{c.fillStyle='#ffc94a';c.fillRect(0,0,w,h);c.fillStyle='#141218';c.font='bold 44px "Chakra Petch", Impact, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText('< OVERLOOK',w/2,h/2+2)}),
+    board=new THREE.Mesh(new THREE.PlaneGeometry(14,5.2),new THREE.MeshLambertMaterial({map:tx,side:THREE.DoubleSide}));
+  board.position.set(x,g+6.2,y);board.rotation.y=-Math.PI/2;
+  const posts=mergeGeos([-5,5].map(dz=>[new THREE.BoxGeometry(.5,6,.5),new THREE.Matrix4().makeTranslation(0,3,dz)]));
+  const pm=new THREE.Mesh(posts,new THREE.MeshLambertMaterial({color:'#8a6a44'}));pm.position.set(x,g,y);
+  return[board,pm]}
+// A-frame tent: flat base on y=0, 16 long, 10 wide, 9 high
+function tentGeo(){const p=[[-8,0,-5],[8,0,-5],[8,0,5],[-8,0,5],[-8,9,0],[8,9,0]],f=[[0,5,1],[0,4,5],[3,2,5],[3,5,4],[0,3,4],[1,5,2]];
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(f.flatMap(t=>t.flatMap(i=>p[i])),3));g.computeVertexNormals();return g}
+// everything on the hills that is merged: trees, boulders, reeds, the trail fence and sign
+function countryMeshes(){return[...treeMeshes(),boulderMeshes(),reedMesh(),dirtFence(),...trailSign()].filter(Boolean)}
+if(DBG)Object.defineProperties(DBG,{treeCount:{get:()=>TREE_N}});
 lakeShape();for(const r of HILL_ROADS)flattenRoad(r);placeLayout();rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{hillSpots:{get:()=>HILL_SPOTS.map(s=>s.name)},hillRoads:{get:()=>HILL_ROADS.length},roadGrades:{get:()=>HILL_ROADS.map(r=>[r.name,Math.round(r.len),+r.grade.toFixed(3)])}});
 // ribbons: asphalt, a dirt strip, dashed centre line, guard rails and reflective posts. All follow the heightmap at each edge (+0.3).
@@ -417,25 +482,35 @@ function roadMeshes(){
   posts.forEach((p,i)=>inst(pm,i,p[0],p[1],p[2]));pm.frustumCulled=false;
   const lineM=new THREE.MeshBasicMaterial({color:'#e8d27a',side:THREE.DoubleSide});
   return[new THREE.Mesh(geo(asph),roadM),new THREE.Mesh(geo(dirt),dirtM),new THREE.Mesh(geo(dash),lineM),new THREE.Mesh(geo(rail),railM),pm]}
-// one mesh per 400 units of y: vertex colours by slope (dry grass, rock on steep faces, bare earth on the flat verge), normals from the heightmap so the bands join without seams
-const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),r1:new THREE.Color('#625c55'),r2:new THREE.Color('#827a6e')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
+// one mesh per 400 units of y. Vertex colours: dry grass, darker meadow patches, bare dirt on the trail and round the campsite, rock on steep faces (dark at the foot, lighter up high).
+// Steep quads leave the grass meshes and go into one rock mesh with horizontal strata.
+const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),meadow:new THREE.Color('#3e6b35'),dry:new THREE.Color('#a8a25a'),dirt:new THREE.Color('#6b5a3e'),r1:new THREE.Color('#4f4a47'),r2:new THREE.Color('#a39c93')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
 function hillMeshes(){
   const det=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#c8c8c8';g.fillRect(0,0,w,h);grit(g,w,h,9000,31,.12)});det.wrapS=det.wrapT=THREE.RepeatWrapping;
-  const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[];
+  const strata=canvasTex(128,128,(g,w,h)=>{for(let k=0;k<8;k++){g.fillStyle=k%2?'#c4c4c4':'#e8e8e8';g.fillRect(0,k*16,w,16);g.fillStyle='#7a7a7a';g.fillRect(0,k*16,w,2)}grit(g,w,h,1200,57,.12)});strata.wrapS=strata.wrapT=THREE.RepeatWrapping;
+  const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[],DIRT=roadSamples(HILL_ROADS.find(r=>r.dirt),12),rk={p:[],n:[],c:[],u:[]};
   // every 2nd heightmap sample (20 units): a quarter of the triangles, the same slopes
   const cs=[];for(let i=0;i<nx;i+=2)cs.push(i);if(cs[cs.length-1]!==nx-1)cs.push(nx-1);
-  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),rs=[];for(let j=j0;j<=j1;j+=2)rs.push(j);if(rs[rs.length-1]!==j1)rs.push(j1);const pos=[],nor=[],col=[],uv=[],ix=[];
+  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),rs=[];for(let j=j0;j<=j1;j+=2)rs.push(j);if(rs[rs.length-1]!==j1)rs.push(j1);const pos=[],nor=[],col=[],uv=[],sl=[],ix=[];
     for(const j of rs)for(const i of cs){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell,h=hz(i,j);
       const gx=(hz(i+1,j)-hz(i-1,j))/(2*HM.cell),gz=(hz(i,j+1)-hz(i,j-1))/(2*HM.cell),s=Math.hypot(gx,gz),ln=Math.hypot(gx,1,gz);
-      pos.push(x,h,z);nor.push(-gx/ln,1/ln,-gz/ln);uv.push(x/120,z/120);
-      if(h<1.5)HCOL.copy(HC.verge);else{HCOL.lerpColors(HC.g1,HC.g2,clamp(h/360,0,1));HCOL2.lerpColors(HC.r1,HC.r2,vnoise(x/90,z/90));
-        HCOL.lerp(HCOL2,clamp((s-.42)/.28,0,1)*clamp((s-.42)/.28,0,1)*(3-2*clamp((s-.42)/.28,0,1)))}
+      pos.push(x,h,z);nor.push(-gx/ln,1/ln,-gz/ln);uv.push(x/120,z/120);sl.push(s);
+      if(h<1.5)HCOL.copy(HC.verge);else HCOL.lerpColors(HC.g1,HC.g2,clamp(h/360,0,1));
+      const pn=vnoise(x/70+3,z/70+9);if(pn>.6)HCOL.lerp(HC.meadow,.6);else if(pn<.38)HCOL.lerp(HC.dry,.5);
+      let dd=1e9;for(const q of DIRT)dd=Math.min(dd,Math.hypot(x-q[0],z-q[1]));
+      HCOL.lerp(HC.dirt,clamp(Math.max(1-(dd-6)/12,1-(Math.hypot(x-430,z+430)-30)/12),0,1)*.85);
+      const k=clamp((s-.42)/.28,0,1);HCOL2.lerpColors(HC.r1,HC.r2,clamp(h/420,0,1)*.6+.4*vnoise(x/90,z/90));HCOL.lerp(HCOL2,k*k*(3-2*k));
       col.push(HCOL.r,HCOL.g,HCOL.b)}
-    const nc=cs.length;for(let j=0;j<rs.length-1;j++)for(let i=0;i<nc-1;i++){const a=j*nc+i,b=a+1,c=a+nc,d=c+1;ix.push(a,c,b,b,c,d)}
+    const nc=cs.length;for(let j=0;j<rs.length-1;j++)for(let i=0;i<nc-1;i++){const a=j*nc+i,b=a+1,c=a+nc,d=c+1;
+      if((sl[a]+sl[b]+sl[c]+sl[d])/4<.42){ix.push(a,c,b,b,c,d);continue}
+      for(const v of[a,c,b,b,c,d])rk.p.push(pos[v*3],pos[v*3+1],pos[v*3+2]),rk.n.push(nor[v*3],nor[v*3+1],nor[v*3+2]),rk.c.push(col[v*3],col[v*3+1],col[v*3+2]),rk.u.push((pos[v*3]+pos[v*3+2])/150,pos[v*3+1]/48)}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
     out.push(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:det})))}
-  return out.concat(roadMeshes(),placeMeshes(),propMeshes(),[hikeMesh()])}
+  const rg=new THREE.BufferGeometry();rg.setAttribute('position',new THREE.Float32BufferAttribute(rk.p,3));rg.setAttribute('normal',new THREE.Float32BufferAttribute(rk.n,3));
+  rg.setAttribute('color',new THREE.Float32BufferAttribute(rk.c,3));rg.setAttribute('uv',new THREE.Float32BufferAttribute(rk.u,2));
+  out.push(new THREE.Mesh(rg,new THREE.MeshLambertMaterial({vertexColors:true,map:strata})));
+  return out.concat(roadMeshes(),placeMeshes(),propMeshes(),countryMeshes(),[hikeMesh()])}
 
 // hill traffic: up to 6 cars (kind 'hill') drive the paved hill roads both ways and slow in bends. Eight hikers walk the dirt trail and the overlook as one instanced mesh.
 const HILL_RT=HILL_ROADS.map(r=>{const S=roadSamples(r,4),n=S.length,v=new Float32Array(n);
