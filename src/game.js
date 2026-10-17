@@ -610,7 +610,7 @@ function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;skyLook()}
 // Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
 const LMS=[],LMA={spray:null,boats:null};
 // name shown on entry (AREA banner), footprint for the minimap and the debug list
-const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3200,w:320,h:760,ic:'M'}];
+const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3520,w:320,h:440,ic:'M'},{name:'Container Yard',sub:'Stacked containers and a crane',x:120,y:3200,w:320,h:320,ic:'Y'}];
 function landmarkKey(x,y){const i=LANDMARKS.findIndex(l=>x>=l.x&&x<l.x+l.w&&y>=l.y&&y<l.y+l.h);return i<0?null:'lm'+i}
 LANDMARKS.forEach((l,i)=>AREA['lm'+i]=[l.name,l.sub]); // entry banner text
 const LMC={cA:'#b8432f',cB:'#2f6fb8',cC:'#d68a2f',cD:'#3d8a52',stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
@@ -627,13 +627,13 @@ for(const[x,y]of[[1010,1890],[1040,1890],[1280,1890],[1296,1890],[1010,1960],[10
 addShape({kind:'plateau',x:1160,y:1950,w:200,d:80,h:4,slope:3});    // terrace, step 1
 addShape({kind:'plateau',x:1160,y:1950,w:160,d:56,h:8,slope:3});    // step 2
 addShape({kind:'plateau',x:1160,y:1950,w:120,d:32,h:12,slope:3});   // top, 12 high
-addShape({kind:'ramp',x:1160,y:2010,a:-Math.PI/2,len:40,w:24,h:12}); // drive up onto the terrace; lip at y 1970
+addShape({kind:'ramp',x:1200,y:2000,a:-Math.PI/2,len:40,w:24,h:12}); // drive up onto the terrace from the south, clear of the fountain; lip at y 1960
 addShape({kind:'plateau',x:1240,y:2140,w:110,d:56,h:4,slope:2});    // stage
 // Rustwater Marina, blocks (0,7) and (0,8): a container yard on (0,7); on (0,8) a basin with boats, a quay on its east side with containers and a crane, and a stunt ramp off the quay over the basin onto a container row on the west bank.
 for(let i=0;i<6;i++){lmSolid(140+i*44,3236,40,18,8,i%2?'cA':'cB');lmSolid(140+i*44,3290,40,18,i<3?16:8,i%2?'cC':'cD')}
 lmSolid(140,3350,40,18,8,'cC');lmSolid(184,3350,40,18,8,'cA');
 lmSolid(170,3648,126,4,3.2,'wall');lmSolid(170,3948,126,4,3.2,'wall');   // basin bulkheads, north and south
-lmSolid(166,3648,4,304,3.2,'wall');lmSolid(296,3648,4,304,3.2,'wall');    // west bank and quay edge
+lmSolid(166,3648,4,304,3.2,'wall');lmSolid(296,3648,4,130,3.2,'wall');lmSolid(296,3822,4,130,3.2,'wall'); // west bank; quay edge with a gap at y 3778 to 3822 for the ramp lip
 addShape({kind:'plateau',x:370,y:3800,w:140,d:320,h:3,slope:2});          // quay
 addShape({kind:'ramp',x:345,y:3800,a:Math.PI,len:40,w:30,h:12});         // off the quay, west over the basin
 for(const[y,c]of[[3660,'cA'],[3682,'cB'],[3704,'cC'],[3960-18-80,'cD']])lmSolid(372,y,40,18,8,c); // quay containers, north part
@@ -658,6 +658,8 @@ function alleyCut(bi,bj){const cell=cells[bj*N+bi];let b=null;for(const q of cel
 for(const[bi,bj]of[[2,3],[5,4],[3,2]])alleyCut(bi,bj);
 if(DBG)Object.defineProperties(DBG,{alleys:{get:()=>ALLEYS.map(a=>[a.x,a.y,a.h])}});
 // Sunset Pier, block row bj=9: a boardwalk on the sea side of the road (y 4524 to 4568) and the pier south from its middle to the world edge (y 4780). Deck at 4.
+// Sea east of the pier (x 2120 to 2270, south of the boardwalk): the ground drops to -6, under the water plane at -3. Falling in respawns the player (pierFall).
+for(let j=0;j<HM.gh;j++)for(let i=0;i<HM.gw;i++){const x=HM.x0+i*HM.cell,y=HM.y0+j*HM.cell;if(x>=2120&&x<=2270&&y>=4568&&y<=W+260)HM.a[j*HM.gw+i]=-6}
 addShape({kind:'plateau',x:W/2,y:4546,w:W,d:40,h:4,slope:2,mat:'wood'});
 addShape({kind:'plateau',x:2100,y:4670,w:40,d:209,h:4,slope:2,mat:'wood'});
 addShape({kind:'ramp',x:2080,y:4600,a:Math.PI,len:40,w:30,h:12}); // off the pier start, west onto the sand
@@ -673,6 +675,7 @@ lmSolid(1884,3300,4,80,10,'wall');  // west wall, graffiti on its east face
 // (trees, benches and lamps: see landmarkMeshes)
 rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{landmarks:{get:()=>LANDMARKS.map(l=>l.name)}});
+if(DBG)Object.defineProperties(DBG,{tris:{get:()=>renderer.info.render.triangles}}); // triangles of the last frame, for the perf numbers
 
 // ---------- state ----------
 const me={x:4*B+R+7,y:4*B+R+7,a:0,vx:0,vy:0,hp:BAL.playerHp,car:null,cash:10000,inv:2,lastHurt:0,fireCd:0,lastHitBy:null,lastHitT:-99,bustT:0,inside:null,door:null,z:0,roof:null,climb:null};
@@ -4669,7 +4672,7 @@ function update(dt){
   if(state==='play'){propStep();if(me.car&&!me.inside)propStore()}
   if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
-  lakeFall();if(me.y<0)hillArrive();hillFog();
+  lakeFall();pierFall();if(me.y<0)hillArrive();hillFog();
   // input vector
   let ix=(held('right')?1:0)-(held('left')?1:0),iy=(held('down')?1:0)-(held('up')?1:0);
   const shift=held('sprint'),hu=handsUp;
@@ -4831,7 +4834,7 @@ function mergeGeos(list){const hasUv=list.every(([g])=>g.attributes.uv),hasCol=l
 // Static world meshes merge into one draw per look (same map, emissive, side, blend and flags). Colour goes into vertex colours,
 // so meshes with the same look but different material objects still share a draw. Animated or toggled objects stay apart.
 function staticBatch(){
-  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
+  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,LMA.boats,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
   const look=m=>[m.type,m.map?m.map.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',m.emissive?m.emissive.getHex():'',m.side,+!!m.flatShading,+!!m.transparent,m.opacity,m.blending,+!!m.depthWrite,+!!m.depthTest,+!!m.fog,+!!m.vertexColors,m.specular?m.specular.getHex():'',m.shininess||''].join('|');
   for(const o of scene.children){
     if(!o.isMesh&&!o.isInstancedMesh||!o.visible||Array.isArray(o.material)||skip.has(o))continue;const m=o.material,g=o.geometry;
@@ -6222,8 +6225,11 @@ function landmarkMeshes(){
   const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);pitMeshes();
   // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
   const pg=[];for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])pg.push([new THREE.CylinderGeometry(.9,1,9,5).translate(x,0,y),new THREE.Matrix4()]);scene.add(new THREE.Mesh(mergeGeos(pg),lmm.wood));
-  const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
-  const rail=new THREE.Mesh(new THREE.BoxGeometry(W,.7,.7),lmm.metal);rail.position.set(W/2,6.3,4568);scene.add(rail);
+  // sea east of the pier: a water plane over the beach sand (sand is at -0.5), above the -6 bed from the heightmap
+  {const sea=new THREE.Mesh(new THREE.PlaneGeometry(150,212),lmm.water);sea.rotation.x=-Math.PI/2;sea.position.set(2195,.3,4674);scene.add(sea)}
+  // the rail and its posts stop at the pier's sides, so the pier is open to cars
+  const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;if(x>2060&&x<2140)continue;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
+  for(const[a,b]of[[0,2060],[2140,W]]){const rail=new THREE.Mesh(new THREE.BoxGeometry(b-a,.7,.7),lmm.metal);rail.position.set((a+b)/2,6.3,4568);scene.add(rail)}
   const awm=new THREE.MeshLambertMaterial({color:'#ff3ea5'});LMS.filter(b=>b.m==='stall').forEach(b=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),awm);m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
   // roller-coaster frame east of the pier: towers and a track of boxes along a wave, merged into two meshes
   const trk=[],tow=[],cz=4650;let px=null;
@@ -6232,6 +6238,13 @@ function landmarkMeshes(){
     if(px){const dh=h-px[1],L=Math.hypot(15,dh),mid=new THREE.Matrix4().makeTranslation((px[0]+x)/2,(px[1]+h)/2,cz).multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(dh,15)));trk.push([new THREE.BoxGeometry(L,1.4,1.4),mid])}
     px=[x,h]}
   scene.add(new THREE.Mesh(mergeGeos(trk),lmm.metal),new THREE.Mesh(mergeGeos(tow),lmm.metal));
+}
+// on foot or in a car, falling into the sea east of the pier puts you back at the pier start (same rule as lakeFall)
+function pierFall(){
+  if(state!=='play'||groundZ(me.x,me.y)>-2)return;
+  const x=2100,y=4600;
+  if(me.car){me.car.x=x;me.car.y=y;me.car.vx=me.car.vy=0}
+  me.x=x;me.y=y;me.vx=me.vy=0;me.z=groundZ(x,y);feed('You fell in the sea. Back to the pier');
 }
 // per-frame motion for landmarks: the fountain spray
 function landmarkTick(){
