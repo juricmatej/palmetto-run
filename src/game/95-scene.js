@@ -412,6 +412,36 @@ for(const b of buildings){
     const m=new THREE.Mesh(new THREE.PlaneGeometry(w,4.4),mat);m.position.set(f[0]+f[2]*4.9,18.5,f[1]+f[3]*4.9);if(f[2]!==0)m.rotation.y=Math.PI/2;scene.add(m);
     if(roofN.blades.length<12)roofN.blades.push([Math.round(m.position.x),Math.round(m.position.z),f[2]!==0?1:0,f[0],f[1]])}}
 }
+// Rustwater Docks dressing on the industrial blocks: silos, pipe racks, a gantry crane, floodlight masts,
+// a decorative rail spur along the kerb of the north blocks, and puddles between the stacks.
+{const siloG=mergeGeos([[new THREE.CylinderGeometry(11,11,44,12),mtx(0,22,0)],[new THREE.ConeGeometry(11,9,12),mtx(0,48,0)]]),
+  mastG=mergeGeos([[new THREE.CylinderGeometry(.5,.8,30,6),mtx(0,15,0)],[new THREE.BoxGeometry(7,2.4,2.4),mtx(0,30,0)]]),
+  A=[],B2=[],C=[],D=[],
+  push=(L,g,x,y,z,ry)=>L.push([g,new THREE.Matrix4().makeRotationY(ry||0).setPosition(x,y,z)]);
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='industrial')continue;
+  const x0=bi*B+R,y0=bj*B+R,s=B-R,dr=seeded(bi*97+bj*61+13);
+  if((bi+bj)%3===0)for(let k=0;k<3;k++)push(A,siloG,x0+s-46-k*24,1.25,y0+60);
+  if(dr()<.5){const ry=y0+s-42,xa=x0+30,xb=x0+s-30,mid=(xa+xb)/2,len=xb-xa;
+   for(const y of[8,14])push(A,new THREE.BoxGeometry(len,1.6,2.4),mid,y,ry);
+   for(let u=xa+10;u<xb;u+=34){push(A,new THREE.BoxGeometry(1.6,16,1.6),u,8.5,ry);push(A,new THREE.BoxGeometry(1.6,10,1.6),u,5.5,ry+9)}}
+  if(dr()<.28){const gx=x0+70,gy=y0+170;
+   for(const dx of[-26,26])for(const dz of[-14,14])push(C,new THREE.BoxGeometry(3,32,3),gx+dx,17,gy+dz);
+   push(C,new THREE.BoxGeometry(80,4,4),gx,34,gy-14);push(C,new THREE.BoxGeometry(80,4,4),gx,34,gy+14);
+   push(C,new THREE.BoxGeometry(10,6,8),gx,28,gy)}
+  push(C,mastG,x0+22,1.25,y0+s-22);push(C,new THREE.BoxGeometry(7,2.2,2.4),x0+22,31.2,y0+s-22);
+  if(bj<=3&&!DOORS.some(d=>Math.abs(d.x-(x0+8))<60&&d.y>y0-40&&d.y<y0+s+40)){
+   const rx=x0+8,yb=y0+22,ye=y0+s-22,ln=ye-yb;
+   push(B2,new THREE.BoxGeometry(7,.3,ln),rx,1.12,(yb+ye)/2);
+   for(const o of[-1.6,1.6])push(A,new THREE.BoxGeometry(.7,.3,ln),rx+o,1.3,(yb+ye)/2);
+   for(let u=yb+3;u<ye-2;u+=5)push(C,new THREE.BoxGeometry(4.4,.35,1.2),rx,1.2,u);
+   push(C,new THREE.BoxGeometry(5,3,3),rx,2.8,ye)}
+  for(let k=0;k<5;k++){const px=x0+30+dr()*(s-60),py=y0+30+dr()*(s-60);D.push([px,py,7+dr()*15,4+dr()*8])}}
+ if(A.length)scene.add(new THREE.Mesh(mergeGeos(A),blam('#5a5a60')));
+ if(B2.length)scene.add(new THREE.Mesh(mergeGeos(B2),blam('#57544a')));
+ if(C.length)scene.add(new THREE.Mesh(mergeGeos(C),blam('#3a3742')));
+ if(D.length){const pg=new THREE.CircleGeometry(1,14).rotateX(-Math.PI/2),pl=[];
+  for(const[x,y,rx,ry]of D)pl.push([pg,new THREE.Matrix4().makeScale(rx,1,ry).setPosition(x,1.31,y)]);
+  scene.add(new THREE.Mesh(mergeGeos(pl),new THREE.MeshBasicMaterial({color:'#2a3140'})))}}
 // Low Palms lot lines: chain-link runs along the back lines between the row-house yards, with posts
 {const cl=[];
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='hood')continue;
