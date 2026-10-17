@@ -1355,6 +1355,7 @@ function toggleCar(){
   if(lap){endLap();return}
   if(state!=='play'||me.downed)return;
   {const q=msNear();if(q){if(!q.def)feed(q.c.name+' has no more work for you');else if(q.locked)feed(q.def.title+' needs level '+q.def.level);else startMission(q.def.id);return}}
+  if(!me.car&&!me.heli&&!me.jet&&pitNear()&&(!pitState||pitState.done)){pitOpen();return}
   if(me.inside){interact();return}
   if(me.heli){const h=me.heli,g=heliGround(h.x,h.y);if(h.z-g>14){feed('Land first. Hold Shift to descend');return}
     me.heli=null;const rb=g>2?roofAt(h.x,h.y):null;
@@ -3514,6 +3515,73 @@ function miniPaint(){const m=miniState;$('miniHand').style.transform=`rotate(${m
 if(DBG)Object.defineProperties(DBG,{mini:{get:()=>miniState}});
 if(DBG){DBG.hotwireTest=()=>miniOpen('hot',()=>{});DBG.lockTest=()=>miniOpen('lock',()=>{})}
 
+// ---------- pit modes ----------
+// E at the board on the Pit's north wall opens a picker. Three local runs: King of the Pit (hold the ring), Last Cars Standing (you and three rival cars), Gauntlet (six marks on the catwalk).
+const PIT_MODES=['king','cars','gauntlet'],PIT_NAME={king:'King of the Pit',cars:'Last Cars Standing',gauntlet:'Gauntlet'};
+const PIT_C={x:3360,y:3360,r:58},PIT_BOARD={x:3360,y:3228},PIT_START={x:3360,y:3400};
+const PIT_MARKS=[[3280,3262],[3310,3262],[3340,3262],[3370,3262],[3400,3262],[3430,3262]];
+const pitNear=()=>Math.hypot(me.x-PIT_BOARD.x,me.y-PIT_BOARD.y)<40;
+let pitState=null,pitCars=[],pitBoard=null,pitMark=null,pitTxt='THE PIT',pitBT=0;
+const pitRec={g:null,w:{king:0,cars:0,gauntlet:0}};
+try{const d=JSON.parse(localStorage.getItem('pr3d-pit'));if(d&&typeof d==='object'){if(Number.isFinite(d.g)&&d.g>0)pitRec.g=d.g;for(const k of PIT_MODES)if(d.w&&Number.isFinite(d.w[k]))pitRec.w[k]=Math.max(0,Math.floor(d.w[k]))}}catch(e){}
+function pitSave(){try{localStorage.setItem('pr3d-pit',JSON.stringify(pitRec))}catch(e){}}
+function pitBoardSet(txt){if(txt===pitTxt)return;pitTxt=txt;const m=pitBoard.material;m.map.dispose();m.map=signTex(txt,'#ff3ea5');m.needsUpdate=true}
+function pitRemote(){for(const r of remotes.values())if(PIT_MODES.includes(r.pm))return PIT_NAME[r.pm];return 'THE PIT'}
+function pitMarkAt(i){const T=PIT_MARKS[i];if(!T){pitMark.visible=false;return}pitMark.visible=true;pitMark.position.set(T[0],groundZ(T[0],T[1])+8,T[1])}
+function pitMeshes(){
+  pitBoard=new THREE.Mesh(new THREE.PlaneGeometry(24,6),new THREE.MeshBasicMaterial({map:signTex(pitTxt,'#ff3ea5')}));
+  pitBoard.rotation.y=Math.PI;pitBoard.position.set(PIT_BOARD.x,groundZ(PIT_BOARD.x,PIT_BOARD.y)+5,PIT_BOARD.y);scene.add(pitBoard);
+  pitMark=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,16,8),new THREE.MeshBasicMaterial({color:'#ffd23f'}));pitMark.visible=false;scene.add(pitMark);
+}
+function pitOpen(){$('pitK').textContent='King of the Pit. Wins '+pitRec.w.king;$('pitC').textContent='Last Cars Standing. Wins '+pitRec.w.cars;$('pitG').textContent='Gauntlet. Best '+(pitRec.g?pitRec.g.toFixed(1)+' s':'none');openModal('pit')}
+for(const[id,k]of[['pitK','king'],['pitC','cars'],['pitG','gauntlet']])$(id).addEventListener('click',()=>{closeShop();pitStart(k)});
+$('pitClose').addEventListener('click',closeShop);
+function pitStart(m){
+  if(!PIT_MODES.includes(m))return;
+  const x=PIT_START.x,y=PIT_START.y;
+  pitState={m,t:0,s:0,a:0,n:0,done:0,rank:0};pitCars=[];pitMarkAt(m==='gauntlet'?0:-1);
+  me.x=x;me.y=y;me.z=groundZ(x,y);me.vx=me.vy=0;
+  if(m==='cars'){
+    const c=mkCar(x,y,-Math.PI/2,'mine',myColor);cars.push(c);me.car=c;pitCars.push(c);
+    for(const[rx,ry]of[[3270,3440],[3450,3440],[3270,3330]]){const r=mkCar(rx,ry,Math.atan2(y-ry,x-rx),'rival','#e9e9f2');cars.push(r);pitCars.push(r)}
+  }
+  pitBoardSet(PIT_NAME[m]);feed(`The Pit: ${PIT_NAME[m]}`);
+}
+function pitFinish(rank){
+  const s=pitState,w=pitRec.w;s.done=1;s.rank=rank;pitMarkAt(-1);
+  let pay=0,msg=`Place ${rank}`;
+  if(s.m==='gauntlet'){msg=`${s.t.toFixed(1)} s`;if(!pitRec.g||s.t<pitRec.g){if(s.t<45)pay=800;pitRec.g=s.t;msg+=', new best'}}
+  else pay=rank===1?1500:rank===2?500:0;
+  if(rank===1)w[s.m]++;
+  me.cash+=pay;
+  for(const c of pitCars){if(c===me.car)leaveCar(true);else if(c.kind==='mine')c.kind='parked';if(c.kind==='rival')c.kind='dead'}
+  pitCars=[];pitSave();saveArsenal();
+  feed(`The Pit: ${PIT_NAME[s.m]}. ${msg}${pay?', '+money(pay):''}`);
+  showBig(rank===1?'PIT WON':'PIT PLACE '+rank,'#ffc94a',msg+(pay?', '+money(pay):''),3);jingle('pass');
+}
+function pitTick(dt){
+  const s=pitState;pitBT+=dt;
+  if(pitBT>1){pitBT=0;pitBoardSet(s&&!s.done?PIT_NAME[s.m]:pitRemote())}
+  if(!s||s.done||state!=='play'||me.downed)return;
+  s.t+=dt;
+  if(s.m==='king'){if(Math.hypot(me.x-PIT_C.x,me.y-PIT_C.y)<PIT_C.r){s.a+=dt;if(s.a>=1){s.a-=1;s.s++;if(s.s>=60)pitFinish(1)}}}
+  else if(s.m==='cars'){
+    const p=pitCars[0];let alive=0;for(const c of pitCars)if(c.kind==='rival'&&!c.burn)alive++;
+    if(me.car!==p||p.burn>0)return pitFinish(1+alive); // out of the car or wrecked
+    if(!alive)return pitFinish(1);
+    if(s.t>=90)return pitFinish(1+alive);
+    for(const r of pitCars){if(r===p||r.kind!=='rival'||r.burn)continue;
+      const st=clamp(wrap(Math.atan2(p.y-r.y,p.x-r.x)-r.a)*2.2,-1,1);
+      r.stk=Math.hypot(r.vx,r.vy)<4?(r.stk||0)+dt:0;const bk=r.stk>1.5;if(r.stk>2.3)r.stk=0; // back off for a moment when stuck on a wall
+      drive(r,bk?-1:1,bk?-st:st,false,dt);carWalls(r)}
+  }
+  else{
+    const T=PIT_MARKS[s.n];
+    if(T&&Math.hypot(me.x-T[0],me.y-T[1])<16){s.n++;if(s.n<PIT_MARKS.length)pitMarkAt(s.n);else pitFinish(1)}
+  }
+}
+if(DBG)Object.defineProperties(DBG,{pit:{get:()=>pitState},pitStart:{get:()=>pitStart}});
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
@@ -3856,7 +3924,7 @@ function syncRoom(dt){
     let r=remotes.get(p.peer);
     if(!r){r={x:s.x,y:s.y,a:num(s.a),shot:Array.isArray(s.s)?s.s[0]:null,ex:Array.isArray(s.ex)?s.ex[0]:null,fl:s.fl,dmgSeen:null,kMe:null,chSeq:null,chatLine:'',chatT:-9,downed:false,rvSeen:null};remotes.set(p.peer,r);feed(`${str(s.n)||'A driver'} rolled into town`)}
     r.tx=clamp(s.x,-50,W+4500);r.ty=clamp(s.y,HILL.edge,W+300);r.ta=num(s.a);r.name=str(s.n)||'Driver';r.color=hex(s.c);r.inCar=s.v===1;r.inHeli=s.v===2;r.inJet=s.v===3;r.cc=hex(s.cc,r.color);r.ng=hex(s.ng,null);r.z=clamp(num(s.z),0,900);r.cz=clamp(num(s.cz),-50,900);r.ct=hasCT(s.ct)?s.ct:'sedan';r.hp=clamp(num(s.h,100),0,100);r.dead=s.dd===1;r.downed=num(s.dn)===1;r.w=clamp(num(s.w),0,5);r.lv=clamp(Math.floor(num(s.lv,1)),1,30);r.lk=str(s.lk);r.ar=Array.isArray(s.ar)?[clamp(num(s.ar[0]),0,99999),clamp(num(s.ar[1]),0,99999)]:[0,0];
-    r.k=s.k&&typeof s.k==='object'?s.k:{};
+    r.k=s.k&&typeof s.k==='object'?s.k:{};r.pm=str(s.pm);
     r.rk=rkParse(s.rk);
     // chat: react once per new seq, and never show or sound anything from a muted peer
     {const cc=Array.isArray(s.ch)?s.ch:null;
@@ -3913,7 +3981,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
@@ -4103,7 +4171,7 @@ function update(dt){
     me.bustT=near&&!me.roof?me.bustT+dt:Math.max(0,me.bustT-dt);if(me.bustT>2.6)die('BUSTED');handsStep(dt);
     for(const[peer,r]of remotes){if(r.dead||!r.inCar)continue;const d=Math.hypot(r.x-me.x,r.y-me.y);if(d<22){const nx=(me.x-r.x)/(d||1),ny=(me.y-r.y)/(d||1);me.x+=nx*(22-d);me.y+=ny*(22-d)}}
   }
-  modNitroStep(dt);
+  modNitroStep(dt);pitTick(dt);
   // cars
   for(const c of cars){
     if(c.air&&c.kind!=='mine')c.air=false;if(!c.air)c.z=groundZ(c.x,c.y);
@@ -5397,7 +5465,7 @@ function landmarkMeshes(){
   const pp=new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2,1.6,36,6),lmm.metal,pyl.length),ph=new THREE.InstancedMesh(new THREE.BoxGeometry(8,2.4,8),new THREE.MeshBasicMaterial({color:'#fff1c4'}),pyl.length);
   pyl.forEach(([x,y],i)=>{inst(pp,i,x,18,y);inst(ph,i,x,37,y)});pp.count=ph.count=pyl.length;scene.add(pp,ph);
   for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,38,y);g.scale.set(40,40,1);scene.add(g)}
-  const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);pitMeshes();
   // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
   const pg=[];for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])pg.push([new THREE.CylinderGeometry(.9,1,9,5).translate(x,0,y),new THREE.Matrix4()]);scene.add(new THREE.Mesh(mergeGeos(pg),lmm.wood));
   const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
