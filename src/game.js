@@ -4480,6 +4480,8 @@ function iGlow(r,x,y,s,c){return iFl(r,x,y,.5,s,s,iAdd(c),true)}
 function iStrip(r,x,y,w,d,c){return iB(r,x,y,69.5,w,1,d,iCol(c))}
 // lit sign on a wall: centre (x,y) on the wall face, z is the centre height, ry the way it faces
 function iSign(r,x,y,z,t,c,ry,sw,sh){sw=sw||60;sh=sh||15;const uv=atlas(512,128,(g,X,Y,w,h)=>{g.fillStyle='#0b0814';g.fillRect(X,Y,w,h);g.strokeStyle=c;g.lineWidth=8;g.strokeRect(X+6,Y+6,w-12,h-12);g.font=(t.length>10?'50px':'62px')+' Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle=c;g.shadowColor=c;g.shadowBlur=18;g.fillText(t,X+w/2,Y+h/2+4)});return iPl(r,x,y,z-sh/2,sw,sh,ATL.m,ry,uv)}
+// a 2D picture on a wall: centre (x,y), centre height zc, uv from atlas()
+function iPoster(r,x,y,zc,w,h,uv,ry){return iPl(r,x,y,zc-h/2,w,h,ATL.m,ry,uv)}
 // one stool: chrome pole, cushion on top
 function iStool(r,x,y,m){iCy(r,x,y,0,5,1,M.black,10);iCy(r,x,y,1,.8,20,iChrome,6);iCy(r,x,y,21,6,2,m,12)}
 // the exit mat, the same in every room
@@ -4622,6 +4624,84 @@ let roul=null,clubBall=null;
    const rim=new THREE.Mesh(box(p.w,2.4,p.h),lam('#6b4426'));rim.position.set(cx,top-1.2,cz);scene.add(rim);
    const fm=new THREE.Mesh(box(p.w-8,.6,p.h-8),lam(felt));fm.position.set(cx,top+.3,cz);scene.add(fm);
    for(const[dx,dz]of[[-1,-1],[1,-1],[-1,1],[1,1]]){const lg=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,top-2.4,6),lam('#3a2212'));lg.position.set(cx+dx*(p.w/2-6),(top-2.4)/2,cz+dz*(p.h/2-6));scene.add(lg)}}}
+// decor for the seven plain rooms and the three banks: fixtures on the shared materials, one exit mat and one lit sign each
+// Diner: chrome counter with teal skirt, six stools, pendant lamps, booth cushions, window band, jukebox
+{const d=diner,pink=lam('#ff5c8a'),ket=iCol('#ff3ea5'),cream=iCol('#fff1d6');
+ iB(d,20,34,16,320,1.4,26,iChrome);iB(d,20,59,0,320,16,1,iCol('#29e6d6'));
+ for(let i=0;i<6;i++)iStool(d,52+i*52,68,pink);
+ for(let i=0;i<5;i++){const x=60+i*64;iB(d,x-.4,43.6,36,.8,36,.8,M.black);iCy(d,x,44,30,5,6,iCol('#ffc94a'),10)}
+ for(let i=0;i<4;i++)iCy(d,70+i*70,42,17.4,1.2,4,ket,6);
+ for(let i=0;i<3;i++){iB(d,6,118+i*46,12,4,14,36,pink);iB(d,9,120+i*46,12,10,3,32,pink);iB(d,36,130+i*46,9,20,.4,16,cream)}
+ for(let i=0;i<2;i++){iB(d,352,118+i*46,12,4,14,36,pink);iB(d,341,120+i*46,12,10,3,32,pink)}
+ iCy(d,160,150,10,1.4,5,ket,6);iCy(d,220,186,10,1.4,5,ket,6);iB(d,146,146,10,28,.4,12,cream);iB(d,206,182,10,28,.4,12,cream);
+ iB(d,20,.5,36,320,12,.8,cream);for(let x=20;x<=340;x+=40)iB(d,x,.4,36,1.2,12,1.2,M.black);
+ iB(d,298,202.4,8,28,16,1,ket);iTo(d,312,202.6,22,9,1,iCol('#ffc94a'));
+ iMatExit(d,180,230);iSign(d,180,259.4,56,'PINK FLAMINGO','#ff5c8a',Math.PI,80,15);iGlow(d,180,130,260,'rgba(255,62,165,.3)')}
+// Ink & Fade: mirror panels on the slab, five dividers, a red lamp over the chair, cushions, basin, two posters on the left wall, one on the right
+{const k=ink,cyan=iCol('#29e6d6'),pink=iCol('#ff3ea5'),paper=iCol('#fff1d6');
+ const flash=(t,c)=>atlas(256,320,(g,X,Y,w,h)=>{g.fillStyle='#14111f';g.fillRect(X,Y,w,h);g.strokeStyle=c;g.lineWidth=6;g.strokeRect(X+8,Y+8,w-16,h-16);g.fillStyle=c;g.font='bold 40px Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(t,X+w/2,Y+40);for(let i=0;i<5;i++){g.beginPath();g.arc(X+40+(i%3)*88,Y+130+Math.floor(i/3)*90,26,0,TAU);g.stroke()}});
+ for(let i=0;i<4;i++)iPl(k,48+i*56,12.6,8,44,30,M.glass);
+ for(let i=0;i<5;i++)iB(k,19+i*56,12,6,2,30,1.6,iChrome);
+ iB(k,20,12,6,260,1.4,2.4,iChrome);
+ for(const x of[50,110]){iB(k,x+1,65,22,26,2,26,pink)}
+ iCy(k,240,62,0,1.2,60,iChrome,6);iB(k,222,61,58,18,1.2,1.2,iChrome);iCy(k,222,62,55,2.4,3,paper,8);
+ iB(k,192,72,14.1,60,.4,26,iMatt);for(let i=0;i<5;i++)iCy(k,200+i*12,80,14.5,2.6,2.5,pink,8);
+ iCy(k,96,104,14,1,12,iChrome,6);for(let i=0;i<4;i++)iCy(k,40+i*18,108,14,2,12,cyan,6);iB(k,130,104,14.1,20,.6,8,iCol('#f8f5ff'));
+ iPoster(k,1,43,50,26,34,flash('INK','#29e6d6'),Math.PI/2);iPoster(k,1,84,50,26,34,flash('ROSE','#ff3ea5'),Math.PI/2);iPoster(k,299,60,50,26,34,flash('FADE','#ffc94a'),-Math.PI/2);
+ iMatExit(k,150,190);iSign(k,150,219.4,56,'INK & FADE','#ff3ea5',Math.PI,70,15);iGlow(k,150,110,200,'rgba(41,230,214,.22)')}
+// Iron Palms: six mirror panels with seven dividers, rack dumbbells, bench press, weight tree, treadmills, loose weights
+{const k=gym,pm=M.black,bar=iChrome,red=lam('#c0392b');
+ const dumb=(x,y,z)=>{for(const s of[-1,1]){const p=new THREE.Mesh(icyl(4,1.6,10),pm);p.rotation.z=Math.PI/2;p.position.set(k.ox+x+s*8.4,z+4,k.oy+y);scene.add(p)}const b=new THREE.Mesh(icyl(1.3,18,6),bar);b.rotation.z=Math.PI/2;b.position.set(k.ox+x,z+4,k.oy+y);scene.add(b)};
+ const cyX=(x,y,z,rad,h,m)=>{const c=new THREE.Mesh(icyl(rad,h,10),m);c.rotation.z=Math.PI/2;c.position.set(k.ox+x,z,k.oy+y);scene.add(c)};
+ for(let i=0;i<6;i++)iPl(k,48+i*56,12.6,8,44,30,M.glass);
+ for(let i=0;i<7;i++)iB(k,19+i*56,12,6,2,40,1.6,iChrome);
+ for(let i=0;i<4;i++)dumb(36+i*26,46,30);
+ iB(k,160,40,14,60,1,18,iMatt);for(const x of[146,231])iCy(k,x,49,0,2,44,iChrome,6);iB(k,146,48.4,44,88,1.4,1.4,iChrome);
+ for(const s of[-1,1]){cyX(190+s*26,49,44.7,7,3,pm);cyX(190+s*33,49,44.7,7,3,pm)}
+ for(let i=0;i<3;i++){const m=i%2?red:pm,z=16+i*20;cyX(291,50,z,8,4,m);cyX(309,50,z,8,4,m)}
+ for(const x of[40,150,260]){iB(k,x+64,152,12,4,46,4,M.black);iPl(k,x+66,152.4,44,28,14,iCol('#29e6d6'));iB(k,x+4,154,12,76,.6,20,M.char)}
+ dumb(60,220,1);dumb(260,220,1);
+ iB(k,170,223,1.2,40,.4,14,iMatt);
+ iSign(k,190,259.4,56,'IRON PALMS','#3dd68c',Math.PI,70,15);iGlow(k,190,130,240,'rgba(61,214,140,.2)')}
+// Palmetto PD: two desk monitors with keyboards and papers, coffee machine, wanted board, cell bars and sign, locker handles, bench slats
+{const k=pd,blue=iCol('#4aa3ff'),paper=iCol('#fff1d6'),pink=iCol('#ff3ea5');
+ for(const x of[100,170]){iB(k,x-1,118,18,2,9,2,M.black);iPl(k,x,120.6,27,28,15,blue);iB(k,x-8,110,18,16,.6,5,M.dim)}
+ for(const[x,y]of[[80,104],[130,108],[200,104],[240,110]])iB(k,x,y,18,6,.3,8,paper);
+ iB(k,250,100,18,10,10,10,M.black);
+ for(let i=0;i<4;i++)iPl(k,32+i*22,22.4,22,16,22,paper);iB(k,24,22.2,46,90,1.2,.6,pink);
+ for(let i=0;i<10;i++)iCy(k,306+i*8,120.4,0,.6,34,iChrome,6);
+ iSign(k,340,120.8,52,'CELLS','#4aa3ff',0,60,14);
+ iB(k,42.2,192,18,.6,2,4,iChrome);iB(k,72.2,192,18,.6,2,4,iChrome);
+ for(const x of[120,230])for(let i=0;i<4;i++)iB(k,x,201+i*5.5,14,60,1.2,3.4,lam('#6a80ad'));
+ iMatExit(k,200,250);iSign(k,200,279.4,56,'PALMETTO PD','#4aa3ff',Math.PI,80,15);iGlow(k,200,140,300,'rgba(41,230,214,.22)')}
+// St. Palm's: bay bed headboard and mattress, monitor on the desk, two boxes on the crates
+{const k=hosp,sheet=iCol('#f8f5ff');
+ iB(k,40,58,18,130,32,2,M.dim);iB(k,42,64,18,126,3,20,sheet);
+ iB(k,50,196,22,20,12,2,M.black);iPl(k,60,198.2,24,18,11,iCol('#3dd68c'));
+ iB(k,246,46,12,26,6,20,lam('#cfe3ee'));iB(k,300,156,12,26,6,20,lam('#cfe3ee'));
+ iMatExit(k,200,250);iSign(k,200,279.4,56,"ST. PALM'S",'#ff4b4b',Math.PI,80,15);iGlow(k,200,140,260,'rgba(41,230,214,.22)')}
+// Pixel Palace: pixel screens on every cabinet (one atlas picture), a plush shelf, three neon tubes under the ceiling
+{const k=arcade,scr=atlas(128,96,(g,X,Y,w,h)=>{const r=seeded(41),C=['#29e6d6','#ff3ea5','#ffc94a','#7b6bff','#3dd68c'];g.fillStyle='#050510';g.fillRect(X,Y,w,h);for(let y=0;y<6;y++)for(let x=0;x<8;x++){g.fillStyle=r()<.6?C[(r()*5)|0]:'#1a1a2e';g.fillRect(X+x*16+2,Y+y*16+2,12,12)}});
+ for(let i=0;i<6;i++){iPl(k,43+i*58,54.4,18,20,14,ATL.m,0,scr);iPl(k,43+i*58,160.4,18,20,14,ATL.m,0,scr)}
+ for(let i=0;i<5;i++)iSp(k,160+i*16,6.5,40,3.2,iCol(['#ff3ea5','#29e6d6','#ffc94a','#fff1d6','#3dd68c'][i]));
+ iB(k,20,40,68,360,1.2,1.2,iCol('#29e6d6'));iB(k,20,150,68,360,1.2,1.2,iCol('#ff3ea5'));iB(k,20,260,68,360,1.2,1.2,iCol('#ffc94a'));
+ iMatExit(k,200,270);iSign(k,200,299.4,56,'PIXEL PALACE','#ffc94a',Math.PI,90,15);iGlow(k,200,150,300,'rgba(255,62,165,.3)')}
+// Rusty Anchor: taps and glasses on the bar, bottle rows, pool-table rails and balls, dartboard on the prop, portholes, five stools
+{const k=anchor,cols=['#29e6d6','#ff3ea5','#ffc94a','#3dd68c'],wood=lam('#6b4426'),mugs=iCol('#9ff0ff');
+ const dart=atlas(128,128,(g,X,Y,w,h)=>{g.fillStyle='#14111f';g.fillRect(X,Y,w,h);for(let i=5;i>=1;i--){g.fillStyle=i%2?'#ffc94a':'#ff3ea5';g.beginPath();g.arc(X+w/2,Y+h/2,i*w/12,0,TAU);g.fill()}});
+ for(let i=0;i<6;i++)iCy(k,60+i*32,58,18,1.4,8,iChrome,6);
+ for(let i=0;i<5;i++)iCy(k,90+i*28,66,18,2,6,mugs,6);
+ for(let i=0;i<12;i++)iCy(k,40+i*16,22,46,2,12,iCol(cols[i%4]),6);
+ iB(k,200,148,14,120,2,2,wood);iB(k,200,212,14,120,2,2,wood);iB(k,198,150,14,2,2,64,wood);iB(k,318,150,14,2,2,64,wood);
+ iSp(k,240,180,14,2.6,iCol('#fff1d6'));iSp(k,250,176,14,2.6,iCol('#ff3ea5'));iSp(k,262,184,14,2.6,iCol('#ffc94a'));
+ iPl(k,365.4,105,14,26,26,ATL.m,-Math.PI/2,dart);
+ for(let i=0;i<4;i++)iTo(k,80+i*70,1.4,60,8,1.4,iChrome);
+ for(let i=0;i<5;i++)iStool(k,56+i*40,94,lam('#7a4e2a'));
+ iMatExit(k,190,230);iSign(k,190,259.4,56,'RUSTY ANCHOR','#ffc94a',Math.PI,80,15);iGlow(k,190,130,260,'rgba(255,201,74,.2)')}
+// banks: door mat, lit exit sign and floor glow
+{iMatExit(bankL,220,290);iSign(bankL,220,319.4,56,'UNION BANK','#ffc94a',Math.PI,90,15);iGlow(bankL,220,160,300,'rgba(255,201,74,.2)')}
+{iMatExit(bankS,190,230);iSign(bankS,190,259.4,56,'FLOOR 12','#29e6d6',Math.PI,70,15);iGlow(bankS,190,130,240,'rgba(41,230,214,.22)')}
+{iMatExit(bankV,210,300);iSign(bankV,210,329.4,56,'VAULT','#ffc94a',Math.PI,70,15);iGlow(bankV,210,170,260,'rgba(255,216,120,.3)')}
 // rack LEDs: one 8x8 lit grid, its offset steps every quarter second in animInteriors (no redraw, no new material)
 const ledTex=rtex(128,128,(g)=>{g.fillStyle='#06100e';g.fillRect(0,0,128,128);const r=seeded(40),C=['#29e6d6','#3dd68c','#ffc94a','#ff3ea5'];for(let y=0;y<8;y++)for(let x=0;x<8;x++){g.fillStyle=r()<.6?C[Math.floor(r()*4)]:'#1a2a2a';g.beginPath();g.arc(x*16+8,y*16+8,4,0,TAU);g.fill()}});
 const bankFx={lasers:[],door:null,gold:null};
@@ -4629,7 +4709,7 @@ const bankFx={lasers:[],door:null,gold:null};
  for(const[x,y]of[[150,120],[290,120],[150,220],[290,220]]){const c=new THREE.Mesh(new THREE.CylinderGeometry(7,7,72,12),lam('#cfc8b8'));c.position.set(L.ox+x,36,L.oy+y);scene.add(c)}
  const lt=new THREE.Mesh(new THREE.PlaneGeometry(150,36),new THREE.MeshBasicMaterial({map:signTex('Union Bank','#ffc94a')}));lt.position.set(L.ox+220,48,L.oy+.6);scene.add(lt);
  for(let k=0;k<3;k++){const pc=new THREE.Mesh(new THREE.BoxGeometry(14,10,1),new THREE.MeshBasicMaterial({color:'#7fe9ff'}));pc.position.set(L.ox+40,18,L.oy+80+k*76+1);scene.add(pc)}
- for(let k=0;k<4;k++)for(let j=0;j<6;j++){const led=new THREE.Mesh(new THREE.BoxGeometry(2,2,1),new THREE.MeshBasicMaterial({color:j%2?'#3dd68c':'#29e6d6'}));led.position.set(S.ox+40+k*62+(j%3)*6,14+Math.floor(j/3)*16,S.oy+88.6);scene.add(led)}
+ const rackMat=new THREE.MeshBasicMaterial({map:ledTex});for(let k=0;k<4;k++)iPl(S,47+k*62,88.6,16,22,32,rackMat);
  const scr=new THREE.Mesh(new THREE.PlaneGeometry(56,20),new THREE.MeshBasicMaterial({color:'#3dd68c'}));scr.position.set(S.ox+190,24,S.oy+140);scr.rotation.x=-.2;scene.add(scr);
  bankFx.door=new THREE.Group();bankFx.door.position.set(V.ox+210-48,0,V.oy+31);const dm=new THREE.Mesh(new THREE.CylinderGeometry(46,46,8,32),lam('#9a8a5a'));dm.rotation.x=Math.PI/2;dm.position.set(48,48,0);bankFx.door.add(dm);
  for(let k=0;k<6;k++){const sp=new THREE.Mesh(new THREE.BoxGeometry(40,3,3),lam('#6a5f3c'));sp.position.set(48,48,4.5);sp.rotation.z=k*Math.PI/6;bankFx.door.add(sp)}scene.add(bankFx.door);
@@ -4662,7 +4742,7 @@ function animInteriors(dt){
   tileT-=dt;if(tileT<=0&&danceFloor){tileT=.4/sp;for(let i=0;i<danceFloor.count;i++)danceFloor.setColorAt(i,tileCols[(rand()*tileCols.length)|0]);danceFloor.instanceColor.needsUpdate=true}
   clubLights[0].position.set(club.ox+220+Math.cos(time)*150,58,club.oy+165+Math.sin(time*1.3)*110);
   clubLights[1].position.set(club.ox+220-Math.cos(time*.8)*150,58,club.oy+165-Math.sin(time*1.1)*110);
-  if(ledTex){const s=Math.floor(time*4)&7;if(ledTex.userData.s!==s){ledTex.userData.s=s;ledTex.offset.y=s/8}}
+  ledTex.offset.y=(Math.floor(time*4)&7)/8;
   if(tv)tv.material.color.setHSL(.58+Math.sin(time*3)*.05,.7,.45+Math.sin(time*11)*.08);
 }
 function heliMesh(){const g=new THREE.Group(),ud=g.userData,mil=lam('#3b4838'),dk=M.black,body=new THREE.Group();g.add(body);ud.body=body;
