@@ -268,6 +268,13 @@ const wallTex=canvasTex(256,256,(g)=>{g.fillStyle='#a49ebb';g.fillRect(0,0,256,2
 const litTex=canvasTex(256,256,(g)=>{g.fillStyle='#000';g.fillRect(0,0,256,256);const r=seeded(99);for(let y=0;y<8;y++)for(let x=0;x<8;x++){const v=r();if(v<.42){g.globalAlpha=.45+r()*.55;g.fillStyle=v<.1?'#7fe9ff':v<.3?'#ffcf86':'#ff9ad5';g.fillRect(8+x*32,8+y*32,18,18)}}g.globalAlpha=1});
 for(const t of[wallTex,litTex]){t.wrapS=t.wrapT=THREE.RepeatWrapping}
 const trimMats={},capMat=new THREE.MeshLambertMaterial({color:'#17131f'});
+// hip or gable roof: eaves rectangle w by d at y 0, ridge at y rise, pulled in by ins (0 makes a gable)
+function hipGeo(w,d,rise,ins,alongX){
+ const A=[-w/2,0,-d/2],B=[w/2,0,-d/2],C=[w/2,0,d/2],D=[-w/2,0,d/2],R1=[-w/2+ins,rise,0],R2=[w/2-ins,rise,0],
+  pos=[A,R1,R2, A,R2,B, C,R2,R1, C,R1,D, A,D,R1, C,B,R2].flat(),g=new THREE.BufferGeometry();
+ g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+ if(!alongX){const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);p.setX(i,z);p.setZ(i,-x)}} // ridge along z: rotate a quarter turn
+ g.computeVertexNormals();return g}
 function boxUV(geo,w,h,d,tw=120,th=120){const uv=geo.attributes.uv,sx=[d,d,w,w,w,w],sy=[h,h,d,d,h,h];for(let f=0;f<6;f++)for(let i=0;i<4;i++){const k=f*4+i;if(f===2||f===3)uv.setXY(k,.01,.01);else uv.setXY(k,uv.getX(k)*sx[f]/tw,uv.getY(k)*sy[f]/th)}uv.needsUpdate=true}
 const graffMats=['KINGS','LOW PALMS','LPK 4 LIFE'].map((t,i)=>new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(512,136,(g)=>{const cols=[['#9a5ad8','#ffc94a'],['#ff3ea5','#29e6d6'],['#7b3fb8','#3dd68c']][i];
   g.font='bold 86px Impact, "Arial Black", sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineWidth=14;g.strokeStyle='#101010';g.strokeText(t,256,64);g.fillStyle=cols[0];g.fillText(t,256,64);
@@ -294,10 +301,41 @@ for(const b of buildings){
   const H=b.H,cx=b.x+b.w/2,cz=b.y+b.h/2;
   const put=(geo,mat,x,y,z,ry)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;scene.add(m);return m};
   if(b.kind==='water'){const w=new THREE.Mesh(new THREE.CircleGeometry(.5,40),new THREE.MeshLambertMaterial({color:'#12506a',emissive:'#0a3346'}));w.rotation.x=-Math.PI/2;w.scale.set(b.w+30,b.h+30,1);w.position.set(cx,1.5,cz);scene.add(w);continue}
-  if(b.kind==='house'){put(new THREE.BoxGeometry(b.w,H,b.h),blam(b.roof),cx,H/2,cz);
-    const rf=new THREE.Mesh(new THREE.ConeGeometry(1,1,4),blam(b.trim,{flatShading:true}));rf.rotation.y=Math.PI/4;rf.scale.set(b.w/1.38,16,b.h/1.38);rf.position.set(cx,H+8,cz);scene.add(rf);
-    for(const dx of[-.28,.28]){const wn=put(new THREE.PlaneGeometry(12,9),winMat,cx+b.w*dx,H*.55,b.y+b.h+.3)}
-    put(new THREE.PlaneGeometry(9,14),doorMat,cx,7,b.y+b.h+.3);continue}
+  if(b.kind==='house'){
+    // a proper suburb house: hip or gable roof, porch on the street side, garage and drive, picket fence, windows all round.
+    const hr=seeded((b.x*131+b.y*7717+b.w*29)|0),wood=blam('#8a6a44'),picket=blam('#b9b2c0'),hard=blam('#3a3742');
+    const bi=Math.floor(cx/B),bj=Math.floor(cz/B),X0=bi*B+R,Y0=bj*B+R,X1=X0+B-R,Y1=Y0+B-R,
+      dN=cz-Y0,dS=Y1-cz,dW=cx-X0,dE=X1-cx,front=dN<=dS&&dN<=dW&&dN<=dE?[0,-1]:dS<=dW&&dS<=dE?[0,1]:dW<=dE?[-1,0]:[1,0],
+      fx=front[0],fz=front[1],edge=fz?(fz<0?dN:dS):(fx<0?dW:dE),sideL=fz?b.w:b.h,half=fz?b.h/2:b.w/2,
+      ry=Math.atan2(fx,fz),CM=new THREE.Matrix4().makeRotationY(ry).setPosition(cx,0,cz),
+      pc=(geo,mat,lx,ly,lz,rz2)=>{const m=new THREE.Mesh(geo,mat);m.position.set(lx,ly,lz).applyMatrix4(CM);if(rz2)m.rotation.y=ry+rz2;scene.add(m);return m};
+    put(new THREE.BoxGeometry(b.w,H,b.h),blam(b.roof),cx,H/2,cz);
+    // roof: hip (ridge pulled in) or gable (ridge full length), ridge along the longer axis
+    const over=1.8,W2=b.w/2+over,D2=b.h/2+over,rise=9+hr()*4,alongX=W2>=D2,gable=hr()<.4,
+      ins=gable?0:Math.min((alongX?W2:D2)*.35,16),rg=hipGeo(alongX?W2:D2,alongX?D2:W2,rise,ins,alongX);
+    const rm=new THREE.Mesh(rg,blam(b.trim,{flatShading:true}));rm.position.set(cx,H,cz);scene.add(rm);
+    // porch: slab, steps, two posts and a small roof over the front door
+    pc(new THREE.BoxGeometry(18,1.4,8),wood,0,1.6,half+4);pc(new THREE.BoxGeometry(12,1.4,4),wood,0,.8,half+9);
+    pc(new THREE.BoxGeometry(1.2,12,1.2),wood,-7,7,half+7.5);pc(new THREE.BoxGeometry(1.2,12,1.2),wood,7,7,half+7.5);
+    pc(new THREE.BoxGeometry(20,1.2,9),blam(b.trim),0,14,half+4.5);
+    // garage to one side with a door and a drive to the kerb
+    const gs=hr()<.5?-1:1,gx=gs*(sideL/2+13);
+    pc(new THREE.BoxGeometry(18,14,20),blam(b.roof),gx,7,2);pc(new THREE.BoxGeometry(13,11,1),hard,gx,5.6,12.2);
+    {const d0=13,el=Math.max(d0+6,edge),len=el-d0;pc(new THREE.BoxGeometry(9,.16,len),hard,gx,1.32,d0+len/2)}
+    // windows on all four faces
+    for(const[ox,oz,sgn]of[[0,-1,'n'],[0,1,'s'],[-1,0,'w'],[1,0,'e']]){
+      const wide=oz?b.w:b.h,n=wide>64?2:1;
+      for(let i=0;i<n;i++){const u=(i-(n-1)/2)*wide*.42;
+        pc(new THREE.PlaneGeometry(11,9),winMat,oz?u:ox*(b.w/2+.3),9,oz?oz*(b.h/2+.3):u,oz?0:ox*Math.PI/2)}
+      for(let i=0;i<n;i++){const u=(i-(n-1)/2)*wide*.42;
+        pc(new THREE.PlaneGeometry(11,9),winMat,oz?u:ox*(b.w/2+.3),16.5,oz?oz*(b.h/2+.3):u,oz?0:ox*Math.PI/2)}}
+    pc(new THREE.PlaneGeometry(9,14),doorMat,0,7,half+.3);
+    // picket fence along the front yard, gate at the porch and a gap at the drive
+    {const fy=edge-26,kx=-sideL/2+6,ex=sideL/2-6,runs=[[kx,Math.min(0,gx)-6],[Math.min(0,gx)+6,Math.max(0,gx)-6],[Math.max(0,gx)+6,ex]];
+     for(const[a,b2]of runs){const len=b2-a;if(len<10)continue;
+       pc(new THREE.BoxGeometry(len,2.6,.8),picket,(a+b2)/2,2.6,fy);
+       for(let u=a+2;u<b2-1;u+=9)pc(new THREE.BoxGeometry(1.1,4.4,1.1),picket,u,2.6,fy)}}
+    continue}
   if(b.kind==='container'){put(new THREE.BoxGeometry(b.w,H,b.h),blam(b.roof),cx,H/2,cz);for(let x=-b.w/2+6;x<b.w/2;x+=8)put(new THREE.BoxGeometry(1.2,H-2,b.h+.6),blam(shade(b.roof,.7)),cx+x,H/2,cz);continue}
   if(b.kind==='shack'){put(new THREE.BoxGeometry(b.w,H,b.h),blam(b.roof),cx,H/2,cz);put(new THREE.BoxGeometry(b.w+10,2,18),blam('#ff3ea5'),cx,H-2,b.y+b.h+8);put(new THREE.PlaneGeometry(b.w*.6,8),winMat,cx,H*.5,b.y+b.h+.3);continue}
   if(b.kind==='warehouse'){const g=new THREE.BoxGeometry(b.w,H,b.h);boxUV(g,b.w,H,b.h);
