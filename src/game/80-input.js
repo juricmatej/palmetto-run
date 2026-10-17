@@ -90,6 +90,7 @@ addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouse.down=false;
   stick={id:null,ox:0,oy:0,x:0,y:0};look.id=null;heliUpT=heliDnT=false; // a touch stick or pad held through a tab switch must not stick
   if(capAct){capAct=null;capMsg='';paintKeys()}closeWheel(false)});
 const look={yaw:-Math.PI/2,pitch:.2,id:null,lx:0,ly:0,off:0,offT:-9};let lastFireT=-9;
+if(DBG)Object.defineProperties(DBG,{cam:{get:()=>look}}); // the camera look, not the character look (see places)
 let settings={sens:1,inv:false,assist:8,veh:1,scope:.3,sprintMode:'hold',time:'auto'},qLock=null;
 function saveSettings(){try{localStorage.setItem('pr-settings',JSON.stringify(settings))}catch(_){}}
 function openSettings(){if(me.downed||state!=='play')return;capAct=null;capMsg='';

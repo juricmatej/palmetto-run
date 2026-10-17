@@ -1,7 +1,7 @@
 // ---------- phone ----------
 // T opens a phone over the game. The game keeps running and WASD still walks. World keys and shooting wait while it is open.
 // Other features add an app with phoneApp(id,name,icon,render,colour) and send a text with phoneNotify(from,text,action).
-let phoneOpen=false,phCam=false,phApp=null,phBat=100,phEyes=0,phIdle=90,phLiveT=0,phBanTm=0,phCallTm=0,phDown=false,phTabOn=null,phClk='',phBatS=-1,phBadge=-1,phDistr=null;
+let phoneOpen=false,phCam=false,phApp=null,phBat=100,phEyes=0,phIdle=90,phLiveT=0,phBanTm=0,phCallTm=0,phTaxiTm=0,phDown=false,phTabOn=null,phClk='',phBatS=-1,phBadge=-1,phDistr=null;
 let waypoint=null,wpGroup=null,mapCur=null;
 let phLast=null,phDrv=false,phSeenJob=null,phSeenB=null;
 const relMsg=n=>{if(mission){const c=MCON.find(q=>q.id===mission.def.contact);return!c||n.from===c.name} // a mission shows its own contact's texts
@@ -41,14 +41,16 @@ function phoneOpenNow(toMsg){
   phEyes=me.car&&Math.hypot(me.car.vx,me.car.vy)>200?2.5:0;
   if(toMsg)phShow('messages');else if(phLast)phShow(phLast);else phHomeShow();
 }
-function phoneClose(){if(!phoneOpen)return;phoneOpen=false;phCam=false;document.body.classList.remove('phone-cam');phApp=null;$('phone').classList.remove('open');$('phCamBar').hidden=true;if(phFrame.contains(document.activeElement))document.activeElement.blur();phEyes=0}
+function phoneClose(){if(!phoneOpen)return;phoneOpen=false;phCam=false;document.body.classList.remove('phone-cam');phApp=null;$('phone').classList.remove('open');$('phCamBar').hidden=true;if(phFrame.contains(document.activeElement))document.activeElement.blur();phEyes=0;phAbortPending()}
 function phCamOn(){phCam=true;document.body.classList.add('phone-cam');$('phone').classList.remove('open');$('phCamBar').hidden=false;if(phFrame.contains(document.activeElement))document.activeElement.blur()}
 function phCamOff(){phCam=false;document.body.classList.remove('phone-cam');$('phCamBar').hidden=true;$('phone').classList.add('open');phHomeShow()}
 function phSnap(){renderer.render(scene,camera);phFade.className='snap';setTimeout(()=>{phFade.className=''},120);
   cv.toBlob(b=>{if(!b)return;const u=URL.createObjectURL(b),a=mk('a');a.href=u;a.download=`palmetto-run-${Math.floor(time)}.png`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000)},'image/png');feed('Photo saved')}
 function phFadeTo(on){phFade.className=on?'on':''}
 function phRing(){tone('triangle',mf(84),.16,.12);tone('triangle',mf(79),.22,.12,AC?AC.currentTime+.22:0)}
-function phCallTo(name,f){if(phCallTm)return;phCallName.textContent=name;phCallEl.hidden=false;phRing();phCallTm=setTimeout(()=>{phCallTm=0;phCallEl.hidden=true;if(state==='play')f()},1200)}
+// a pending call or cab is dropped when you go down or the phone closes, so it cannot fire from a downed or indoor state
+function phAbortPending(){if(phCallTm){clearTimeout(phCallTm);phCallTm=0}phCallEl.hidden=true;if(phTaxiTm){clearTimeout(phTaxiTm);phTaxiTm=0;phFadeTo(false)}}
+function phCallTo(name,f){if(phCallTm)return;phCallName.textContent=name;phCallEl.hidden=false;phRing();phCallTm=setTimeout(()=>{phCallTm=0;phCallEl.hidden=true;if(state==='play'&&!me.downed&&!me.climb)f()},1200)}
 
 // notifications: texts from contacts. Held while the cops are on you (3 stars or more), then delivered.
 function phAdd(n){notes.unshift(n);if(notes.length>30)notes.length=30;if(!phoneOpen&&state==='play'){phBan.replaceChildren(mk('b','',n.from),mk('span','',n.text));phBan.classList.add('show');clearTimeout(phBanTm);phBanTm=setTimeout(()=>phBan.classList.remove('show'),4500)}}
@@ -65,7 +67,9 @@ function phTaxi(){
   if(me.heli||me.jet)return phoneNotify('Taxi','Not from up there.');
   if(!plPay(100))return;
   const wx=clamp(waypoint.x,MAPB.x0,MAPB.x1),wy=clamp(waypoint.y,MAPB.y0,MAPB.y1);waypoint=null;phoneClose();phFadeTo(true);
-  setTimeout(()=>{const b=me.car||me;me.inside=null;me.roof=null;me.z=0;me.vx=me.vy=0;b.x=wx;b.y=wy;b.vx=b.vy=0;
+  phTaxiTm=setTimeout(()=>{phTaxiTm=0;
+    if(state!=='play'||me.downed||me.climb){phFadeTo(false);return} // no cab arrives for a downed or mid-ladder player
+    const b=me.car||me;me.inside=null;me.roof=null;me.z=0;me.vx=me.vy=0;b.x=wx;b.y=wy;b.vx=b.vy=0;
     for(let i=0;i<3;i++)collide(b,b.x,b.y,me.car?14:8);me.x=b.x;me.y=b.y;phFadeTo(false)},reduced?0:1000);
 }
 function phLawyer(){const s=starsNow();if(s>=3)return phoneNotify('Lawyer','Not with three stars on you. Lose the cops first.');if(s<=0)return phoneNotify('Lawyer','You are clean. Keep your cash.');if(!plPay(1000*s))return;heat=0;coolT=0;jingle('pass');phoneNotify('Lawyer',`Done. ${s} star${s>1?'s':''} gone for ${money(1000*s)}.`)}
@@ -277,7 +281,7 @@ function careerStep(dt){
   if(me.cash>lastCash)career.cash+=me.cash-lastCash;lastCash=me.cash;
   if(heat>0)chaseT+=dt;else if(chaseT>0){career.chase=Math.max(career.chase,Math.round(chaseT));chaseT=0}
   const c=me.car;
-  if(c&&c!==carNow){if(!c.slot)career.cars++;driveT=0;lastX=c.x;lastY=c.y}
+  if(c&&c!==carNow){if(c.stolenFlag&&!c.counted){c.counted=1;career.cars++}driveT=0;lastX=c.x;lastY=c.y}
   if(c){driveT+=Math.hypot(c.x-lastX,c.y-lastY);lastX=c.x;lastY=c.y;career.drive=Math.max(career.drive,Math.round(driveT/10))}
   carNow=c;
   bountyCd-=dt;

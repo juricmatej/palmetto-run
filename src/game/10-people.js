@@ -140,7 +140,7 @@ function enterInt(d){if(d.int===pd&&Math.ceil(heat-.001)>=3){die('BUSTED');retur
   me.door=d;me.inside=d.int;me.x=d.int.exit.x;me.y=d.int.exit.y-30;me.vx=me.vy=0;look.yaw=-Math.PI/2;shopCd=1.2;if(d.int!==pd){if(heat>0)feed('You slipped inside. The cops lost you');heat=0}feed(d.int.name)}
 function exitInt(){const d=me.door;me.inside=null;if(heist.carry>0&&d&&d.int&&d.int.bank){heat=5;coolT=0;feed('Every cop in the city is coming. Get the gold to the safehouse!')}if(!d)return;me.x=d.x;me.y=d.y-30;me.vx=me.vy=0;look.yaw=-Math.PI/2;shopCd=1.2}
 function enterRoom(id){const d=DOORS.find(v=>v.int.id===id);if(d)enterInt(d)}
-if(DBG)Object.defineProperties(DBG,{enterRoom:{get:()=>enterRoom}});
+if(DBG)Object.defineProperties(DBG,{enterRoom:{get:()=>enterRoom},inside:{get:()=>me.inside&&me.inside.id},nearSpot:{get:()=>nearSpot},interact:{get:()=>interact}});
 function nearSpot(){if(!me.inside)return null;for(const p of me.inside.spots)if(Math.hypot(p.x-me.x,p.y-me.y)<28)return p;return null}
 function interact(){const p=nearSpot();if(!p||state!=='play'||me.downed)return;
   if(p.act==='shop')openShop();
@@ -465,7 +465,8 @@ function knockPed(p,vx,vy,byMe){
   if(!p.cop){pickups.push({x:p.x,y:p.y,amt:Math.floor(p.gang?rr(40,150):rr(5,40)),t:25})}
   burst(p.x,p.y,8,'#ffd27a',140,.35);
   if(byMe){if(p.cop)addHeat(.6);else if(p.gang)addHeat(.1);else crime(p.x,p.y,.4)}if(p.gang&&byMe)gainXP(6,'Gang member');
-  if(p.gang){for(const q of peds)if(q.gang&&!q.down&&Math.hypot(q.x-p.x,q.y-p.y)<420)q.aggro=true;if(byMe&&job&&job.type==='turf'&&(p.gname||'Vipers')===(job.gname||'Vipers'))job.n++}
+  if(p.gang){for(const q of peds)if(q.gang&&!q.down&&Math.hypot(q.x-p.x,q.y-p.y)<420)q.aggro=true;
+    if(byMe&&job&&job.type==='turf'&&(p.gname||'Vipers')===(job.gname||'Vipers')&&Math.hypot(p.x-job.x,p.y-job.y)<420)job.n++} // turf kills only count near the hood or the docks
   if(byMe)for(const q of peds)if(!q.down&&Math.hypot(q.x-p.x,q.y-p.y)<40)provoke(q);
   scare(p.x,p.y,260);
 }

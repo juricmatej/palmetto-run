@@ -159,7 +159,7 @@ function die(word,fine,noDown){
   if(state!=='play')return;
   if(word==='WASTED'&&!noDown&&remoteNear(700)){goDown();return} // company: down instead of dead, no cash loss, the gold stays
   me.downed=false;me.downT=0;
-  if(word==='WASTED'&&placesRevive())return;if(heist.carry){feed('You dropped the gold');heist.carry=0;heist.looted={};if(heist.on)feed('The vault gold is back in place')}
+  if(word==='WASTED'&&placesRevive())return;if(heist.carry){feed('You dropped the gold');heist.carry=0;heist.looted={};heist.lootMask=0;if(heist.on)feed('The vault gold is back in place')}
   if(mission)msDie(word);
   career.deaths++;state='dead';deadT=3.2;me.hp=0;if(word==='BUSTED')policeClear();
   if(me.lastHitBy&&time-me.lastHitT<5&&remotes.has(me.lastHitBy)){killedBy[me.lastHitBy]=(killedBy[me.lastHitBy]||0)+1;feed(`${remotes.get(me.lastHitBy).name} wasted you`)}
@@ -175,7 +175,7 @@ function goDown(){
   if(me.downed)return false;
   me.downed=true;me.downT=30;me.hp=1;me.lastHurt=time;me.vx=me.vy=0;
   me.climb=null;if(me.car){leaveCar(true)}if(me.jet)me.jet=null;if(me.heli){me.heli=null;me.roof=null;me.z=groundZ(me.x,me.y)} // an overdose cannot happen mid air
-  if(phoneOpen)phoneClose();if(chatOpen)closeChat();if(quickOpen)closeQuick();if(wheelOpen)closeWheel(false);
+  if(phoneOpen)phoneClose();if(chatOpen)closeChat();if(quickOpen)closeQuick();if(wheelOpen)closeWheel(false);phAbortPending();
   feed('You are down. A friend can revive you, or give up');return true
 }
 function bleedout(){if(!me.downed)return;me.downed=false;me.downT=0;die('WASTED',null,true)}
@@ -218,11 +218,12 @@ function toggleCar(){
   const c=nearestCar();if(!c){talkPed();return}
   if(c.kind==='parked'&&!c.keyed){miniOpen('hot',()=>{
     if(!cars.includes(c)||c.kind!=='parked'||c.burn){feed('That car is gone');return}
-    c.keyed=1;c.kind='mine';me.car=c;me.roof=null;handsUp=false;feed(`Hotwired the ${ctOf(c).name}. Drive safe`)});return}
+    c.keyed=1;c.kind='mine';c.stolenFlag=1;me.car=c;me.roof=null;handsUp=false;feed(`Hotwired the ${ctOf(c).name}. Drive safe`)});return}
   if(c.kind==='traffic')crime(c.x,c.y,.3);
   if(c.kind==='traffic'){const p=spawnPed(c.x+Math.cos(c.a-1.57)*20,c.y+Math.sin(c.a-1.57)*20);p.flee=4;p.fx=c.x;p.fy=c.y;c.vx=Math.cos(c.a)*c.cur*.3;c.vy=Math.sin(c.a)*c.cur*.3;
     for(const q of cars)if(q.kind==='police'&&Math.hypot(q.x-me.x,q.y-me.y)<400){addHeat(.5);break}}
   if(c.kind==='police')addHeat(1);
+  if(c.kind==='traffic'||c.kind==='police'||c.kind==='parked')c.stolenFlag=1;
   c.kind='mine';me.car=c;handsUp=false;
 }
 function leaveCar(force){

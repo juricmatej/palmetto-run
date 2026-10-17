@@ -117,9 +117,9 @@ function syncRoom(dt){
       const km=num(r.k[myPeer]);if(r.kMe===null)r.kMe=km;else if(km>r.kMe){r.kMe=km;feed(`You wasted ${r.name}`);me.cash+=50;if(time-(killXpT[p.peer]||-99)>60){killXpT[p.peer]=time;gainXP(50,'Takedown')}}
     }
     if(s.fl!==r.fl){r.fl=s.fl;r.flareT=time;for(let i=0;i<14;i++){const a=rand()*TAU,sp=60+rand()*140;parts.push({x:r.x,y:r.y,z0:(r.inCar?r.cz||0:r.z||0)+6,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2.4,max:2.4,col:'#ffd27a',k:'flare',sz:3})}}
-    // heist progress from a peer: seed must be a positive integer, bits and drill are clamped
-    r.hs=Array.isArray(s.hs)&&s.hs.length===4&&s.hs.every(Number.isFinite)&&Number.isInteger(s.hs[0])&&s.hs[0]>0
-      ?[s.hs[0],clamp(Math.floor(s.hs[1]),0,15),clamp(num(s.hs[2]),0,100),s.hs[3]?1:0]:null;
+    // heist progress from a peer: seed must be a positive integer, bits, drill and looted piles are clamped
+    r.hs=Array.isArray(s.hs)&&s.hs.length>=4&&s.hs.every(Number.isFinite)&&Number.isInteger(s.hs[0])&&s.hs[0]>0
+      ?[s.hs[0],clamp(Math.floor(s.hs[1]),0,15),clamp(num(s.hs[2]),0,100),s.hs[3]?1:0,clamp(Math.floor(num(s.hs[4],0)),0,7)]:null;
     r.sb=Array.isArray(s.sb)?s.sb.slice(0,5).filter(a=>Array.isArray(a)&&a.length===3&&a.every(Number.isFinite)):[];
     // remote explosions are visual only, rate limited, and clamped into the map, so a peer cannot blast the world apart
     if(Array.isArray(s.ex)&&s.ex[0]!==r.ex&&time-(r.exT||-9)>.08){r.ex=s.ex[0];r.exT=time;
@@ -163,7 +163,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:A.x,y=c?c.y:A.y,a=c?c.a:me.a; // indoors you appear at the door, not at interior coordinates
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='dead'?1:0,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,cw:crewPub(),seat:tSit.j>=0?tSit.j+'|'+tSit.bet+'|'+tSit.act+'|'+tSit.seq:null,tb:tHostMe()&&tRound?tbPub():null,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0,heist.lootMask&7]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='dead'?1:0,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,cw:crewPub(),seat:tSit.j>=0?tSit.j+'|'+tSit.bet+'|'+tSit.act+'|'+tSit.seq:null,tb:tHostMe()&&tRound?tbPub():null,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});

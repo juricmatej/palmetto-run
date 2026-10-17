@@ -687,7 +687,7 @@ function casinoOpenSlots(){sl.skip=false;if(!sl.grid.length)slFall(sl,Array.from
 // Space or Enter spins the open machine. The busy guard stops double spins. Escape still closes through closeShop().
 addEventListener('keydown',e=>{if(e.repeat||(e.code!=='Space'&&e.code!=='Enter'))return;
   if(!sl.el.hidden){e.preventDefault();slSpin(false)}else if(!s7.el.hidden){e.preventDefault();s7Spin()}});
-if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino},interact:{get:()=>interact}});
+if(DBG)Object.defineProperties(DBG,{slotRTP:{get:()=>slotRTP},sl:{get:()=>sl},s7:{get:()=>s7},casino:{get:()=>casino}});
 
 // ---------- casino games ----------
 // High-limit room in the VIP area. Players need $100,000 in cash (or VIP, once a later ticket adds it).
