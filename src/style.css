@@ -326,6 +326,16 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 #hack p{margin:0;font:14px/1.5 ui-monospace,Menlo,monospace}
 #hackLog div{font:16px ui-monospace,Menlo,monospace;letter-spacing:.2em}
 #hackIn{font:700 26px ui-monospace,Menlo,monospace;letter-spacing:.4em;width:6.5em;background:#000;color:#7dffb0;border:1px solid #3dd68c;padding:6px 10px}
+/* minigames (hotwire / lockpick): one dial, one timing rule */
+#miniDial{position:relative;width:200px;height:200px;margin:14px auto;border-radius:50%;border:2px solid #3dd68c;transition:box-shadow .18s}
+#miniHand{position:absolute;left:50%;top:0;width:3px;height:50%;margin-left:-1.5px;transform-origin:50% 100%;background:#fff}
+#miniKey{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:700 20px var(--body);color:#fff;background:rgba(10,8,20,.6);border:1px solid rgba(255,255,255,.4);border-radius:10px;padding:6px 12px;letter-spacing:.06em}
+#minigame .card{transition:border-color .18s,box-shadow .18s}
+#minigame .card.mini-hit{border-color:#3dd68c;box-shadow:0 0 34px rgba(61,214,140,.55)}
+#minigame .card.mini-hit #miniDial{box-shadow:0 0 18px #3dd68c}
+#minigame .card.mini-miss{border-color:#ff4b4b;box-shadow:0 0 34px rgba(255,75,75,.55)}
+#minigame .card.mini-miss #miniDial{box-shadow:0 0 18px #ff4b4b}
+@media (prefers-reduced-motion:reduce){#minigame .card,#miniDial{transition:none}}
 #touch{position:fixed;inset:0;z-index:3;pointer-events:none}
 #touch button{pointer-events:auto;position:absolute;width:78px;height:78px;border-radius:50%;border:2px solid var(--line);background:rgba(16,12,30,.6);color:var(--ink);font:14px var(--display);touch-action:none}
 #bFire{right:24px;bottom:calc(40px + env(safe-area-inset-bottom,0px))}
@@ -407,6 +417,11 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .ph-pulse{font:700 12px var(--body);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);animation:phPulse 1s ease-in-out infinite}
 @keyframes phPulse{50%{opacity:.35}}
 #phone button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+#phClose{width:26px;height:26px;border-radius:50%;border:0;background:rgba(255,255,255,.1);color:var(--ink);font:700 13px/1 var(--body);cursor:pointer;display:grid;place-items:center;padding:0;flex:none}
+#phClose:hover{background:rgba(255,255,255,.18)}
+#phCamBar{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:10;display:flex;gap:10px}
+#phCamBar button{font:700 14px var(--body);border-radius:999px;padding:12px 20px;border:1px solid rgba(255,255,255,.3);background:rgba(11,8,20,.75);color:var(--ink);cursor:pointer}
+#phCamBar #phSnapBtn{background:var(--neon);color:#16051a;border-color:var(--neon)}
 #phFade{position:fixed;inset:0;z-index:9;background:#000;opacity:0;pointer-events:none;transition:opacity .9s ease}
 #phFade.on{opacity:1}
 #phFade.snap{opacity:.8;background:#fff;transition:opacity .05s}
