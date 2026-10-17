@@ -1025,6 +1025,7 @@ function setPedBlock(p){
 function pedCorners(p){const x0=p.bi*B+R+7,y0=p.bj*B+R+7,x1=(p.bi+1)*B-7,y1=(p.bj+1)*B-7;return[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]}
 function knockPed(p,vx,vy,byMe){
   if(p.down)return;p.down=10;p.vx=vx;p.vy=vy;
+  if(p.bag&&byMe&&Math.hypot(vx,vy)>55){p.bag=0;me.cash+=150;feed('Bag returned to the shop. '+money(150))}
   if(!p.cop){pickups.push({x:p.x,y:p.y,amt:Math.floor(p.gang?rr(40,150):rr(5,40)),t:25})}
   burst(p.x,p.y,8,'#ffd27a',140,.35);
   if(byMe){if(p.cop)addHeat(.6);else if(p.gang)addHeat(.1);else crime(p.x,p.y,.4)}if(p.gang&&byMe)gainXP(6,'Gang member');
@@ -3514,6 +3515,54 @@ function miniPaint(){const m=miniState;$('miniHand').style.transform=`rotate(${m
 if(DBG)Object.defineProperties(DBG,{mini:{get:()=>miniState}});
 if(DBG){DBG.hotwireTest=()=>miniOpen('hot',()=>{});DBG.lockTest=()=>miniOpen('lock',()=>{})}
 
+// ---------- events ----------
+// Street events, one at a time, 90 s apart. Actors are existing peds and traffic cars within 200 units, checked at 2 Hz.
+const EV_KINDS=['fight','crash','broke','rob','race'];
+const evNear=(o,r)=>Math.hypot(o.x-me.x,o.y-me.y)<(r||200);
+const evCiv=p=>!p.down&&!p.gang&&!p.guard&&!p.cop&&!p.vendor&&!p.flee&&!p.stopT&&!p.bag&&evNear(p);
+const evTraffic=c=>c.kind==='traffic'&&evNear(c);
+const evPick=(L,f)=>{L=L.filter(f);return L.length?L[Math.floor(rand()*L.length)]:null};
+const evNearest=(a,f)=>{let b=null,bd=1e9;for(const c of cars)if(c!==a&&f(c)){const d=Math.hypot(c.x-a.x,c.y-a.y);if(d<bd){bd=d;b=c}}return b};
+const EVK={
+  fight:{len:12,start(){ // two civilians square off, a bystander runs off
+    const a=evPick(peds,evCiv),b=a&&peds.find(q=>q!==a&&evCiv(q)&&Math.hypot(q.x-a.x,q.y-a.y)<60),r=b&&peds.find(q=>q!==a&&q!==b&&evCiv(q)&&Math.hypot(q.x-a.x,q.y-a.y)<120);
+    if(!r)return;
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;a.a=Math.atan2(b.y-a.y,b.x-a.x);b.a=a.a+Math.PI;a.stopT=b.stopT=12;r.flee=6;r.fx=mx;r.fy=my;
+    return{actors:[a,b,r],mx,my}},
+    tick(e){burst(e.mx,e.my,3,'#ffd27a',60,.3)}},
+  crash:{len:10,start(){ // two traffic cars meet head on; the second is moved in front of the first
+    const a=evPick(cars,evTraffic),b=a&&evNearest(a,c=>c.kind==='traffic');if(!b)return;
+    const cs=Math.cos(a.a),sn=Math.sin(a.a);
+    b.x=a.x+cs*24;b.y=a.y+sn*24;b.a=a.a+Math.PI;a.kind=b.kind='parked';
+    a.vx=cs*45;a.vy=sn*45;b.vx=-cs*45;b.vy=-sn*45;
+    return{actors:[a,b]}},
+    tick(e){for(const c of e.actors)parts.push({x:c.x,y:c.y,vx:rr(-6,6),vy:rr(-6,6),life:1.6,max:1.6,col:'rgba(90,85,100,1)',k:'smoke',sz:rr(5,9)})}},
+  broke:{len:25,start(){ // a traffic car stops; its brake lights blink as hazards
+    const a=evPick(cars,evTraffic);if(!a)return;a.spd=0;return{actors:[a]}},
+    tick(e){e.actors[0].brk=Math.floor(time*2)%2===0},
+    end(e){const a=e.actors[0];a.brk=false;if(a.kind==='traffic')a.spd=rr(95,140)}},
+  rob:{len:25,start(){ // a civilian runs off from a shop door with a bag
+    const p=evPick(peds,evCiv);if(!p)return;let d=DOORS[0],dd=1e9;for(const v of DOORS){const x=Math.hypot(v.x-p.x,v.y-p.y);if(x<dd){dd=x;d=v}}
+    p.bag=1;p.flee=25;p.fx=d.x;p.fy=d.y;return{actors:[p]}},
+    tick(e){const p=e.actors[0];parts.push({x:p.x,y:p.y,vx:0,vy:0,life:.6,max:.6,col:'#ffe066',k:'spark',sz:2})},
+    over:e=>{const p=e.actors[0];return!p.bag||p.down||!evNear(p,400)},
+    end(e){e.actors[0].bag=0}},
+  race:{len:20,start(){ // two traffic cars drive flat out for 20 s
+    const a=evPick(cars,evTraffic),b=a&&evNearest(a,c=>c.kind==='traffic');if(!b)return;
+    a.spd=b.spd=235;return{actors:[a,b]}},
+    end(e){for(const c of e.actors)if(c.kind==='traffic')c.spd=rr(95,140)}},
+};
+function eventStart(kind){const k=EVK[kind],e=k&&k.start();if(!e)return false;eventState=Object.assign({kind,t0:time,len:k.len,actors:[]},e);return true}
+let eventState=null,eventNext=8,eventCheck=0,eventWant=null;
+function eventStep(dt){ // runs the 2 Hz check; a finished event sets the next start 90 s later
+  eventCheck-=dt;if(eventCheck>0)return;eventCheck=.5;
+  const e=eventState;
+  if(e){const k=EVK[e.kind];if(k.tick)k.tick(e);if(time-e.t0>=e.len||k.over&&k.over(e)){if(k.end)k.end(e);eventState=null;eventNext=time+90}return}
+  if(state==='play'&&!me.inside&&time>=eventNext&&eventStart(eventWant||EV_KINDS[Math.floor(rand()*EV_KINDS.length)]))eventWant=null;
+}
+if(DBG)Object.defineProperties(DBG,{events:{get:()=>eventState}});
+if(DBG)DBG.eventTest=k=>{eventWant=k;eventNext=0}; // starts that kind as soon as actors are within 200 units
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
@@ -4150,7 +4199,7 @@ function update(dt){
     if(imp>80){const mine=a.kind==='mine'||b.kind==='mine';damageCar(a,Math.min(BAL.crashMax,(imp-80)*.1),mine);damageCar(b,Math.min(BAL.crashMax,(imp-80)*.1),mine);if(mine){thud(imp);shake=Math.max(shake,imp/70)}
       if(a.kind==='police'&&b.kind==='mine'||b.kind==='police'&&a.kind==='mine')addHeat(.12)}
   }
-  pedsStep(dt);
+  pedsStep(dt);eventStep(dt);
   // bullets
   for(let i=bullets.length-1;i>=0;i--){
     const b=bullets[i];b.px=b.x;b.py=b.y;if(b.home)steerMissile(b,dt);b.x+=b.vx*dt;b.z+=(b.vz||0)*dt;b.y+=b.vy*dt;b.life-=dt;let dead=b.life<=0;
