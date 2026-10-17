@@ -745,7 +745,8 @@ function decide(c,greedy){
     for(const nd of[(c.d+1)%4,(c.d+3)%4]){const nr=c.road+(POS(nd)?1:-1);if(nr>=0&&nr<=N)opts.push(nd)}
     let pick;
     if(greedy){const px=c.d%2===0?c.cross*B+60:c.road*B+60,py=c.d%2===0?c.road*B+60:c.cross*B+60;
-      const tx=me.x-px,ty=me.y-py;let best=-9;for(const o of opts){const s=Math.cos(o*Math.PI/2)*tx+Math.sin(o*Math.PI/2)*ty+rand()*30;if(s>best){best=s;pick=o}}}
+      // a rival standing on its target aims at the next one
+      const g=c.rv?c.rv.g:me;let tx=g.x-px,ty=g.y-py;if(c.rv&&!tx&&!ty){tx=c.rv.n.x-px;ty=c.rv.n.y-py}let best=-9;for(const o of opts){const s=Math.cos(o*Math.PI/2)*tx+Math.sin(o*Math.PI/2)*ty+rand()*30;if(s>best){best=s;pick=o}}}
     else{pick=opts.length>1&&opts[0]===c.d&&rand()<.5?c.d:opts[Math.floor(rand()*opts.length)]}
     if(pick===c.d){c.cross=nc;continue}
     c.nd=pick;c.tgt=c.cross*B+laneOff(pick);return;
@@ -962,7 +963,7 @@ function policeStep(dt){
   const st=heat>0?Math.ceil(heat-.001):0,want=[0,1,2,3,4,5][st];
   let pol=0;for(let i=cars.length-1;i>=0;i--){const c=cars[i],d=Math.hypot(c.x-A.x,c.y-A.y);
     if(c.kind==='police'){const on=c.mode!=='block';if(on)pol++;if((heat===0&&(d>650||c.mode==='block'))||d>1500){cars.splice(i,1);if(on)pol--}}
-    else if((c.kind==='parked'||c.kind==='dead'||c.kind==='traffic')&&d>1700&&!(c.type==='armored'&&c.kind!=='dead')&&!c.mark&&!c.personal){cars.splice(i,1)}}
+    else if((c.kind==='parked'||c.kind==='dead'||c.kind==='traffic')&&d>1700&&!(c.type==='armored'&&c.kind!=='dead')&&!c.mark&&!c.personal&&!c.rv){cars.splice(i,1)}}
   if(pol<want&&state==='play'&&rand()<dt*.3){const c=laneSpawn('police',650,1000);
     if(c&&st>=5&&rand()<.5){c.type='armored';c.color='#1d2433';c.hp=400}} // half the new 5 star cruisers are SWAT vans
   if(!copHeli&&st>=4&&state==='play'){copHeli=spawnCopHeli();policeBusy=true}
@@ -1357,6 +1358,7 @@ function toggleCar(){
   if(state!=='play'||me.downed)return;
   {const q=msNear();if(q){if(!q.def)feed(q.c.name+' has no more work for you');else if(q.locked)feed(q.def.title+' needs level '+q.def.level);else startMission(q.def.id);return}}
   if(!me.car&&!me.heli&&!me.jet&&pitNear()&&(!pitState||pitState.done)){pitOpen();return}
+  {const k=RACES.findIndex(r=>!me.car&&Math.hypot(r.board.x-me.x,r.board.y-me.y)<40);if(k>=0){raceStart(k);return}}
   if(me.inside){interact();return}
   if(me.heli){const h=me.heli,g=heliGround(h.x,h.y);if(h.z-g>14){feed('Land first. Hold Shift to descend');return}
     me.heli=null;const rb=g>2?roofAt(h.x,h.y):null;
@@ -3669,6 +3671,52 @@ function eventStep(dt){ // runs the 2 Hz check; a finished event sets the next s
 }
 if(DBG)Object.defineProperties(DBG,{events:{get:()=>eventState}});
 if(DBG)DBG.eventTest=k=>{eventWant=k;eventNext=0}; // starts that kind as soon as actors are within 200 units
+// ---------- races ----------
+// Street races on three loops of the road grid. Intersection (i,j) sits at (i*B+60, j*B+60). Each loop has 6 checkpoints, about 2.6 km.
+// Rivals are traffic cars with c.rv set: decide() steers them toward c.rv.g, and they drive the lanes like traffic.
+const RACE_LOOPS=[[[2,6],[3,6],[4,6],[4,7],[3,7],[2,7]],[[6,2],[7,2],[7,3],[7,4],[6,4],[6,3]],[[4,3],[5,3],[5,4],[5,5],[4,5],[4,4]]];
+const RACES=['Midtown loop','Suburb loop','Downtown loop'].map((name,k)=>{const l=RACE_LOOPS[k];return{name,p:l.map(([i,j])=>({x:i*B+60,y:j*B+60,i,j})),board:{x:l[0][0]*B+130,y:l[0][1]*B+130}}});
+let raceBest=[null,null,null];
+try{const v=JSON.parse(localStorage.getItem('pr3d-races'));if(Array.isArray(v))raceBest=RACES.map((_,k)=>typeof v[k]==='number'&&v[k]>0&&v[k]<3600?v[k]:null)}catch(e){}
+let raceState={on:false,c:0,cd:0,t:0,i:1,n:0,pen:0,pos:0,fin:[]},rvs=[],rmesh=null;
+const rnear=(q,r)=>Math.hypot(r.x-q.x,r.y-q.y)<50,fmtT=s=>`${Math.floor(s/60)}:${(s%60).toFixed(2).padStart(5,'0')}`;
+function raceStart(k){
+  if(raceState.on||state!=='play'||me.downed)return;
+  const p=RACES[k].p,n=p.length,d=p[1].x>p[0].x?0:p[1].x<p[0].x?2:p[1].y>p[0].y?1:3,ev=d%2===0,sg=d<2?1:-1;
+  raceState={on:true,c:k,cd:3,t:0,i:1,n,pen:0,pos:0,fin:[]};
+  if(!rmesh){rmesh=new THREE.InstancedMesh(new THREE.RingGeometry(26,34,24),new THREE.MeshBasicMaterial({color:'#ffc94a',transparent:true,opacity:.8,side:THREE.DoubleSide}),9);rmesh.frustumCulled=false;scene.add(rmesh)}
+  p.forEach((q,j)=>inst(rmesh,j,q.x,.6,q.y,0,1,1,1,-Math.PI/2));
+  rmesh.count=n;rmesh.instanceMatrix.needsUpdate=true;rmesh.visible=true;
+  if(!me.car){const c=mkCar(p[0].x,p[0].y,d*Math.PI/2,'mine','#ff3ea5','sports');cars.push(c);me.car=c;me.x=c.x;me.y=c.y;me.a=c.a;handsUp=false}
+  rvs=[];
+  for(let j=0;j<2;j++){const c=mkCar(0,0,d*Math.PI/2,'traffic',CARCOL[6+j]);
+    c.d=d;c.road=ev?p[0].j:p[0].i;c.cross=ev?p[0].i:p[0].j;setAlong(c,(ev?p[0].x:p[0].y)-sg*(30+80*j));
+    c.spd=rr(150,170);c.cur=c.spd*.6;c.rv={i:1,g:p[1],n:p[2],done:false};decide(c,true);cars.push(c);rvs.push(c)}
+  showBig('3','#ffc94a',RACES[k].name,.9);
+}
+function rsHit(k){inst(rmesh,k%raceState.n,0,-999,0);rmesh.instanceMatrix.needsUpdate=true}
+function raceEnd(ok){
+  const rs=raceState,T=rs.t+rs.pen;rs.on=false;rmesh.visible=false;
+  for(const c of rvs){const i=cars.indexOf(c);if(i>=0)cars.splice(i,1)}rvs=[];
+  if(!ok){feed('Race over. No pay.');return}
+  rs.pos=1+rs.fin.length;const pay=[800,400,200][rs.pos-1]||0,b=raceBest[rs.c];me.cash+=pay;
+  if(!b||T<b){raceBest[rs.c]=T;try{localStorage.setItem('pr3d-races',JSON.stringify(raceBest))}catch(e){}}
+  const el=$('raceRes');el.textContent=`${RACES[rs.c].name}: P${rs.pos}, ${fmtT(T)}, best ${fmtT(raceBest[rs.c])}, +$${pay}`;el.hidden=false;setTimeout(()=>el.hidden=true,8000);
+}
+function raceStep(dt){
+  const rs=raceState;if(!rs.on)return;
+  const p=RACES[rs.c].p,n=rs.n;
+  if(rs.cd>0){const was=Math.ceil(rs.cd);rs.cd-=dt;if(rs.cd<=0)showBig('GO','#3dd68c',RACES[rs.c].name,.8);else if(Math.ceil(rs.cd)!==was)showBig(String(Math.ceil(rs.cd)),'#ffc94a',RACES[rs.c].name,.8)}
+  else rs.t+=dt;
+  if(state==='dead'||me.downed){raceEnd(false);return}
+  // rings 1 to n-1 are checkpoints, ring n (the start ring again) is the finish
+  if(rnear(p[rs.i%n],me)){rsHit(rs.i);rs.i++;if(rs.i<=n)feed(`Checkpoint ${rs.i-1} of ${n-1}`)}
+  else if(rnear(p[(rs.i+1)%n],me)){rs.pen+=5;feed('Missed a checkpoint. +5 s');rsHit(rs.i);rsHit(rs.i+1);rs.i+=2}
+  if(rs.i>n){raceEnd(true);return}
+  for(const c of rvs){const v=c.rv;if(v.done||c.kind!=='traffic'||!rnear(p[v.i%n],c))continue;
+    if(++v.i>n){v.done=true;rs.fin.push(rs.t)}else{v.g=p[v.i%n];v.n=p[(v.i+1)%n];decide(c,true)}}
+}
+if(DBG)Object.defineProperties(DBG,{race:{get:()=>raceState},raceStart:{value:raceStart},rivals:{get:()=>rvs.map(c=>({x:c.x|0,y:c.y|0,i:c.rv.i,k:c.kind}))}});
 
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
@@ -4287,7 +4335,7 @@ function update(dt){
       }
       c.blockT=blocked?c.blockT+dt:0;if(c.blockT>3.5){c.ghost=1.6;c.blockT=0}
       c.cur+=((blocked?0:c.spd)-c.cur)*Math.min(1,(blocked?6:1.5)*dt);
-      laneMove(c,dt,false);
+      laneMove(c,dt,!!c.rv);
     }
     else if(c.kind==='hill'){if(hillCarFar(c)&&(hillFrame&1))continue;hillCarStep(c,dt*(hillCarFar(c)?2:1))}
     else if(c.kind==='police')copStep(c,dt);
@@ -4343,6 +4391,7 @@ function update(dt){
   let parked=0;for(const c of cars)if(c.kind==='parked')parked++;
   if(parked<kCap&&rand()<dt*2*kCap/10){const[sp]=parkSpot(560,1500);if(sp)cars.push(mkCar(sp[0],sp[1],sp[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
   if(play)jobStep(dt),careerStep(dt);
+  raceStep(dt);
   publish(dt);
   shake*=Math.pow(.02,dt);
 }
@@ -5484,6 +5533,9 @@ function drawMini(){
   for(const p of peds)if(p.gang&&!p.down&&inView(p.x,p.y)){const[px,py]=Pt(p.x,p.y);c.fillStyle=p.aggro?'#ff4b4b':p.gname==='Kings'?'#9a5ad8':'#3d9a4a';c.beginPath();c.arc(px,py,4.5,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=1.5;c.stroke()}
   // sticky bombs
   for(const b of stickies){if(!inView(b.x,b.y))continue;const[px,py]=Pt(b.x,b.y);c.fillStyle=Math.sin(time*10)>0?'#ff4b4b':'#5a1a1a';c.beginPath();c.arc(px,py,3.5,0,TAU);c.fill()}
+  // race boards and the checkpoints still ahead
+  for(const r of RACES)if(inView(r.board.x,r.board.y)){const[px,py]=Pt(r.board.x,r.board.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,8,0,TAU);c.fill();c.strokeStyle='#3dd68c';c.lineWidth=2;c.stroke();c.fillStyle='#3dd68c';c.fillText('R',px,py+1)}
+  if(raceState.on)for(let k=raceState.i;k<raceState.n;k++){const q=RACES[raceState.c].p[k];if(inView(q.x,q.y)){const[px,py]=Pt(q.x,q.y);c.fillStyle='#ffc94a';c.fillRect(px-3,py-3,6,6)}}
   // job marker
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[px,py,e]=edge(job.x,job.y);c.fillStyle=col;c.beginPath();c.arc(px,py,e?7:9,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
   // mission marker and contact icons
