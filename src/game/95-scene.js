@@ -57,12 +57,12 @@ const additive=(map,opacity)=>new THREE.MeshBasicMaterial({map,transparent:true,
 const rtex=(w,h,draw,rx,ry)=>{const t=canvasTex(w,h,draw);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx||1,ry||1);t.anisotropy=4;return t};
 const grit=(g,w,h,n,seed,a)=>{const r=seeded(seed);for(let i=0;i<n;i++){g.fillStyle=r()<.5?`rgba(255,255,255,${a})`:`rgba(0,0,0,${a*1.6})`;g.fillRect(r()*w,r()*h,1+r()*1.5,1+r()*1.5)}};
 function uvScale(geo,su,sv){const uv=geo.attributes.uv;for(let i=0;i<uv.count;i++)uv.setXY(i,uv.getX(i)*su,uv.getY(i)*sv);return geo}
-// asphalt tile is 220 units, canvas px = world units mod 220. Roads sit at 60 mod 220, lanes at 30 and 90.
-const asphTex=rtex(512,512,(g,w,h)=>{const k=w/220,r=seeded(2);g.fillStyle='#1d1b26';g.fillRect(0,0,w,h);grit(g,w,h,60000,1,.05);
- for(const[a,wd]of[[.07,9],[.12,5]]){g.fillStyle=`rgba(0,0,0,${a})`;for(const c of[24,36,84,96]){g.fillRect((c-wd/2)*k,0,wd*k,h);g.fillRect(0,(c-wd/2)*k,w,wd*k)}}
- for(let i=0;i<6;i++){g.fillStyle=r()<.5?'rgba(0,0,0,.22)':'rgba(255,255,255,.035)';g.fillRect(r()*w,r()*h,14+r()*40,10+r()*30)}
- g.strokeStyle='rgba(0,0,0,.6)';g.lineWidth=1;for(let i=0;i<7;i++){let x=r()*w,y=r()*h;g.beginPath();g.moveTo(x,y);for(let k2=0;k2<6;k2++){x+=r()*30-12;y+=r()*30-12;g.lineTo(x,y)}g.stroke()}});
-const asphGeo=new THREE.PlaneGeometry(W,W);{const u=asphGeo.attributes.uv,p=asphGeo.attributes.position;for(let i=0;i<u.count;i++)u.setXY(i,(p.getX(i)+W/2)/220,1-(W/2-p.getY(i))/220)}
+// asphalt tile is one block pitch: 440 units, 1024 px. Roads sit at 0 to 120 of each tile with lanes at 36 and 84,
+// so the kerb shading lands on every road edge and no crack or patch repeats twice within a block.
+const asphTex=rtex(1024,1024,(g,w,h)=>{const k=w/B;g.fillStyle='#1d1b26';g.fillRect(0,0,w,h);grit(g,w,h,240000,1,.05);
+ for(const e of[-3,120]){g.fillStyle='rgba(0,0,0,.22)';g.fillRect(e*k,0,6*k,h);g.fillRect(0,e*k,w,6*k)}
+ for(const c of[36,84])for(const d of[-9,9]){g.fillStyle='rgba(0,0,0,.05)';g.fillRect((c+d-7)*k,0,14*k,h);g.fillRect(0,(c+d-7)*k,w,14*k)}});
+const asphGeo=new THREE.PlaneGeometry(W,W);{const u=asphGeo.attributes.uv,p=asphGeo.attributes.position;for(let i=0;i<u.count;i++)u.setXY(i,(p.getX(i)+W/2)/B,1-(W/2-p.getY(i))/B)}
 // sidewalk: one texture per block (block is B-R=320 units): 23 slabs per side, kerb band on the outer edge
 const walkTex=rtex(512,512,(g,w,h)=>{const r=seeded(3),n=23,q=w/n;g.fillStyle='#36313f';g.fillRect(0,0,w,h);
  for(let j=0;j<n;j++)for(let i=0;i<n;i++){g.fillStyle=`rgba(${r()<.5?'255,255,255':'0,0,0'},${r()*.05})`;g.fillRect(i*q,j*q,q,q)}
@@ -144,13 +144,68 @@ const asphMat=new THREE.MeshLambertMaterial({map:asphTex}); // weather tints thi
  const sand=new THREE.Mesh(new THREE.PlaneGeometry(W+80,W+80),new THREE.MeshLambertMaterial({color:'#3d3242'}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-1,W/2);scene.add(sand);
  const asph=new THREE.Mesh(asphGeo,asphMat);asph.rotation.x=-Math.PI/2;asph.position.set(W/2,0,W/2);scene.add(asph);}
 
-// lane dashes and crosswalks
+// road markings. Lane dashes and crosswalks are instanced; everything else (avenue double lines, stop lines,
+// parking bays, arrows, drains, manholes) merges into one vertex-coloured mesh. Decal quads add patches,
+// cracks and stains that never repeat along a road.
+const AVENUE=[3,6]; // the two north-south and east-west avenues: double lines, arrows, no centre dashes
 {const per=Math.ceil(W/40),dash=new THREE.InstancedMesh(new THREE.BoxGeometry(20,.3,2),new THREE.MeshBasicMaterial({color:'#9c8240'}),2*(N+1)*per);let n=0;
- for(let k=0;k<=N;k++)for(let i=0;i<per;i++){const p=i*40+10;inst(dash,n++,p,.15,k*B+60,0);inst(dash,n++,k*B+60,.15,p,Math.PI/2)}
- scene.add(dash);
+ for(let k=0;k<=N;k++)for(let i=0;i<per;i++){const p=i*40+10;
+   if(!AVENUE.includes(k)){if(!inAF(p,k*B+60))inst(dash,n++,p,.15,k*B+60,0);if(!inAF(k*B+60,p))inst(dash,n++,k*B+60,.15,p,Math.PI/2)}}
+ dash.count=n;scene.add(dash);
  const cw=new THREE.InstancedMesh(new THREE.BoxGeometry(7,.3,12),new THREE.MeshBasicMaterial({color:'#4a4658'}),(N+1)*(N+1)*4*8);n=0;
- for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){const ix=i*B,iy=j*B;for(let s=12;s<R-8&&n<cw.count-4;s+=14){inst(cw,n++,ix+s,.15,iy-8,0);inst(cw,n++,ix+s,.15,iy+R+8,0);inst(cw,n++,ix-8,.15,iy+s,Math.PI/2);inst(cw,n++,ix+R+8,.15,iy+s,Math.PI/2)}}
- cw.count=n;scene.add(cw);}
+ for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){const ix=i*B,iy=j*B;
+   for(let s=12;s<R-8&&n<cw.count-4;s+=14){ // the outer bands of the border junctions fall outside the city: skip them
+     if(j>0&&!inAF(ix+s,iy-8))inst(cw,n++,ix+s,.15,iy-8,0);
+     if(j<N&&!inAF(ix+s,iy+R+8))inst(cw,n++,ix+s,.15,iy+R+8,0);
+     if(i>0&&!inAF(ix-8,iy+s))inst(cw,n++,ix-8,.15,iy+s,Math.PI/2);
+     if(i<N&&!inAF(ix+R+8,iy+s))inst(cw,n++,ix+R+8,.15,iy+s,Math.PI/2)}}
+ cw.count=n;scene.add(cw);
+ // paint: a vertex-coloured merged mesh. Colours are worn paint, bay lines, iron drains and manhole covers.
+ const parts=[],vc=(geo,hex)=>{const c=new THREE.Color(hex),cnt=geo.attributes.position.count,a=new Float32Array(cnt*3);
+   for(let i=0;i<cnt;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b}geo.setAttribute('color',new THREE.BufferAttribute(a,3));return geo},
+  LINE='#9c8240',PAINT='#8f8a99',IRON='#1a1720',MH='#23202b',stopX=vc(new THREE.BoxGeometry(58,.3,4),PAINT),
+  put=(g,x,y,z,ry)=>parts.push([g,new THREE.Matrix4().makeRotationY(ry||0).setPosition(x,y,z)]),
+  stopG=vc(new THREE.BoxGeometry(4,.3,58),PAINT),lineG=vc(new THREE.BoxGeometry(1.6,.3,308),LINE),
+  bayG=vc(new THREE.BoxGeometry(1,.3,10),PAINT),drainG=vc(new THREE.BoxGeometry(6,.3,3),IRON),
+  mhG=vc(new THREE.CircleGeometry(4.5,18).rotateX(-Math.PI/2),MH),
+  arrow=vc(mergeGeos([[new THREE.BoxGeometry(3.2,.3,14),new THREE.Matrix4().makeTranslation(0,0,-4)],
+   [new THREE.BoxGeometry(3,.3,9),new THREE.Matrix4().makeRotationY(.62).setPosition(-3,0,8)],
+   [new THREE.BoxGeometry(3,.3,9),new THREE.Matrix4().makeRotationY(-.62).setPosition(3,0,8)]]),PAINT);
+ for(const k of AVENUE)for(let s=0;s<N;s++){ // avenue double lines, broken at every junction
+   const mid=s*B+R+(B-R-12)/2;
+   put(lineG,k*B+56.4,.15,mid);put(lineG,k*B+63.6,.15,mid);
+   put(lineG,mid,.15,k*B+56.4,Math.PI/2);put(lineG,mid,.15,k*B+63.6,Math.PI/2)}
+ const mh=seeded(7);
+ for(let j=0;j<=N;j++)for(let i=0;i<=N;i++){const ix=i*B,iy=j*B;if(inAF(ix+60,iy+60))continue;
+   // stop lines on the incoming lane of all four approaches, straight arrows 30 before them on the avenues
+   if(j>0){put(stopX,ix+90,.15,iy-20);if(AVENUE.includes(i))put(arrow,ix+84,.16,iy-50,0)}
+   if(j<N){put(stopX,ix+30,.15,iy+R+20);if(AVENUE.includes(i))put(arrow,ix+36,.16,iy+R+50,Math.PI)}
+   if(i>0){put(stopG,ix-20,.15,iy+90);if(AVENUE.includes(j))put(arrow,ix-50,.16,iy+84,Math.PI/2)}
+   if(i<N){put(stopG,ix+R+20,.15,iy+30);if(AVENUE.includes(j))put(arrow,ix+R+50,.16,iy+36,-Math.PI/2)}
+   put(drainG,ix+112,.15,iy-4);put(drainG,ix-4,.15,iy+112,Math.PI/2)}
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi];if(t!=='city'&&t!=='midtown')continue;
+   const x0=bi*B+R,y0=bj*B+R,s=B-R; // parking bays along both kerbs of downtown and midtown streets
+   for(let u=12;u<s-12;u+=34)for(const side of[0,1,2,3]){
+     const [x,z,ry]=side===0?[x0-7,y0+u,0]:side===1?[x0+s+7,y0+u,0]:side===2?[x0+u,y0-7,Math.PI/2]:[x0+u,y0+s+7,Math.PI/2];
+     if(!DOORS.some(d=>Math.hypot(d.x-x,d.y-z)<34)&&!rampZone(x,z))put(bayG,x,.15,z,ry)}}
+ for(let k=0;k<=N;k++)for(let i=0;i<6;i++){const p=(i+.5)*W/6+(mh()-.5)*50; // manhole covers on the road centres
+   if(mh()<.6&&!inAF(p,k*B+30))put(mhG,p,.16,k*B+30);
+   if(mh()<.6&&!inAF(k*B+90,p))put(mhG,k*B+90,.16,p)}
+ scene.add(new THREE.Mesh(mergeGeos(parts),new THREE.MeshBasicMaterial({vertexColors:true})));
+ // decals: patches, cracks and stains on one atlas, one instanced quad set per variant so each can offset its quarter
+ const dtex=rtex(512,512,(g)=>{const r=seeded(21);g.clearRect(0,0,512,512);
+   g.fillStyle='rgba(0,0,0,.20)';g.beginPath();g.ellipse(128,128,92,72,0,0,TAU);g.fill();
+   g.strokeStyle='rgba(0,0,0,.5)';g.lineWidth=3;for(let c=0;c<5;c++){let x=300+r()*120,y=70+r()*110;g.beginPath();g.moveTo(x,y);for(let t=0;t<6;t++){x+=r()*24-12;y+=r()*24-12;g.lineTo(x,y)}g.stroke()}
+   const gr=g.createRadialGradient(128,384,6,128,384,88);gr.addColorStop(0,'rgba(0,0,0,.28)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.beginPath();g.arc(128,384,88,0,TAU);g.fill();
+   g.fillStyle='rgba(255,255,255,.05)';g.fillRect(302,302,180,180);g.strokeStyle='rgba(0,0,0,.3)';g.lineWidth=4;g.strokeRect(302,302,180,180)});
+ const DEC=[[],[],[]],dr=seeded(23);
+ for(let k=0;k<=N;k++)for(let i=0;i<22;i++){const p=(i+dr())*W/22,v=dr(),a=k*B+12+dr()*96,b=p,s=26+dr()*40,r=dr()*TAU;
+   if(!inAF(a,b))DEC[v<.45?0:v<.72?1:2].push([a,b,r,s]);
+   if(!inAF(b,a))DEC[v<.45?0:v<.72?1:2].push([b,a,r,s])}
+ DEC.forEach((list,v)=>{if(!list.length)return;const t=dtex.clone();t.needsUpdate=true;
+   t.offset.set(v===1?.5:0,v===2?0:.5);t.repeat.set(.5,.5);
+   const m=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshLambertMaterial({map:t,transparent:true,depthWrite:false}),list.length);
+   list.forEach(([x,y,r,s],i)=>inst(m,i,x,.06,y,r,s,s,1,-Math.PI/2));scene.add(m)});}
 
 // blocks
 function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
