@@ -5360,11 +5360,92 @@ const camPos=new THREE.Vector3(me.x,40,me.y+60);
 if(DBG)Object.defineProperties(DBG,{view:{get:()=>view}});
 function view(x,y,yaw,pitch){me.x=x;me.y=y;me.z=groundZ(x,y);me.vx=me.vy=0;look.yaw=yaw;look.pitch=clamp(pitch,-.45,1.3);camPos.set(x,60,y)}
 const aimRay=new THREE.Raycaster(),ndcX=new THREE.Vector2(0,.08),ndc0=new THREE.Vector2(0,0);
+// ---------- instanced civilians and ambient cars ----------
+// Civilians (not gangs, guards, cops or vendors) and ambient cars (traffic and parked, not the player's, not personal, no mods)
+// draw as InstancedMeshes: one per body part and outfit, one per part and car type. Only instances in view get a matrix each frame.
+// ponytail: 128 entities per part (256 for paired legs, arms and wheels). Past that a frame draws the first 128 only, add a bigger cap when needed.
+const ICAP=128,_m=new THREE.Matrix4(),_ax=new THREE.Matrix4(),_cm=new THREE.Matrix4(),_A=[new THREE.Matrix4(),new THREE.Matrix4()];
+const _fr=new THREE.Frustum(),_pv=new THREE.Matrix4(),_sp=new THREE.Sphere(),_eu=new THREE.Euler(),_ld=new THREE.Object3D(),_rd=new THREE.Object3D();
+// colour starts white, so an instance nobody colours keeps the material's own colour
+const instMesh=(geo,mat,k=1)=>{const m=new THREE.InstancedMesh(geo,mat,ICAP*k);m.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(ICAP*k*3).fill(1),3);m.frustumCulled=false;m.visible=false;scene.add(m);return m};
+const flushI=(m,n)=>{if(!m)return;m.count=Math.min(n,m.instanceMatrix.count);m.visible=n>0;if(n){m.instanceMatrix.needsUpdate=true;if(m.instanceColor)m.instanceColor.needsUpdate=true}};
+const civ=p=>!(p.gang||p.guard||p.cop||p.vendor),ambient=c=>(c.kind==='traffic'||c.kind==='parked')&&c!==me.car&&!c.personal&&!c.mods;
+const paintI=paint('#ffffff'),tailI=new THREE.MeshBasicMaterial({color:'#ffffff'}),wlam=lam('#ffffff'); // white base, colour per instance
+// writes local pose k of an instanced part on top of the root matrix
+function lpose(mesh,k,root,x,y,z,rx=0,rz=0,sx=1,sy=1,sz=1){_ld.position.set(x,y,z);_ld.rotation.set(rx,0,rz);_ld.scale.set(sx,sy,sz);_ld.updateMatrix();mesh.setMatrixAt(k,_m.multiplyMatrices(root,_ld.matrix))}
+// outfit 0 male, 1 female. Legs and arms pivot at the hip and shoulder, so their geometry is moved down to the pivot.
+const PEDI=[0,1].map(f=>({n:0,sk:0,gn:0,legs:instMesh((f?PG2.fleg:G.leg).clone().translate(0,-4,0),M.black,2),arms:instMesh(PG2.arm.clone().translate(0,-4,0),wlam,2),
+  torso:instMesh(f?PG2.ftorso:PG2.mtorso,wlam),head:instMesh(G.head,wlam),cap:instMesh(f?PG2.fcap:PG2.mcap,wlam),tail:f?instMesh(PG2.ftail,wlam):null,skirt:f?instMesh(PG2.skirt,wlam):null,gun:instMesh(G.gun,M.gun),shadow:instMesh(G.blob,M.shadow)}));
+function instCivs(){
+  for(const O of PEDI)O.n=O.sk=O.gn=0;
+  for(const p of peds){
+    if(!civ(p)||far(p.x,p.y,950))continue;
+    const g=groundZ(p.x,p.y);_sp.center.set(p.x,g+12,p.y);_sp.radius=30;if(!_fr.intersectsSphere(_sp))continue;
+    const fem=!!p.fem,O=PEDI[fem?1:0];if(O.n>=ICAP)continue;const i=O.n++,sc=fem?.95:1,lie=p.down||p.lie,s=Math.sin(p.ph)*.6,h=p.hands>0,ca=p.calling>0||(p.still&&p.kind==='phone'),hs=fem?.94:1;
+    _rd.position.set(p.x,g+(lie?2.5:0),p.y);_rd.rotation.set(lie?Math.PI/2:0,-p.a,0);_rd.scale.set(sc,sc*(p.crouch>0?.6:1),sc);_rd.updateMatrix();
+    const R=_rd.matrix;
+    lpose(O.legs,2*i,R,0,8,fem?1.5:2,0,s);lpose(O.legs,2*i+1,R,0,8,fem?-1.5:-2,0,-s);
+    lpose(O.arms,2*i,R,0,15,-4.2,0,h?2.9:s*.5);lpose(O.arms,2*i+1,R,0,15,4.2,0,h?2.9:ca?2.4:-s*.5);
+    lpose(O.torso,i,R,0,12,0);lpose(O.head,i,R,0,18.6,0,0,0,hs,hs,hs);lpose(O.cap,i,R,0,fem?21.1:21.4,0);lpose(O.shadow,i,R,0,.4,0,-Math.PI/2,0,6,6,1);
+    O.arms.setColorAt(2*i,pcol(p.shirt));O.arms.setColorAt(2*i+1,pcol(p.shirt));O.torso.setColorAt(i,pcol(p.shirt));O.head.setColorAt(i,pcol(p.skin));O.cap.setColorAt(i,pcol(p.hair));
+    if(fem){lpose(O.tail,i,R,-2.3,17.2,0);O.tail.setColorAt(i,pcol(p.hair))}
+    if(fem&&p.skirt){const k=O.sk++;lpose(O.skirt,k,R,0,6.4,0);O.skirt.setColorAt(k,pcol(p.skirt))}
+    if(p.armed>0){lpose(O.gun,O.gn++,R,6,12,3.5)}
+  }
+  for(const O of PEDI){flushI(O.legs,2*O.n);flushI(O.arms,2*O.n);flushI(O.torso,O.n);flushI(O.head,O.n);flushI(O.cap,O.n);flushI(O.tail,O.n);flushI(O.skirt,O.sk);flushI(O.gun,O.gn);flushI(O.shadow,O.n)}
+}
+// one car type: each static part merged per material, the wheels as one pair per axle, and the local shadow and beam
+const AMB={};
+function ambType(type){
+  const P=carMesh('#ffffff',type),ud=P.userData,C=carGeo(type),wh=new Set(ud.wheels),cg=C.cabin,ix=cg.index.array,r=cg.groups[0].count,k={},T={n:0,dn:0,st:[],ax:[C.L*.31,-C.L*.31],wr:C.wr};
+  const cab=(a,b)=>{const q=new THREE.BufferGeometry();q.setAttribute('position',cg.attributes.position);q.setAttribute('normal',cg.attributes.normal);q.setIndex(new THREE.BufferAttribute(ix.slice(a,b),1));return q};
+  const put=(key,mat,geo,mx,det,axle)=>{(k[key]||(k[key]={mat,det,axle,list:[]})).list.push([geo,mx])};
+  P.updateMatrixWorld(true);
+  // (wheel pairs are built from the front axle: both sides, offset along z)
+  P.traverse(o=>{
+    if(!o.isMesh)return;
+    const mt=o.material,mx=o.matrixWorld.clone(),det=o.parent===ud.detail;
+    if(mt===M.shadow){T.sh=mx;return}
+    if(mt===M.beam){T.be=mx;return}
+    if(wh.has(o.parent)){if(o.parent.position.x>0)put('w'+mt.uuid,mt,o.geometry,new THREE.Matrix4().makeTranslation(0,0,o.parent.position.z),true,true);return}
+    if(Array.isArray(mt)){put('paint',paintI,cab(0,r),mx,false,false);put(glassM.uuid,glassM,cab(r,ix.length),mx,false,false);return}
+    put((det?'d':'')+(mt===paintI?'paint':mt.uuid),mt,o.geometry,mx,det,false);
+  });
+  T.st=Object.values(k).map(e=>({mesh:instMesh(mergeGeos(e.list),e.mat===tailM?tailI:e.mat,e.axle?2:1),det:e.det,axle:e.axle,col:e.mat===paintI?'paint':e.mat===tailM?'tail':''}));
+  return AMB[type]=T;
+}
+let SHD=null,BEAM=null;
+function instCars(dt){
+  camera.updateMatrixWorld();_pv.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);_fr.setFromProjectionMatrix(_pv);
+  if(!SHD){SHD=instMesh(G.blob,M.shadow);BEAM=instMesh(new THREE.PlaneGeometry(1,1),M.beam)}
+  for(const T of Object.values(AMB))T.n=T.dn=0;
+  let s=0,b=0;
+  for(const c of cars){
+    if(!ambient(c)||far(c.x,c.y,1500))continue;
+    const T=AMB[c.type]||ambType(c.type),gs=c.kind==='traffic'?c.cur:c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a);
+    c.spin=(c.spin||0)-gs*dt/4.5; // wheels turn as they do on a car mesh, in range or not
+    _sp.center.set(c.x,(c.z||0)+8,c.y);_sp.radius=90;if(!_fr.intersectsSphere(_sp)||s>=ICAP)continue;
+    const i=T.n++,lod=far(c.x,c.y,650),j=lod?-1:T.dn++;
+    _eu.set(carRoll(c),-c.a,carPitch(c),'YZX');_cm.makeRotationFromEuler(_eu);_cm.setPosition(c.x,c.z||0,c.y);
+    if(!lod)for(let a=0;a<2;a++){_ax.makeRotationZ(c.spin);_ax.setPosition(T.ax[a],T.wr,0);_A[a].multiplyMatrices(_cm,_ax)}
+    for(const q of T.st){
+      const m=q.mesh,n=q.det?j:i;
+      if(q.det&&lod)continue;
+      if(q.axle)for(let a=0;a<2;a++)m.setMatrixAt(2*j+a,_A[a]);
+      else m.setMatrixAt(n,_cm);
+      if(q.col==='paint')m.setColorAt(n,pcol(c.color||'#ffffff'));else if(q.col==='tail')m.setColorAt(n,c.brk?brakeM.color:tailM.color);
+    }
+    _m.multiplyMatrices(_cm,T.sh);SHD.setMatrixAt(s++,_m);
+    if(c.kind!=='parked'){_m.multiplyMatrices(_cm,T.be);BEAM.setMatrixAt(b++,_m)}
+  }
+  for(const T of Object.values(AMB))for(const q of T.st)flushI(q.mesh,q.axle?2*T.dn:q.det?T.dn:T.n);
+  flushI(SHD,s);flushI(BEAM,b);
+}
 function render(dt){
   dt=dt||1/60;
   if(meColorNow!==myColor){setShirt(meMesh,myColor);meColorNow=myColor}
   // cars
-  syncMap(carMeshes,cars,c=>c.kind==='hill'?hillCarMesh(c.color):carMesh(c.color,c.type,c.mods),(c,m)=>{
+  syncMap(carMeshes,cars.filter(c=>!ambient(c)),c=>c.kind==='hill'?hillCarMesh(c.color):carMesh(c.color,c.type,c.mods),(c,m)=>{
     if(c.mods&&m.userData.mk!==modKey(c.color,c.mods)){scene.remove(m);m=carMesh(c.color,c.type,c.mods);carMeshes.set(c,m);scene.add(m)}
     m.visible=!far(c.x,c.y,1500);if(!m.visible)return;if(m.userData.detail)m.userData.detail.visible=!far(c.x,c.y,650);
     m.position.set(c.x,c.z||0,c.y);m.rotation.order='YZX';m.rotation.set(carRoll(c),-c.a,carPitch(c));const ud=m.userData;if(c.personal&&!ud.plate){const C=carGeo(c.type);ud.plate=new THREE.Mesh(box(.4,2.2,4.6),M.blue);ud.plate.position.set(-C.L/2-.3,C.P.base+2.5,0);m.add(ud.plate)}if(ud.brakes){const bm=c.brk?brakeM:tailM;if(ud.brakes.material!==bm)ud.brakes.material=bm}if(ud.wheels){const gs=c.kind==='traffic'||c.kind==='police'&&c.mode!=='chase'?c.cur:(c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a));if(!c.air)c.wsp=gs;const sp=c.air?c.wsp||0:gs;for(const w of ud.wheels)w.rotation.z-=sp*dt/4.5}
@@ -5372,13 +5453,16 @@ function render(dt){
     if(!ud.dead){ud.beam.visible=c.kind!=='parked';if(ud.l1){const on=Math.sin(time*16+c.siren)>0;ud.l1.material=on?M.red:M.dim;ud.l2.material=on?M.dim:M.blue;ud.glow.material=on?M.redGlow:M.blueGlow}}
   });
   // peds
-  syncMap(pedMeshes,peds,p=>{const m=personMesh(p.shirt,p.skin,!!(p.guard||p.gang),{fem:p.fem,hair:p.hair,skirt:p.fem&&p.skirt});if(p.vendor)m.add(cartMesh());return m},(p,m)=>{
+  syncMap(pedMeshes,peds,p=>{if(civ(p))return new THREE.Group(); // civilians draw through instCivs; the group keeps the bark sprite
+    const m=personMesh(p.shirt,p.skin,!!(p.guard||p.gang),{fem:p.fem,hair:p.hair,skirt:p.fem&&p.skirt});if(p.vendor)m.add(cartMesh());return m},(p,m)=>{
     m.visible=!far(p.x,p.y,950);if(!m.visible)return;
     const u=m.userData,sc=p.fem?.95:1,lie=p.down||p.lie;
     m.position.set(p.x,groundZ(p.x,p.y)+(lie?2.5:0),p.y);m.rotation.set(lie?Math.PI/2:0,-p.a,0);m.scale.set(sc,sc*(p.crouch>0?.6:1),sc);
-    if(!p.down)animPerson(m,p.ph,p.guard&&heist.alarm);
-    u.gun.visible=!!(p.guard||p.gang||p.armed>0);
-    if(p.hands>0)u.a1.rotation.z=u.a2.rotation.z=2.9;else if(p.calling>0||p.still&&p.kind==='phone')u.a2.rotation.z=2.4;
+    if(!civ(p)){
+      if(!p.down)animPerson(m,p.ph,p.guard&&heist.alarm);
+      u.gun.visible=!!(p.guard||p.gang||p.armed>0);
+      if(p.hands>0)u.a1.rotation.z=u.a2.rotation.z=2.9;else if(p.calling>0||p.still&&p.kind==='phone')u.a2.rotation.z=2.4;
+    }
     const seen=p.bark&&Math.hypot(p.x-camera.position.x,p.y-camera.position.z)<260;
     if(seen){if(!u.bark){u.bark=barkSprite();m.add(u.bark)}const k=p.bark.s+p.bark.c;if(u.barkK!==k){u.barkK=k;u.bark.material.map=barkTex(p.bark.s,p.bark.c);u.bark.material.needsUpdate=true}}
     if(u.bark)u.bark.visible=!!seen;
@@ -5465,6 +5549,7 @@ function render(dt){
   if(scoped){const hz=(me.z||0)+19;camera.position.set(me.x+fx*6,hz,me.y+fy*6);camera.lookAt(me.x+fx*300,hz-(look.pitch-.2)*200,me.y+fy*300);meMesh.visible=false}
   if(lap){camera.position.set(club.ox+398,24,club.oy+322);camera.lookAt(club.ox+386,14,club.oy+272)}
   const fov=scoped?16:62-(drugState.k==='calm'?4:0)+(inCar?clamp(Math.hypot(me.car.vx,me.car.vy)/330,0,1)*14:0);if(Math.abs(camera.fov-fov)>.1){camera.fov+=(fov-camera.fov)*Math.min(1,dt*9);camera.updateProjectionMatrix()}
+  instCivs();instCars(dt);
   aimPt=null;aimHit=false;
   if(state==='play'&&!inCar){camera.updateMatrixWorld();aimRay.setFromCamera(scoped?ndc0:ndcX,camera);const o=aimRay.ray.origin,dv=aimRay.ray.direction;
     const near=[];for(const c of cars)if(c!==me.car&&c.kind!=='dead'&&Math.abs(c.x-me.x)<1800&&Math.abs(c.y-me.y)<1800)near.push(c);
