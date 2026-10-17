@@ -784,12 +784,12 @@ function drive(c,thr,steer,hand,dt){
   if(P)driftA=Math.hypot(c.vx,c.vy)>5?Math.abs(wrap(Math.atan2(c.vy,c.vx)-c.a)):0;
 }
 // Player car height. On the ground z follows groundZ and vz is the ground's rise per second along the motion.
-// If the ground falls away faster than the car rises (lip, crest, cliff) the car goes airborne under gravity 650.
+// If the ground falls away faster than the car rises (lip, crest, cliff) the car goes airborne under gravity 650 times the grav city rule.
 function carZ(c,dt){
   const g=groundZ(c.x,c.y);
   if(!c.air&&g<c.z+c.vz*dt-2){c.air=true;c.airT=0}
   if(c.air){
-    c.airT+=dt;c.vz-=650*dt;c.z+=c.vz*dt;
+    c.airT+=dt;c.vz-=carGravity()*dt;c.z+=c.vz*dt;
     if(c.z>g)return;
     const hit=-c.vz;c.air=false;c.z=g;c.vz=0;
     if(hit>260){damageCar(c,Math.min(BAL.crashMax,(hit-260)*.12),true);thud(hit);shake=Math.max(shake,hit/60)}
@@ -1284,7 +1284,7 @@ function myShoot(){
   if(w.rocket)shake=Math.max(shake,5);
   if(time>heatShotT)for(const p of cars)if(p.kind==='police'&&Math.hypot(p.x-me.x,p.y-me.y)<450){addHeat(.08);heatShotT=time+2;break}
 }
-function addHeat(v){heat=clamp(heat+v,0,5);coolT=0}
+function addHeat(v){if(!RULES.cops)return;heat=clamp(heat+v,0,5);coolT=0} // cops off: heat cannot rise
 function explode(x,y,byMe,cosmetic,ez,k=1,sk){const gz=groundZ(x,y);ez=ez===undefined?gz:Math.max(0,ez);burstZ=ez;
   burst(x,y,40,'#ffb347',320,.7);burst(x,y,26,'#ff3ea5',220,.5);burst(x,y,18,'rgba(60,50,70,1)',90,2.2,'smoke');
   parts.push({x,y,z0:ez,vx:0,vy:0,life:.25,max:.25,col:'#fff1c2',k:'flash',sz:180});
@@ -1294,7 +1294,7 @@ function explode(x,y,byMe,cosmetic,ez,k=1,sk){const gz=groundZ(x,y);ez=ez===unde
   for(const v of[heli,...jets]){if(!v||v.dead||cosmetic)continue;v.hp-=fall(Math.hypot(v.x-x,v.y-y,(v.z||0)-ez),BAL.exp.air)*k}
   const dm=Math.hypot(me.x-x,me.y-y);
   if(dm<BAL.exp.player[1]&&Math.abs((me.z||0)-ez)<45&&!me.heli&&!me.jet&&!cosmetic&&!(me.car&&me.car.type==='armored'))hurtMe(fall(dm,BAL.exp.player)*k*(byMe?BAL.exp.self:1)*(me.car?BAL.exp.occupant:1),null);
-  if(byMe)for(const[peer,r]of remotes){const d=Math.hypot(r.x-x,r.y-y);if(d<BAL.exp.player[1]&&!r.dead&&Math.abs((r.inCar?(r.cz||0):(r.z||0))-ez)<50)dmgOut[peer]=(dmgOut[peer]||0)+Math.round(fall(d,BAL.exp.player)*k*(sk&&peer===sk.peer?BAL.exp.sticky:1))}
+  if(byMe&&RULES.ff)for(const[peer,r]of remotes){const d=Math.hypot(r.x-x,r.y-y);if(d<BAL.exp.player[1]&&!r.dead&&Math.abs((r.inCar?(r.cz||0):(r.z||0))-ez)<50)dmgOut[peer]=(dmgOut[peer]||0)+Math.round(fall(d,BAL.exp.player)*k*(sk&&peer===sk.peer?BAL.exp.sticky:1))}
   scare(x,y,400);burstZ=0;
 }
 function hurtMe(amt,from){
@@ -2089,7 +2089,7 @@ function rocketRTP(n){const keep=rand;rand=seeded(4711);let won=0;try{for(let i=
 // Other players' rk: null when their modal is closed, otherwise {id,start,cp}. id 0 means open with no flight yet.
 function rkParse(v){if(!Array.isArray(v))return null;const id=Math.floor(num(v[0])),st=num(v[1]),cp=num(v[2]);
   if(id<=0||!(cp>=1)||cp>1e6||st!==id*RKG.slot+RKG.win)return{id:0,start:0,cp:0};return{id,start:st,cp}}
-function rkAmHost(){if(!room||!myPeer)return true;for(const[p,r]of remotes)if(r.rk&&p<myPeer)return false;return true}
+function rkAmHost(){return amHost(r=>r.rk)} // host among the players with the modal open, built on the shared election
 // The flight for a slot: a host's published flight wins, otherwise this client's own (if it is the host).
 function rkFlight(id,start){
   if(RKG.soloId===id)return{id,start,cp:RKG.soloCp,mine:false};
@@ -2806,7 +2806,7 @@ function stamStep(sprint,dt){
 function footStep(dt){
   if(!inAir()||(jvz===0&&me.z-floorH()<=4)){jvz=0;peak=me.z=floorH();return} // a slope of up to 4 is walked, a ledge is a fall
   peak=Math.max(peak,me.z);
-  jvz-=700*dt;me.z+=jvz*dt;
+  jvz-=700*RULES.grav*dt;me.z+=jvz*dt;
   const f=floorH();
   if(jvz<=0&&me.z<=f){const fall=peak-f;me.z=f;jvz=0;peak=f;me.roof=roofAt(me.x,me.y);if(fall>40)hurtMe((fall-40)*.9)}
 }
@@ -2855,7 +2855,8 @@ const IC={map:'<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6
   places:'<path d="M3.5 20.5h17M5.5 20.5v-10l6.5-5 6.5 5v10M10 20.5v-5h4v5"/>',
   radio:'<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="15.5" cy="14" r="2.5"/><path d="M7 12h4M7 16h3M8 8l9-4"/>',
   cam:'<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8.5 7l1.5-2.5h4L15.5 7"/>',
-  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>'};
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>',
+  rules:'<path d="M3 8l4.5 4L12 5l4.5 7L21 8v10H3z"/>'};
 function phoneApp(id,name,icon,render,col){apps[id]={name,icon:ICO(icon),render,col:col||'#ff3ea5'};phDrawHome()}
 function phDrawHome(){phHome.replaceChildren();for(const id in apps){const a=apps[id],b=mk('button','ph-app');b.type='button';b.dataset.nav='';b.style.setProperty('--c',a.col);const ic=mk('span','ph-ic');ic.innerHTML=a.icon;a.bd=mk('b','ph-bd');a.bd.hidden=true;b.append(ic,mk('span','',a.name),a.bd);b.onclick=()=>phShow(id);phHome.append(b)}}
 const phNavEls=()=>[...(phApp?phBody:phHome).querySelectorAll('[data-nav]:not(:disabled)')];
@@ -2967,6 +2968,17 @@ phoneApp('camera','Camera',IC.cam,el=>{const b=mk('button','ph-btn','Open the ca
   el.append(mk('div','ph-sub','The phone and the HUD hide. Enter takes the shot, Escape comes back.'),b)},'#9d97ad');
 phoneApp('settings','Settings',IC.gear,el=>{const b=mk('button','ph-btn','Open settings');b.type='button';b.dataset.nav='';b.onclick=()=>{phoneClose();openSettings()};
   el.append(mk('div','ph-sub','Sensitivity, invert Y and aim assist.'),b)},'#5a5570');
+// City rules: the host tunes the night. Controls are live for the host only; everyone else watches.
+const HRNAME={cops:'Police',traffic:'Traffic',ff:'Friendly fire',grav:'Gravity'};
+const HRVAL={cops:v=>v?'On':'Off',traffic:v=>['Light','Normal','Heavy'][v],ff:v=>v?'On':'Off',grav:v=>v===.55?'Moon':v===1.4?'Heavy':'Normal'};
+const hrNext=k=>k==='traffic'?(RULES.traffic+1)%3:k==='grav'?(RULES.grav===1?.55:RULES.grav===.55?1.4:1):(RULES[k]?0:1);
+phoneApp('rules','City rules',IC.rules,el=>{const host=amHost(),r=host?null:remotes.get(hostPeer());
+  el.append(mk('div','ph-big',host?'You are the host':r?r.name:'The host'));
+  if(!host)el.append(mk('div','ph-sub','Host sets the rules tonight.'));
+  for(const k of HRK){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';b.disabled=!host;
+    const g=mk('span','ph-grow');g.append(mk('b','',HRNAME[k]),mk('span','ph-sub',HRVAL[k](RULES[k])));
+    b.append(g,mk('span','ph-go',host?'Change':''));b.onclick=()=>{setRule(k,hrNext(k));phPaint(apps.rules,true)};el.append(b)}
+},'#ffc94a');
 
 // ---- keys while the phone is open
 function phoneKey(e){
@@ -3220,7 +3232,7 @@ if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>sett
 
 // ---------- multiplayer (room presence) ----------
 let room=null,myPeer=null,netState='connecting',netWhy='';
-const PV=1; // presence protocol version, bump when the presence shape changes
+const PV=3; // presence protocol version, bump when the presence shape changes (3 adds the city rules hr field)
 const killXpT={},pvWarn=new Set();
 // The city comes from the URL: ?room=code, else the last code used on this device, else the
 // public city. A room is 1 to 10 lowercase letters and digits; anything else is invalid.
@@ -3255,6 +3267,30 @@ const remotes=new Map();
 const num=(v,d=0)=>Number.isFinite(v)?v:d;
 const hex=(v,d='#ff3ea5')=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)?v:d;
 const str=v=>typeof v==='string'?v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g,'').slice(0,16):'';
+// City rules: the host sets how the night plays. The host publishes hr=[hrVer,cops,traffic,ff,grav] and
+// everyone else applies the lowest peer's copy, so the night keeps its values when the host leaves.
+const RULES={cops:1,traffic:1,ff:1,grav:1},HRK=['cops','traffic','ff','grav'],HRCAP={traffic:[12,26,40],peds:[20,44,60],parked:[6,10,14]};
+const HRFEED={cops:{0:'Cops are off',1:'Cops are back'},traffic:{0:'Light traffic',1:'Normal traffic',2:'Heavy traffic'},ff:{0:'Friendly fire off',1:'Friendly fire on'},grav:{'.55':'Moon gravity','1':'Normal gravity','1.4':'Heavy gravity'}};
+let hrVer=0;
+function carGravity(){return 650*RULES.grav} // carZ falls at 650 m/s2 times the grav rule
+function spawnCaps(){return{traffic:HRCAP.traffic[RULES.traffic],peds:HRCAP.peds[RULES.traffic],parked:HRCAP.parked[RULES.traffic],cops:RULES.cops}}
+function customRules(){return RULES.cops!==1||RULES.traffic!==1||RULES.ff!==1||RULES.grav!==1}
+function ruleVal(k,v){
+  if(k==='cops'||k==='ff')return v===0||v===1?v:null;
+  if(k==='traffic')return v===0||v===1||v===2?v:null;
+  return v===.55||v===1||v===1.4?v:null; // grav: moon, normal, heavy
+}
+function amHost(f){if(!room||!myPeer)return true;for(const[p,r]of remotes)if((!f||f(r))&&p<myPeer)return false;return true}
+function hostPeer(){if(amHost())return myPeer;let lo=null;for(const p of remotes.keys())if(lo===null||p<lo)lo=p;return lo}
+function copsOff(){heat=0;policeClear();for(let i=cars.length-1;i>=0;i--)if(cars[i].kind==='police')cars.splice(i,1)}
+function hrApply(k,v){if(RULES[k]===v)return;RULES[k]=v;hrVer++;const m=HRFEED[k][String(v)];if(m)feed(m);if(k==='cops'&&v===0)copsOff()}
+function setRule(k,v){if(!HRK.includes(k)||!amHost())return false;const rv=ruleVal(k,v);if(rv===null)return false;hrApply(k,rv);return true}
+function hrFromHost(){ // the host is the lowest peer id; ignore any element out of range
+  if(!room||amHost())return;
+  const hp=hostPeer(),r=hp&&remotes.get(hp);
+  if(!r||!r.hr||!(Math.floor(num(r.hr[0],-1))>=0))return;
+  for(let i=0;i<4;i++){const v=ruleVal(HRK[i],num(r.hr[i+1],-1));if(v!==null)hrApply(HRK[i],v)}
+}
 (async()=>{
   try{
     if(!window.claude||typeof window.claude.use!=='function'){if(lobbyHost){room=wsRoom((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?room='+roomName);room.onPeers(ch=>{for(const p of ch.peers)if(p.sameTab)myPeer=p.peer})}else{netState='solo';netWhy='no-viewer'}return}
@@ -3280,9 +3316,10 @@ function syncRoom(dt){
     r.tx=clamp(s.x,-50,W+4500);r.ty=clamp(s.y,HILL.edge,W+300);r.ta=num(s.a);r.name=str(s.n)||'Driver';r.color=hex(s.c);r.inCar=s.v===1;r.inHeli=s.v===2;r.inJet=s.v===3;r.cc=hex(s.cc,r.color);r.ng=hex(s.ng,null);r.z=clamp(num(s.z),0,900);r.cz=clamp(num(s.cz),-50,900);r.ct=hasCT(s.ct)?s.ct:'sedan';r.hp=clamp(num(s.h,100),0,100);r.dead=s.dd===1;r.w=clamp(num(s.w),0,5);r.lv=clamp(Math.floor(num(s.lv,1)),1,30);r.lk=str(s.lk);r.ar=Array.isArray(s.ar)?[clamp(num(s.ar[0]),0,99999),clamp(num(s.ar[1]),0,99999)]:[0,0];
     r.k=s.k&&typeof s.k==='object'?s.k:{};
     r.rk=rkParse(s.rk);
+    r.hr=Array.isArray(s.hr)&&s.hr.length===5?s.hr:null;
     if(myPeer){
       const dv=s.d&&typeof s.d==='object'?num(s.d[myPeer]):0;
-      if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}else r.dmgSeen=dv;
+      if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(RULES.ff){if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}}else r.dmgSeen=dv; // ff off: the counter still advances so nothing bursts when it is turned back on
       const km=num(r.k[myPeer]);if(r.kMe===null)r.kMe=km;else if(km>r.kMe){r.kMe=km;feed(`You wasted ${r.name}`);me.cash+=50;if(time-(killXpT[p.peer]||-99)>60){killXpT[p.peer]=time;gainXP(50,'Takedown')}}
     }
     if(s.fl!==r.fl){r.fl=s.fl;r.flareT=time;for(let i=0;i<14;i++){const a=rand()*TAU,sp=60+rand()*140;parts.push({x:r.x,y:r.y,z0:(r.inCar?r.cz||0:r.z||0)+6,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2.4,max:2.4,col:'#ffd27a',k:'flare',sz:3})}}
@@ -3292,6 +3329,7 @@ function syncRoom(dt){
     if(Array.isArray(s.s)&&s.s[0]!==r.shot){r.shot=s.s[0];r.shotT=time;if(Number.isFinite(s.s[1])&&Number.isFinite(s.s[2])&&Number.isFinite(s.s[3])){const w=WEAPONS[num(s.s[4])|0]||WEAPONS[0];fireZ=clamp(num(s.s[6],12),0,920);fireSlope=clamp(num(s.s[7]),-3,3);fireSpd=w.speed||0;fireLife=w.life||0;if(!w.throw)for(let i=0;i<w.pellets;i++)fire(s.s[1],s.s[2],s.s[3]+rr(-w.spread,w.spread),'remote',0,w.rocket,i>0,w.homing&&typeof s.s[5]==='string'?{peer:s.s[5].slice(0,40)}:null,w.id)}}
   }
   for(const k of[...remotes.keys()])if(!seen.has(k)){feed(`${remotes.get(k).name} left`);remotes.delete(k);pvWarn.delete(k)}
+  hrFromHost();
   fireZ=12;fireSpd=0;fireLife=0;fireSlope=0;
   const f=1-Math.exp(-dt*12);
   for(const r of remotes.values()){if(Math.hypot(r.tx-r.x,r.ty-r.y)>300){r.x=r.tx;r.y=r.ty}else{r.x+=(r.tx-r.x)*f;r.y+=(r.ty-r.y)*f}r.a+=wrap(r.ta-r.a)*f}
@@ -3303,11 +3341,12 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
 if(DBG)Object.defineProperties(DBG,{room:{get:()=>roomName},roomFrom:{get:()=>roomFrom}});
+if(DBG)Object.defineProperties(DBG,{rules:{get:()=>RULES},setRule:{get:()=>setRule},amHost:{get:()=>amHost},spawnCaps:{get:()=>spawnCaps},gravity:{get:()=>carGravity}});
 
 // ---------- ui ----------
 function feed(t){const d=document.createElement('div');d.textContent=t;$('feed').appendChild(d);setTimeout(()=>d.remove(),5000);while($('feed').children.length>5)$('feed').firstChild.remove();phLogAdd(t)}
@@ -3325,7 +3364,8 @@ function ui(dt){phoneStep(dt);
   $('hp').style.width=clamp(me.hp,0,100)+'%';$('hp').style.background=me.hp<35?'var(--danger)':'var(--cyan)';
   $('stamBar').hidden=stam>=1;$('stam').style.width=stam*100+'%';
   {const w=WEAPONS[WI[weap]],el=$('weapon');el.firstChild.nodeValue=me.jet?'Jet missiles':me.heli?'Heli rockets':w.name;el.querySelector('span').textContent=me.jet||me.heli||w.id==='pistol'?'\u221e':String(ammo[w.id]||0)}
-  {const nb=$('netb'),on=netState==='online',cls=on?'on':netState==='solo'?'off':'',t=on?`\u25cf Online \u00b7 ${remotes.size+1} in city${roomTag}`:netState==='solo'?'Solo \u00b7 '+(netWhy||'not connected'):'Connecting';if(nb.textContent!==t)nb.textContent=t;if(nb.className!==cls)nb.className=cls}
+  {const nb=$('netb'),on=netState==='online',cls=on?'on':netState==='solo'?'off':'',t=on?`\u25cf Online \u00b7 ${remotes.size+1} in city${roomTag}`:netState==='solo'?'Solo \u00b7 '+(netWhy||'not connected'):'Connecting',cr=state==='play'&&customRules(),k=t+'|'+(cr?1:0);
+    if(nb.dataset.k!==k){nb.dataset.k=k;nb.replaceChildren(t);if(cr)nb.append(document.createElement('br'),'\u00b7 custom rules')}if(nb.className!==cls)nb.className=cls}
   if(state==='shop')$('shopCash').textContent='$'+me.cash.toLocaleString('en-US');
   if((saveT+=.1)>3){saveT=0;saveArsenal()}
   {const lk=$('lock');lk.hidden=!lockTarget;if(lockTarget)lk.textContent='Locked: '+lockTarget.name;let inc=false;if(myPeer&&state==='play')for(const b of bullets)if(b.owner==='remote'&&b.home&&b.home.peer===myPeer){inc=true;break}$('warn').hidden=!inc}
@@ -3431,8 +3471,8 @@ function update(dt){
       const sp=Math.hypot(c.vx,c.vy);
       for(const p of peds){if(p.down)continue;if(Math.hypot(p.x-c.x,p.y-c.y)<16&&sp>55)knockPed(p,c.vx*1.1,c.vy*1.1,true)}
       for(const[peer,r]of remotes){if(r.dead)continue;const d=Math.hypot(r.x-c.x,r.y-c.y);
-        if(r.inCar&&d<26){const nx=(c.x-r.x)/(d||1),ny=(c.y-r.y)/(d||1);c.x+=nx*(26-d);c.y+=ny*(26-d);const vn=c.vx*nx+c.vy*ny;if(vn<0){c.vx-=1.2*vn*nx;c.vy-=1.2*vn*ny;if(-vn>120&&!(r.ramT>time)){r.ramT=time+.6;dmgOut[peer]=(dmgOut[peer]||0)+Math.min(BAL.crashMax,Math.round(-vn*.06))}}}
-        else if(!r.inCar&&!(r.z>5)&&d<20&&sp>110&&!(r.ramT>time)){r.ramT=time+.6;dmgOut[peer]=(dmgOut[peer]||0)+Math.min(BAL.crashMax,Math.round(30+sp*.1))}}
+        if(r.inCar&&d<26){const nx=(c.x-r.x)/(d||1),ny=(c.y-r.y)/(d||1);c.x+=nx*(26-d);c.y+=ny*(26-d);const vn=c.vx*nx+c.vy*ny;if(vn<0){c.vx-=1.2*vn*nx;c.vy-=1.2*vn*ny;if(-vn>120&&!(r.ramT>time)){r.ramT=time+.6;if(RULES.ff)dmgOut[peer]=(dmgOut[peer]||0)+Math.min(BAL.crashMax,Math.round(-vn*.06))}}}
+        else if(!r.inCar&&!(r.z>5)&&d<20&&sp>110&&!(r.ramT>time)){r.ramT=time+.6;if(RULES.ff)dmgOut[peer]=(dmgOut[peer]||0)+Math.min(BAL.crashMax,Math.round(30+sp*.1))}}
     }
     else if(c.kind==='traffic'){
       const fx=Math.cos(c.d*Math.PI/2),fy=Math.sin(c.d*Math.PI/2);let blocked=false;
@@ -3485,15 +3525,18 @@ function update(dt){
   // particles
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy*=Math.pow(.15,dt);if(p.life<=0)parts.splice(i,1)}
   if(parts.length>700)parts.splice(0,parts.length-700);
-  // heat / police population
+  // heat / police population. With cops off no heat sticks and the step spawns nothing.
+  if(!RULES.cops)heat=0;
   policeStep(dt);
   if(!cars.some(c=>c.type==='armored'&&c.kind!=='dead')){armorWait+=dt;if(armorWait>45){const[sp]=parkSpot(600,2600);if(sp){armorWait=0;cars.push(mkCar(sp[0],sp[1],sp[2],'parked','#4a5a4c','armored'));feed('An armored truck was spotted. Find the gold square on the map')}}}
+  // traffic, peds and parked cars: the host's traffic rule picks the cap and the spawn rate scales with it
+  const tCap=HRCAP.traffic[RULES.traffic],pCap=HRCAP.peds[RULES.traffic],kCap=HRCAP.parked[RULES.traffic];
   let traffic=0;for(const c of cars)if(c.kind==='traffic')traffic++;
-  if(traffic<26&&rand()<dt*4)laneSpawn('traffic',560,1500);
+  if(traffic<tCap&&rand()<dt*4*tCap/26)laneSpawn('traffic',560,1500);
   hillTraffic(dt);hikerStep(dt);
-  if(peds.length<44&&rand()<dt*6)spawnPed();gangPop(dt);
+  if(peds.length<pCap&&rand()<dt*6*pCap/44)spawnPed();gangPop(dt);
   let parked=0;for(const c of cars)if(c.kind==='parked')parked++;
-  if(parked<10&&rand()<dt*2){const[sp]=parkSpot(560,1500);if(sp)cars.push(mkCar(sp[0],sp[1],sp[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
+  if(parked<kCap&&rand()<dt*2*kCap/10){const[sp]=parkSpot(560,1500);if(sp)cars.push(mkCar(sp[0],sp[1],sp[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
   if(play)jobStep(dt);
   publish(dt);
   shake*=Math.pow(.02,dt);
