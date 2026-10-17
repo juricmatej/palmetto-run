@@ -5095,21 +5095,22 @@ let ferris=null;
  // mountains across the bay to the north and west: flat-shaded cones, dark base, lighter peak and a random tint per cone (vertex colours)
  const mtn=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true,fog:false}),mr=seeded(77);
  const mtnCone=(r0,h,k)=>{const g=new THREE.ConeGeometry(r0,h,9),p=g.attributes.position,a=new Float32Array(p.count*3),s=.85+.3*k;
-   for(let i=0;i<p.count;i++){const q=Math.pow((p.getY(i)+h/2)/h,2);a[i*3]=(.082+q*.27)*s;a[i*3+1]=(.055+q*.18)*s;a[i*3+2]=(.149+q*.39)*s*(1+(k-.5)*.2)}
+   for(let i=0;i<p.count;i++){const q=Math.pow((p.getY(i)+h/2)/h,2),tn=.3*q*q;// peaks lean 30% toward a pale sky lavender so the top of the frame stays lit
+     a[i*3]=((.082+q*.27)*(1-tn)+.6*tn)*s;a[i*3+1]=((.055+q*.18)*(1-tn)+.42*tn)*s;a[i*3+2]=((.149+q*.39)*(1-tn)+.74*tn)*s*(1+(k-.5)*.2)}
    g.setAttribute('color',new THREE.BufferAttribute(a,3));return g};
  for(let i=0;i<22;i++){const r0=280+mr()*380,h=380+mr()*620,m=new THREE.Mesh(mtnCone(r0,h,mr()),mtn);m.position.set(-1200+i*290+mr()*120,h/2-4,-2700-mr()*900);m.rotation.y=mr()*3;scene.add(m)}
  for(let i=0;i<8;i++){const r0=260+mr()*300,h=300+mr()*400,m=new THREE.Mesh(mtnCone(r0,h,mr()),mtn);m.position.set(-1100-mr()*700,h/2-4,-400+i*520);scene.add(m)}
  // skyline: a ring of low blocks on the water just outside the city edge (the city spans 0 to W). Windows are an emissive map on one
- // shared material, so the whole ring is one draw. Fog fades it into the horizon colour; the top faces catch a faint pink rim.
+ // shared material, so the whole ring is one draw. No fog on it: at 1300 to 1800 units the fog hid about 90 percent of the ring. The top faces catch a faint pink rim.
  const skyWin=rtex(96,96,(g,w,h)=>{g.fillStyle='#000';g.fillRect(0,0,w,h);const q=w/6,wr=seeded(31);
    for(let j=0;j<6;j++)for(let i=0;i<6;i++)if(wr()<.16){g.fillStyle=WTONE[Math.floor(wr()*6)];g.fillRect(i*q+3,j*q+3,q-6,q-6)}}),
-  skyMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:'#ffffff',emissiveMap:skyWin}),sr=seeded(908),skyParts=[];
+  skyMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:'#ffffff',emissiveMap:skyWin,fog:false}),sr=seeded(908),skyParts=[];
  const skyBlock=(w,d,h,s)=>{const g=new THREE.BoxGeometry(w,h,d).translate(0,h/2,0),p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv,a=new Float32Array(p.count*3);
    for(let i=0;i<p.count;i++){const top=n.getY(i)>.5,u=Math.abs(n.getX(i))>.5?p.getZ(i):p.getX(i),f=top?[1.8,1.35,1.8]:[1,1,1];
      uv.setXY(i,top?.002:u/24,p.getY(i)/24);for(let c=0;c<3;c++)a[i*3+c]=Math.min(1,[.16,.1,.25][c]*s*f[c])}
    g.setAttribute('color',new THREE.BufferAttribute(a,3));return g};
  for(let side=0;side<4;side++)for(let row=0;row<2;row++)for(let t=-260;t<W+260;t+=50+sr()*40){
-   const out=(side===1?340:110)+row*200+sr()*150,along=34+sr()*40,depth=30+sr()*30,h=26+sr()*sr()*110,s=.75+sr()*.5; // south sits past the beach strip and the ferris wheel
+   const out=(side===1?340:110)+row*200+sr()*150,along=34+sr()*40,depth=30+sr()*30,h=40+sr()*sr()*200,s=.75+sr()*.5; // south sits past the beach strip and the ferris wheel
    const[x,z]=side===0?[t,-out]:side===1?[t,W+out]:side===2?[-out,t]:[W+out,t],wx=side<2?along:depth,wz=side<2?depth:along;
    skyParts.push([skyBlock(wx,wz,h,s),new THREE.Matrix4().makeTranslation(x,-3,z)])}
  scene.add(new THREE.Mesh(mergeGeos(skyParts),skyMat));
