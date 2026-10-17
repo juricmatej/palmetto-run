@@ -1,0 +1,43 @@
+name: Auto-merge and deploy
+
+# Pull requests from branches in this repo (you and your collaborators) are checked,
+# merged into main and deployed automatically, with no review needed.
+# Open a pull request as a Draft to stop it from merging until you mark it ready.
+# Pull requests from forks are never auto-merged; they still need a manual merge.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  merge-and-deploy:
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check and build the pull request
+        run: npm run check && npm run build
+      - name: Merge into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge ${{ github.event.pull_request.number }} --squash --delete-branch --repo ${{ github.repository }}
+      # A merge made by this workflow does not start other workflows, so this job deploys main itself.
+      - name: Build the updated main
+        run: git fetch origin main && git checkout --detach origin/main && npm run check && npm run build
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

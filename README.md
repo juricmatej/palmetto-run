@@ -1,5 +1,7 @@
 # Palmetto Run
 
+**Play now:** https://palmetto-run.palleto.workers.dev
+
 A neon open-world crime sandbox that runs in the browser. Steal cars, fly an attack helicopter or a fighter jet, run missions, rob the casino, pull a co-op bank heist, and fight your friends in real time. Built with [Three.js](https://threejs.org/) r128 and plain JavaScript: no framework, no bundler, no dependencies.
 
 The game is published as a **Claude Artifact**, which gives it live multiplayer. It also runs as a normal web page (single-player).
@@ -143,6 +145,12 @@ npm run deploy       # builds and deploys
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → **Workers & Pages** → Account ID in the right sidebar |
 
 Pull requests from forks never see these secrets; only code that lands on `main` is deployed.
+
+### Auto-merge (no review)
+
+`.github/workflows/automerge.yml` merges every pull request opened from a branch **in this repo** (the owner and collaborators) as soon as `npm run check` and `npm run build` pass, then deploys it. Open a pull request as a **Draft** to keep it from merging until you click **Ready for review**. Pull requests from forks are never auto-merged.
+
+The live site checks `/version.json` every 45 seconds. When a new version is deployed, players see a **Reload** button at the top of the screen.
 
 The Claude Artifact is not updated automatically. Republish it by hand when you want it to match (see above).
 
