@@ -1316,7 +1316,7 @@ function die(word,fine,noDown){
   me.downed=false;me.downT=0;
   if(word==='WASTED'&&placesRevive())return;if(heist.carry){feed('You dropped the gold');heist.carry=0}
   if(mission)msDie(word);
-  state='dead';deadT=3.2;me.hp=0;if(word==='BUSTED')policeClear();
+  career.deaths++;state='dead';deadT=3.2;me.hp=0;if(word==='BUSTED')policeClear();
   if(me.lastHitBy&&time-me.lastHitT<5&&remotes.has(me.lastHitBy)){killedBy[me.lastHitBy]=(killedBy[me.lastHitBy]||0)+1;feed(`${remotes.get(me.lastHitBy).name} wasted you`)}
   if(me.car){leaveCar(true)}if(me.jet)me.jet=null;
   const loss=Math.floor(me.cash*(fine||(word==='BUSTED'?.15:.1)));me.cash-=loss;
@@ -1404,7 +1404,7 @@ function renderShop(){
     row.append(nm,acts,ds);L.appendChild(row);
   });
 }
-function saveArsenal(){try{localStorage.setItem('pr3d-arsenal',JSON.stringify({owned,ammo,cash:me.cash,bonus10k:true,powder,xp}))}catch(e){}}
+function saveArsenal(){try{localStorage.setItem('pr3d-arsenal',JSON.stringify({owned,ammo,cash:me.cash,bonus10k:true,powder,xp}));localStorage.setItem('pr3d-career',JSON.stringify(career))}catch(e){}}
 function loadArsenal(d){
   if(!d||typeof d!=='object')return;
   if(d.owned&&typeof d.owned==='object')for(const w of WEAPONS)if(d.owned[w.id]===true)owned[w.id]=true;
@@ -2480,7 +2480,7 @@ const UNLOCK_NAME={heli:'Attack helicopter',jet:'Fighter jets',bank:'Union Bank 
 const unlocked=k=>lv>=(UNLOCK[k]||1);
 function unlockText(L){const a=Object.keys(UNLOCK).filter(k=>UNLOCK[k]===L).map(k=>UNLOCK_NAME[k]||WEAPONS.find(w=>w.id===k).name);return a.length?'Unlocked: '+a.join(', '):''}
 function lvlBar(){const lb=$('lvl');lb.querySelector('b').textContent=lv;lb.querySelector('u').style.width=(lv>=30?100:clamp((xp-need(lv))/(need(lv+1)-need(lv))*100,0,100))+'%'}
-function gainXP(n,why){n=Math.round(n);if(state!=='play'||!(n>0))return;xp+=n;feed(`+${n} RP · ${why}`);
+function gainXP(n,why){n=Math.round(n);if(state!=='play'||!(n>0))return;if(why==='Mission')career.jobs++;else if(why==='Gang member')career.kills++;xp+=n;feed(`+${n} RP · ${why}`);
   const nl=lvOf(xp);if(nl!==lv){lv=nl;showBig('LEVEL '+lv,'#29e6d6',unlockText(lv),2.2);saveArsenal()}lvlBar()}
 if(DBG)Object.defineProperties(DBG,{xp:{get:()=>xp},lv:{get:()=>lv},gainXP:{get:()=>gainXP}});
 
@@ -3193,6 +3193,7 @@ const IC={map:'<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6
   contacts:'<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/>',
   msg:'<path d="M4 5h16v11h-9l-5 4v-4H4z"/>',
   jobs:'<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2M3 12.5h18"/>',
+  career:'<path d="M4 20V11M10 20V5M16 20v-6M22 20H2"/>',
   players:'<circle cx="9" cy="8.5" r="3.5"/><path d="M2.5 20c.6-3.5 3.1-5.5 6.5-5.5s5.9 2 6.5 5.5"/><circle cx="17" cy="9" r="2.8"/><path d="M16.5 14.7c2.6.2 4.4 1.9 5 4.8"/>',
   places:'<path d="M3.5 20.5h17M5.5 20.5v-10l6.5-5 6.5 5v10M10 20.5v-5h4v5"/>',
   radio:'<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="15.5" cy="14" r="2.5"/><path d="M7 12h4M7 16h3M8 8l9-4"/>',
@@ -3296,6 +3297,10 @@ phoneApp('jobs','Jobs',IC.jobs,el=>{const on=!!job&&job.phase!=='wait';
   const d=mk('button','ph-btn alt','Drop the job');d.type='button';d.dataset.nav='';d.disabled=!on;d.onclick=()=>jobFail('You dropped the job');
   const n=mk('button','ph-btn','Ask for a new job');n.type='button';n.dataset.nav='';n.disabled=on;n.onclick=()=>newJob();
   el.append(c,d,n)},'#ffc94a');
+phoneApp('career','Career',IC.career,el=>{const b=bounty,P=jobPos(),c=mk('div','ph-card'),s=mk('div','ph-card');
+  c.append(mk('b','ph-big',b?`Bounty ${money(b.pay)}`:'No bounty'),mk('div','ph-sub',b?`${Math.round(Math.hypot(b.x-P.x,b.y-P.y)/10)} m away. ${Math.ceil(b.t)} s left.`:'The next one goes up in a few minutes.'));
+  s.append(mk('b','ph-big','Career'),mk('div','ph-sub',`Kills ${career.kills}. Cars stolen ${career.cars}. Cash earned ${money(career.cash)}.`),mk('div','ph-sub',`Longest chase ${career.chase} s. Farthest drive ${career.drive} m.`),mk('div','ph-sub',`Deaths ${career.deaths}. Jobs done ${career.jobs}.`));
+  el.append(c,s)},'#ffc94a');
 phoneApp('players','Players',IC.players,el=>{
   if(!remotes.size){el.append(mk('div','ph-sub',room?'Nobody else is in the city right now.':'Solo for now. Other players show up once the city is online.'));return}
   for(const[id,r]of remotes){const w=mk('div','ph-prow'),b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
@@ -3373,6 +3378,27 @@ function perfFrame(fr,up,mi,ui){const s=pf.s;s.fr+=fr;s.up+=up;s.mi+=mi;s.ui+=ui
   if(!pf.el.hidden)pf.el.textContent=`${a.fps.toFixed(0)} fps  ${a.fr.toFixed(1)} ms\nupdate ${a.up.toFixed(2)}  gl ${a.gl.toFixed(2)}  ui ${a.ui.toFixed(2)}  mini ${a.mi.toFixed(2)}\ncalls ${a.calls}  tris ${(a.tris/1000).toFixed(0)}k  geo ${a.geo}  tex ${a.tex}  heap ${a.heap} MB`}
 addEventListener('keydown',e=>{if(e.code==='F3'){e.preventDefault();pf.el.hidden=!pf.el.hidden}});
 if(DBG)Object.defineProperties(DBG,{perf:{get:()=>pf.avg}});
+
+// ---------- career ----------
+// Lifetime counters (pr3d-career, written by saveArsenal) and one bounty at a time. Counters come from die(), gainXP() and careerStep().
+// ponytail: kills counts gang members knocked down (the only kill event with a hook), bounty target is a street spot you reach, not a ped.
+let career={kills:0,cars:0,cash:0,chase:0,drive:0,deaths:0,jobs:0};
+try{const d=JSON.parse(localStorage.getItem('pr3d-career')||'null');if(d&&typeof d==='object')for(const k in career)if(Number.isFinite(d[k])&&d[k]>=0)career[k]=d[k]}catch(_){}
+let bounty=null,bountyCd=180,chaseT=0,driveT=0,carNow=null,lastX=0,lastY=0,lastCash=null;
+const bountyPay=()=>Math.min(2000,200+(lv-1)*65);
+function careerStep(dt){
+  if(lastCash==null)lastCash=me.cash;
+  if(me.cash>lastCash)career.cash+=me.cash-lastCash;lastCash=me.cash;
+  if(heat>0)chaseT+=dt;else if(chaseT>0){career.chase=Math.max(career.chase,Math.round(chaseT));chaseT=0}
+  const c=me.car;
+  if(c&&c!==carNow){if(!c.slot)career.cars++;driveT=0;lastX=c.x;lastY=c.y}
+  if(c){driveT+=Math.hypot(c.x-lastX,c.y-lastY);lastX=c.x;lastY=c.y;career.drive=Math.max(career.drive,Math.round(driveT/10))}
+  carNow=c;
+  bountyCd-=dt;
+  if(!bounty&&bountyCd<=0){const[x,y]=sidewalkPoint();bountyCd=180;bounty={x,y,pay:bountyPay(),t:180};feed(`Bounty up: ${money(bounty.pay)}. See the Career app.`)}
+  if(bounty){const P=jobPos();bounty.t-=dt;if(Math.hypot(P.x-bounty.x,P.y-bounty.y)<40){me.cash+=bounty.pay;showBig('BOUNTY PAID','#ffc94a',`+${money(bounty.pay)}`,2.5);bounty=null}else if(bounty.t<=0)bounty=null}
+}
+if(DBG)Object.defineProperties(DBG,{career:{get:()=>career},bountyTest:{get:()=>()=>{const P=jobPos();bounty={x:P.x,y:P.y,pay:bountyPay(),t:180}}}});
 
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
@@ -4010,7 +4036,7 @@ function update(dt){
   if(peds.length<pCap&&rand()<dt*6*pCap/44)spawnPed();gangPop(dt);
   let parked=0;for(const c of cars)if(c.kind==='parked')parked++;
   if(parked<kCap&&rand()<dt*2*kCap/10){const[sp]=parkSpot(560,1500);if(sp)cars.push(mkCar(sp[0],sp[1],sp[2],'parked',CARCOL[Math.floor(rand()*CARCOL.length)]))}
-  if(play)jobStep(dt);
+  if(play)jobStep(dt),careerStep(dt);
   publish(dt);
   shake*=Math.pow(.02,dt);
 }
