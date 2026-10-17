@@ -319,6 +319,18 @@ function placeLayout(){
   padFlat(O.x,O.y,62,46,oh);padFlat(2760,-1990,44,22,hillBase(2760,-1990));padFlat(T.x,T.y,26,26,th);padFlat(430,-430,38,32,hillBase(430,-430));
   hillSolids.push({x:O.x-28,y:O.y-18,w:56,h:36,H:oh+22},{x:T.x-3,y:T.y-3,w:6,h:6,H:th+150});
   for(const[x,y]of MANSION_SITES){const h=hillBase(x,y);padFlat(x,y,44,32,h);hillSolids.push({x:x-18,y:y-12,w:36,h:24,H:h+12})}
+  cabinLayout();
+}
+// cabins by the trail, Ridge Drive and Canyon Road: flat ground 40 or more from a road centreline. The door faces the nearest road sample, and a dirt path joins them.
+const CABIN_SITES=[[246,-1410],[1709,-1492],[1641,-873]],CABINS=[];
+function cabinLayout(){
+  for(const[x,y]of CABIN_SITES){let best=null,bd=1e9,hw=0;
+    for(const r of HILL_ROADS)for(const s of roadSamples(r,4)){const d=Math.hypot(s[0]-x,s[1]-y);if(d<bd){bd=d;best=s;hw=r.w/2}}
+    const[sx,sy]=best,ux=sx-x,uy=sy-y,dx=Math.abs(ux)>Math.abs(uy)?Math.sign(ux):0,dz=dx?0:Math.sign(uy),w=22,d=16,h=hillBase(x,y);
+    padFlat(x,y,13,10,h);hillSolids.push({x:x-w/2,y:y-d/2,w,h:d,H:h+14});
+    const door=[x+dx*(w/2+1),y+dz*(d/2+1)],L=Math.hypot(sx-door[0],sy-door[1]),end=[sx+(door[0]-sx)/L*hw,sy+(door[1]-sy)/L*hw],n=Math.max(1,Math.ceil(L/2));
+    for(let i=0;i<=n;i++)HILL_RP.push([door[0]+(end[0]-door[0])*i/n,door[1]+(end[1]-door[1])*i/n,2]); // trees and rocks keep off the path
+    CABINS.push({x,y,w,d,dx,dz,door,end})}
 }
 // the sign, observatory, mansions, reservoir water, radio tower, campsite and trail posts. Solid parts are plain meshes so staticBatch merges them by material.
 function placeMeshes(){
@@ -346,6 +358,16 @@ function placeMeshes(){
     add(new THREE.BoxGeometry(36,12,24),white,x,h+6,y);add(new THREE.BoxGeometry(38,2,28),roofM,x,h+13,y);
     add(new THREE.PlaneGeometry(14,9),poolM,x+14,h+.4,y+20).rotation.x=-Math.PI/2;
     for(const sx of[-22,22])add(new THREE.BoxGeometry(2,6,2),steel,x+sx,h+3,y+31)}
+  // cabins: timber walls, dark roof, a steel door on the road side, and a dirt path to the road (a strip per path)
+  const timber=new THREE.MeshLambertMaterial({color:'#8a6a44'}),dirtP=new THREE.MeshLambertMaterial({color:'#6b5a3e'});
+  const strip=(a,b,wd)=>{const L=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])/L*wd/2,ny=(b[0]-a[0])/L*wd/2,n=Math.max(1,Math.ceil(L/3)),p=[];
+    for(let i=0;i<=n;i++){const t=i/n,x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;p.push([x+nx,y+ny],[x-nx,y-ny])}
+    const pos=[];for(let i=0;i<n;i++)for(const[x,y]of[p[2*i],p[2*i+1],p[2*i+2],p[2*i+1],p[2*i+3],p[2*i+2]])pos.push(x,groundZ(x,y)+.3,y);
+    const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.computeVertexNormals();return g};
+  for(const c of CABINS){const{x,y,w,d,dx,dz,door,end}=c,gz=groundZ(x,y);
+    add(new THREE.BoxGeometry(w,12,d),timber,x,gz+6,y);add(new THREE.BoxGeometry(w+3,1.6,d+3),roofM,x,gz+12.8,y);
+    add(new THREE.BoxGeometry(dx?1:5,8,dz?1:5),steel,x+dx*(w/2+.5),gz+4,y+dz*(d/2+.5));
+    add(strip(door,end,3),dirtP,0,0,0)}
   // campsite: fire ring with logs as seats, two tents, a picnic table and a lantern. Every piece sits on groundZ.
   const cy=-430,ch=hillBase(430,cy),gzAt=(x,y)=>groundZ(x,y),tr3=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
   const stoneG=new THREE.IcosahedronGeometry(1.3,0).scale(1,.55,1),stoneM=new THREE.MeshLambertMaterial({color:'#4a4650',flatShading:true});
@@ -456,7 +478,7 @@ function tentGeo(){const p=[[-8,0,-5],[8,0,-5],[8,0,5],[-8,0,5],[-8,9,0],[8,9,0]
 function countryMeshes(){return[...treeMeshes(),boulderMeshes(),reedMesh(),dirtFence(),...trailSign()].filter(Boolean)}
 if(DBG)Object.defineProperties(DBG,{treeCount:{get:()=>TREE_N}});
 lakeShape();for(const r of HILL_ROADS)flattenRoad(r);placeLayout();rebuildRaised();
-if(DBG)Object.defineProperties(DBG,{hillSpots:{get:()=>HILL_SPOTS.map(s=>s.name)},hillRoads:{get:()=>HILL_ROADS.length},roadGrades:{get:()=>HILL_ROADS.map(r=>[r.name,Math.round(r.len),+r.grade.toFixed(3)])}});
+if(DBG)Object.defineProperties(DBG,{buildings:{get:()=>buildings},hillSpots:{get:()=>HILL_SPOTS.map(s=>s.name)},hillRoads:{get:()=>HILL_ROADS.length},roadGrades:{get:()=>HILL_ROADS.map(r=>[r.name,Math.round(r.len),+r.grade.toFixed(3)])}});
 // ribbons: asphalt, a dirt strip, dashed centre line, guard rails and reflective posts. All follow the heightmap at each edge (+0.3).
 function roadMeshes(){
   const ROAD_TEX=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#24222c';g.fillRect(0,0,w,h);grit(g,w,h,8000,41,.07)});ROAD_TEX.wrapS=ROAD_TEX.wrapT=THREE.RepeatWrapping;
@@ -5122,6 +5144,7 @@ let ferris=null;
  for(let side=0;side<4;side++)for(let row=0;row<2;row++)for(let t=-260;t<W+260;t+=50+sr()*40){
    const out=(side===1?340:110)+row*200+sr()*150,along=34+sr()*40,depth=30+sr()*30,h=40+sr()*sr()*200,s=.75+sr()*.5; // south sits past the beach strip and the ferris wheel
    const[x,z]=side===0?[t,-out]:side===1?[t,W+out]:side===2?[-out,t]:[W+out,t],wx=side<2?along:depth,wz=side<2?depth:along;
+   if(z<-40)continue; // north of the city is the hills (y below -40): no skyline there
    skyParts.push([skyBlock(wx,wz,h,s),new THREE.Matrix4().makeTranslation(x,-3,z)])}
  scene.add(new THREE.Mesh(mergeGeos(skyParts),skyMat));
  }
