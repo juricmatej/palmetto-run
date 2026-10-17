@@ -1358,8 +1358,9 @@ function toggleCar(){
     else{me.roof=null;me.x=h.x+Math.cos(h.a+1.57)*34;me.y=h.y+Math.sin(h.a+1.57)*34;me.z=groundZ(me.x,me.y);collide(me,me.x,me.y,8)}return}
   if(me.jet){const j=me.jet,g=heliGround(j.x,j.y);if(j.z-g>5||j.speed>40){feed('Land and come to a stop first');return}
     me.jet=null;me.x=j.x+Math.cos(j.a+1.57)*36;me.y=j.y+Math.sin(j.a+1.57)*36;me.z=groundZ(me.x,me.y);collide(me,me.x,me.y,8);return}
-  {const j=me.car?null:nearJet();if(j&&!unlocked('jet'))feed(`You need level ${UNLOCK.jet} to fly the fighter jet`);else if(j){me.jet=j;me.roof=null;me.climb=null;look.yaw=j.a;feed('Fighter jet: W throttle, mouse steers, Space climbs, Shift dives, click fires');return}}
-  if(!me.car&&heli&&!heli.dead&&!heli.falling&&Math.hypot(heli.x-me.x,heli.y-me.y)<50&&Math.abs(heli.z-(me.z||0))<24){if(!unlocked('heli'))feed(`You need level ${UNLOCK.heli} to fly the attack helicopter`);else{me.heli=heli;me.roof=null;me.climb=null;return}}
+  {const j=me.car?null:nearJet();if(j&&!unlocked('jet'))feed(`Fighter jets need ${gateWhy('jet')}`);else if(j){me.jet=j;me.roof=null;me.climb=null;look.yaw=j.a;feed('Fighter jet: W throttle, mouse steers, Space climbs, Shift dives, click fires');return}}
+  if(fuelNear()&&fuelState.u<1){fuelBuy();return}
+  if(!me.car&&heli&&!heli.dead&&!heli.falling&&Math.hypot(heli.x-me.x,heli.y-me.y)<50&&Math.abs(heli.z-(me.z||0))<24){if(!unlocked('heli'))feed(`Attack helicopter needs ${gateWhy('heli')}`);else{me.heli=heli;me.roof=null;me.climb=null;return}}
   if(!me.car&&tryLadder())return;
   if(me.roof)return;
   if(!me.car&&propAct())return;
@@ -1437,6 +1438,7 @@ function heliStep(dt){
   if(mine&&state==='play'){f=(held('up')?1:0)-(held('down')?1:0);rt=(held('right')?1:0)-(held('left')?1:0);
     if(stick.id!==null){f=-stick.y;rt=stick.x}up=(held('shoot')||heliUpT?1:0)-(held('sprint')||heliDnT?1:0);
     h.a+=wrap(look.yaw-h.a)*Math.min(1,dt*3)}
+  if(mine&&fuelState.u<1){f=rt=0;up=-1}
   const fx=Math.cos(h.a),fy=Math.sin(h.a),airborne=h.z>g0+1;
   if(airborne||up>0){h.vx+=(fx*f-fy*rt)*540*dt;h.vy+=(fy*f+fx*rt)*540*dt}
   const damp=Math.exp(-(airborne?1.1:6)*dt);h.vx*=damp;h.vy*=damp;const hs=Math.hypot(h.vx,h.vy);if(hs>420){h.vx*=420/hs;h.vy*=420/hs}
@@ -1475,6 +1477,7 @@ function jetStep(dt){
     if(mine&&state==='play'){thr=(held('up')?1:0)-(held('down')?1:0);if(stick.id!==null)thr=-stick.y;climb=(held('shoot')||heliUpT?1:0)-(held('sprint')||heliDnT?1:0);
       const rate=air?1.15:(j.speed<80?1.4:.8),diff=wrap(look.yaw-j.a);j.a+=clamp(diff,-rate*dt,rate*dt);j.roll+=((air?clamp(diff*1.4,-1.1,1.1):0)-j.roll)*Math.min(1,dt*3)}
     else j.roll*=Math.pow(.1,dt);
+    if(mine&&fuelState.u<1){thr=0;climb=-1}
     j.speed+=thr*(air?280:200)*dt;j.speed-=j.speed*(air?.04:.12)*dt;if(!air&&thr<=0)j.speed=Math.max(0,j.speed-90*dt);if(!mine&&!air)j.speed=Math.max(0,j.speed-150*dt);j.speed=clamp(j.speed,0,980);
     let tvz;if(air){tvz=climb*300;if(j.speed<200)tvz-=(200-j.speed)*1.6;if(!mine)tvz=-150}else tvz=climb>0&&j.speed>230?climb*220:0;
     j.vz+=(tvz-j.vz)*Math.min(1,dt*2.5);
@@ -2472,12 +2475,20 @@ const need=L=>L<=1?0:Math.round(250*Math.pow(L-1,1.5));
 const lvOf=x=>{let L=1;while(L<30&&x>=need(L+1))L++;return L};
 const UNLOCK={smg:2,shotgun:3,mg:6,sniper:8,rpg:10,sticky:12,homing:15,heli:12,jet:20,bank:5,casinoHeist:8};
 const UNLOCK_NAME={heli:'Attack helicopter',jet:'Fighter jets',bank:'Union Bank job',casinoHeist:'Casino cage robbery'};
-const unlocked=k=>lv>=(UNLOCK[k]||1);
-function unlockText(L){const a=Object.keys(UNLOCK).filter(k=>UNLOCK[k]===L).map(k=>UNLOCK_NAME[k]||WEAPONS.find(w=>w.id===k).name);return a.length?'Unlocked: '+a.join(', '):''}
+const GATE={heli:[()=>career.jobs>=3,()=>`3 completed jobs (${career.jobs} done)`],jet:[()=>career.crew>=1||career.jobs>=5,()=>`one crew job or 5 completed jobs (${career.crew} crew, ${career.jobs} jobs done)`]};
+const unlocked=k=>lv>=(UNLOCK[k]||1)&&(!GATE[k]||GATE[k][0]());
+const gateWhy=k=>[lv<UNLOCK[k]&&`level ${UNLOCK[k]}`,!GATE[k][0]()&&GATE[k][1]()].filter(Boolean).join(' and ');
+function unlockText(L){const a=Object.keys(UNLOCK).filter(k=>UNLOCK[k]===L&&unlocked(k)).map(k=>UNLOCK_NAME[k]||WEAPONS.find(w=>w.id===k).name);return a.length?'Unlocked: '+a.join(', '):''}
 function lvlBar(){const lb=$('lvl');lb.querySelector('b').textContent=lv;lb.querySelector('u').style.width=(lv>=30?100:clamp((xp-need(lv))/(need(lv+1)-need(lv))*100,0,100))+'%'}
-function gainXP(n,why){n=Math.round(n);if(state!=='play'||!(n>0))return;if(why==='Mission')career.jobs++;else if(why==='Gang member')career.kills++;xp+=n;feed(`+${n} RP · ${why}`);
+function gainXP(n,why){n=Math.round(n);if(state!=='play'||!(n>0))return;if(why==='Mission')career.jobs++;else if(why==='Gang member')career.kills++;else if(why==='Union Job')career.crew++;xp+=n;feed(`+${n} RP · ${why}`);
   const nl=lvOf(xp);if(nl!==lv){lv=nl;showBig('LEVEL '+lv,'#29e6d6',unlockText(lv),2.2);saveArsenal()}lvlBar()}
 if(DBG)Object.defineProperties(DBG,{xp:{get:()=>xp},lv:{get:()=>lv},gainXP:{get:()=>gainXP}});
+// Fuel for the attack helicopter and jets: one unit per 60 s of flight. Buy one at the Lagoon helipad for $200 (E on foot, while you have none). Not saved.
+let fuelState={u:0,t:0};
+const fuelNear=()=>!me.car&&!me.heli&&!me.jet&&Math.hypot(PAD.x-me.x,PAD.y-me.y)<80;
+function fuelBuy(){if(me.cash<200)return feed('Fuel costs $200');me.cash-=200;fuelState.u++;feed(`Fuel: ${fuelState.u} unit${fuelState.u>1?'s':''}`)}
+function fuelStep(dt){const f=me.heli||me.jet;if(!f||f.falling||state!=='play')return;fuelState.t+=dt;if(fuelState.t>=60){fuelState.t-=60;fuelState.u=Math.max(0,fuelState.u-1)}}
+if(DBG)Object.defineProperties(DBG,{gates:{get:()=>({heli:unlocked('heli'),jet:unlocked('jet'),fuel:fuelState})}});
 
 // ---------- places ----------
 // Rooms and doors are in the state section (mkRoom k=10-16). This section holds what each place does.
@@ -3178,6 +3189,8 @@ if(DBG)Object.defineProperties(DBG,{tlP:{get:()=>tlP}});
 // Other features add an app with phoneApp(id,name,icon,render,colour) and send a text with phoneNotify(from,text,action).
 let phoneOpen=false,phCam=false,phApp=null,phBat=100,phEyes=0,phIdle=90,phLiveT=0,phBanTm=0,phCallTm=0,phDown=false,phTabOn=null,phClk='',phBatS=-1,phBadge=-1,phDistr=null;
 let waypoint=null,wpGroup=null,mapCur=null;
+let phLast=null,phDrv=false,phSeenJob=null,phSeenB=null;
+const relMsg=n=>!job||job.phase==='wait'||n.from==='Vic'; // while a job is on, only the job giver's texts show
 const apps={},notes=[],phLog=[],phHeld=[];
 const mk=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
 const clk=()=>{const m=Math.floor(9*60+time)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
@@ -3200,7 +3213,7 @@ function phDrawHome(){phHome.replaceChildren();for(const id in apps){const a=app
 const phNavEls=()=>[...(phApp?phBody:phHome).querySelectorAll('[data-nav]:not(:disabled)')];
 function phFocus(i){const els=phNavEls();if(els[i])els[i].focus({preventScroll:true})}
 function phMove(dx,dy){const els=phNavEls();if(!els.length)return;let i=els.indexOf(document.activeElement);i=i<0?0:clamp(i+dx+dy*(phApp?1:4),0,els.length-1);els[i].focus({preventScroll:true});els[i].scrollIntoView({block:'nearest'})}
-function phShow(id){const a=apps[id];if(!a)return;phApp=id;if(id==='map')mapCur={x:me.x,y:me.y};phHome.hidden=true;phAppEl.hidden=false;phTitle.textContent=a.name;phBody.replaceChildren();phPaint(a,true);phFocus(0)}
+function phShow(id){const a=apps[id];if(!a)return;phApp=phLast=id;if(id==='map')mapCur={x:me.x,y:me.y};phHome.hidden=true;phAppEl.hidden=false;phTitle.textContent=a.name;phBody.replaceChildren();phPaint(a,true);phFocus(0)}
 function phHomeShow(){phApp=null;phAppEl.hidden=true;phHome.hidden=false;phFocus(0)}
 // re-renders into a detached copy and swaps only when the markup changed, so a tap is never lost to a repaint
 function phPaint(a,force){const t=phBody.cloneNode(false);a.render(t);if(!force&&t.innerHTML===phBody.innerHTML)return;const was=phNavEls().indexOf(document.activeElement);phBody.replaceChildren(...t.childNodes);if(!force&&was>=0)phFocus(was)}
@@ -3210,7 +3223,7 @@ function phoneOpenNow(toMsg){
   try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
   mouse.down=false;touchFire=false;
   phEyes=me.car&&Math.hypot(me.car.vx,me.car.vy)>200?2.5:0;
-  if(toMsg)phShow('messages');else phHomeShow();
+  if(toMsg)phShow('messages');else if(phLast)phShow(phLast);else phHomeShow();
 }
 function phoneClose(){if(!phoneOpen)return;phoneOpen=false;phCam=false;document.body.classList.remove('phone-cam');phApp=null;$('phone').classList.remove('open');if(phFrame.contains(document.activeElement))document.activeElement.blur();phEyes=0}
 function phCamOn(){phCam=true;document.body.classList.add('phone-cam');$('phone').classList.remove('open');if(phFrame.contains(document.activeElement))document.activeElement.blur()}
@@ -3280,8 +3293,9 @@ function wpBuild(){wpGroup=new THREE.Group();const cyl=new THREE.Mesh(new THREE.
 phoneApp('map','Map',IC.map,el=>{el.append(mapCv,mk('div','ph-sub','Click or press Enter to drop a pin. Click the pin again to clear it.'))},'#29e6d6');
 phoneApp('contacts','Contacts',IC.contacts,el=>{for(const[n,r,f]of CONTACTS){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',n),mk('span','ph-sub',r));b.append(mk('span','ph-av',n[0]),g,mk('span','ph-go','Call'));b.onclick=()=>phCallTo(n,f);el.append(b)}},'#ff3ea5');
 phoneApp('messages','Messages',IC.msg,el=>{
-  if(!notes.length&&!phLog.length&&!chatLines.length)el.append(mk('div','ph-sub','No messages yet.'));
-  for(const n of notes){const w=mk('div','ph-card');w.append(mk('div','ph-from',n.from),mk('div','ph-txt',n.text),mk('div','ph-tm',n.t));
+  const ns=notes.filter(relMsg).slice(0,3);
+  if(!ns.length&&!phLog.length&&!chatLines.length)el.append(mk('div','ph-sub','No messages yet.'));
+  for(const n of ns){const w=mk('div','ph-card');w.append(mk('div','ph-from',n.from),mk('div','ph-txt',n.text),mk('div','ph-tm',n.t));
     if(n.action){const b=mk('button','ph-btn',n.action.label);b.type='button';b.dataset.nav='';b.onclick=()=>{const f=n.action.fn;n.action=null;f();phPaint(apps.messages,true)};w.append(b)}
     n.read=true;el.append(w)}
   if(chatLines.length){el.append(mk('div','ph-sec','Chat'));for(const l of chatLines.slice(0,100)){const w=mk('div','ph-log'),nm=mk('b','',l.n+' ');nm.style.color=l.c;w.append(nm,mk('span','',l.tx),mk('em','chTm',l.tm));el.append(w)}}
@@ -3291,7 +3305,7 @@ phoneApp('jobs','Jobs',IC.jobs,el=>{const on=!!job&&job.phase!=='wait';
   const c=mk('div','ph-card');c.append(mk('b','ph-big',on?(job.title||'Mission'):'No job'),mk('div','ph-sub',on?job.text+(job.reward?` Pays ${money(job.reward)}.`:''):(job&&job.msg)||'Nothing on. The next one comes in a moment.'));
   const d=mk('button','ph-btn alt','Drop the job');d.type='button';d.dataset.nav='';d.disabled=!on;d.onclick=()=>jobFail('You dropped the job');
   const n=mk('button','ph-btn','Ask for a new job');n.type='button';n.dataset.nav='';n.disabled=on;n.onclick=()=>newJob();
-  el.append(c,d,n)},'#ffc94a');
+  el.append(c,d,n,mk('div','ph-sub',`Fuel: ${fuelState.u} unit${fuelState.u===1?'':'s'}, one per minute in the air. Buy at the Lagoon helipad for $200 when you have none.`),...['heli','jet'].filter(k=>!unlocked(k)).map(k=>mk('div','ph-sub',`${UNLOCK_NAME[k]}: ${gateWhy(k)}.`)))},'#ffc94a');
 phoneApp('career','Career',IC.career,el=>{const b=bounty,P=jobPos(),c=mk('div','ph-card'),s=mk('div','ph-card');
   c.append(mk('b','ph-big',b?`Bounty ${money(b.pay)}`:'No bounty'),mk('div','ph-sub',b?`${Math.round(Math.hypot(b.x-P.x,b.y-P.y)/10)} m away. ${Math.ceil(b.t)} s left.`:'The next one goes up in a few minutes.'));
   s.append(mk('b','ph-big','Career'),mk('div','ph-sub',`Kills ${career.kills}. Cars stolen ${career.cars}. Cash earned ${money(career.cash)}.`),mk('div','ph-sub',`Longest chase ${career.chase} s. Farthest drive ${career.drive} m.`),mk('div','ph-sub',`Deaths ${career.deaths}. Jobs done ${career.jobs}.`));
@@ -3329,6 +3343,7 @@ phoneApp('rules','City rules',IC.rules,el=>{const host=amHost(),r=host?null:remo
 function phoneKey(e){
   const c=e.code,rep=e.repeat;
   if(phCam){if(c==='Enter'&&!rep)phSnap();else if(c==='Escape')phCamOff();return}
+  if(phDrv&&c!=='Escape'&&codeToAction(c)!=='phone')return; // no typing while driving over 100
   if(c==='Escape'||(codeToAction(c)==='phone'&&!rep)){phoneClose();return}
   if(/^Arrow/.test(c)){e.preventDefault();const dx=c==='ArrowLeft'?-1:c==='ArrowRight'?1:0,dy=c==='ArrowUp'?-1:c==='ArrowDown'?1:0;
     if(phApp==='map'&&mapCur){mapCur.x=clamp(mapCur.x+dx*70,-MO,W+400);mapCur.y=clamp(mapCur.y+dy*70,-MO,W+400)}else phMove(dx,dy);return}
@@ -3350,6 +3365,9 @@ function phoneStep(dt){
   if(waypoint&&Math.hypot(waypoint.x-A.x,waypoint.y-A.y)<40){waypoint=null;feed('Waypoint reached')}
   if(waypoint&&!wpGroup)wpBuild();
   if(wpGroup){wpGroup.visible=!!waypoint&&state==='play'&&!me.inside;if(waypoint)wpGroup.position.set(waypoint.x,groundZ(waypoint.x,waypoint.y),waypoint.y)}
+  const drv=!!me.car&&Math.hypot(me.car.vx,me.car.vy)>100;if(drv!==phDrv){phDrv=drv;$('phone').style.opacity=drv?'.35':'';$('phone').style.pointerEvents=drv?'none':''}
+  if(job!==phSeenJob){phSeenJob=job;if(job&&job.phase!=='wait')phoneNotify('Vic','New job: '+(job.title||'see the Jobs app'))}
+  if(bounty!==phSeenB){phSeenB=bounty;if(bounty)phoneNotify('Career','Bounty up: '+money(bounty.pay))}
   if(phEyes>0)phEyes-=dt;
   phWarn.hidden=!(phoneOpen&&phEyes>0);
   const tabOn=state==='play'&&!phoneOpen;if(tabOn!==phTabOn){phTabOn=tabOn;phTab.hidden=!tabOn}
@@ -3362,6 +3380,7 @@ function phoneStep(dt){
   if(u!==phBadge){phBadge=u;apps.messages.bd.textContent=u;apps.messages.bd.hidden=!u;$('phTabN').textContent=u;$('phTabN').hidden=!u}
 }
 if(DBG)Object.defineProperties(DBG,{phoneOpen:{get:()=>phoneOpen},waypoint:{get:()=>waypoint},phoneNotify:{get:()=>phoneNotify},phoneApps:{get:()=>Object.keys(apps)}});
+if(DBG)DBG.phoneTest=id=>{phoneOpenNow(false);phShow(id)};
 
 // ---------- perf ----------
 // Frame cost for ?perf (overlay) and F3. The boot loop passes ms for update() and ui(); render() sets pf.gl around renderer.render.
@@ -3377,7 +3396,7 @@ if(DBG)Object.defineProperties(DBG,{perf:{get:()=>pf.avg}});
 // ---------- career ----------
 // Lifetime counters (pr3d-career, written by saveArsenal) and one bounty at a time. Counters come from die(), gainXP() and careerStep().
 // ponytail: kills counts gang members knocked down (the only kill event with a hook), bounty target is a street spot you reach, not a ped.
-let career={kills:0,cars:0,cash:0,chase:0,drive:0,deaths:0,jobs:0};
+let career={kills:0,cars:0,cash:0,chase:0,drive:0,deaths:0,jobs:0,crew:0};
 try{const d=JSON.parse(localStorage.getItem('pr3d-career')||'null');if(d&&typeof d==='object')for(const k in career)if(Number.isFinite(d[k])&&d[k]>=0)career[k]=d[k]}catch(_){}
 let bounty=null,bountyCd=180,chaseT=0,driveT=0,carNow=null,lastX=0,lastY=0,lastCash=null;
 const bountyPay=()=>Math.min(2000,200+(lv-1)*65);
@@ -3982,7 +4001,7 @@ function update(dt){
   if(hu&&(ix||iy||held('shoot')||mouse.down||touchFire||stick.id!==null&&(stick.x||stick.y)))handsUp=false;
   aimAssist(dt);
   if(play&&!hu&&((held('shoot')&&!me.heli&&!me.jet)||mouse.down||touchFire))myShoot();
-  heliStep(dt);jetStep(dt);
+  heliStep(dt);jetStep(dt);fuelStep(dt);
   if(me.climb){const c=me.climb,L=c.b.ladder,top=c.b.H+1.6;c.t+=dt;const k=Math.min(1,c.t/c.dur);me.x=L.x;me.y=L.base-4;me.z=c.up?top*k:top*(1-k);me.a=-Math.PI/2;me.vx=me.vy=0;
     if(k>=1){if(c.up){me.roof=c.b;me.y=L.top;me.z=top}else{me.roof=null;me.y=L.base;me.z=0}me.climb=null}}
   if(play&&!me.car&&!me.climb&&!me.heli&&!me.jet){
