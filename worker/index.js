@@ -1,7 +1,8 @@
-// Cloudflare Worker: serves the game from dist/ and runs one shared multiplayer lobby.
+// Cloudflare Worker: serves the game from dist/ and runs the multiplayer lobby.
 // Players connect to /ws. The Lobby Durable Object relays each player's presence
 // (position, vehicle, shots, ...) to everyone else. Game rules stay in the clients;
-// the server only forwards small JSON objects.
+// the server only forwards small JSON objects. ?room= picks the object, so each code
+// is its own city with the same rules and limits.
 import { DurableObject } from 'cloudflare:workers';
 
 const MAX_PLAYERS = 32;
@@ -58,7 +59,11 @@ export class Lobby extends DurableObject {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (url.pathname === '/ws') return env.LOBBY.get(env.LOBBY.idFromName('main')).fetch(request);
+    if (url.pathname === '/ws') {
+      const raw = (url.searchParams.get('room') || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+      const room = raw || 'main';
+      return env.LOBBY.get(env.LOBBY.idFromName(room)).fetch(request);
+    }
     return env.ASSETS.fetch(request);
   },
 };

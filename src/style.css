@@ -44,7 +44,8 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var
 @keyframes fade{0%,80%{opacity:1}100%{opacity:0}}
 #vig{position:fixed;inset:0;pointer-events:none;z-index:1;box-shadow:inset 0 0 120px rgba(255,40,60,0);transition:box-shadow .25s}
 /* start card */
-#start{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding-inline:16px;background:rgba(8,6,16,.62);backdrop-filter:blur(3px)}
+#start{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;background:rgba(8,6,16,.62);backdrop-filter:blur(3px)}
+#startForm{margin:auto}
 .card{width:min(460px,100%);background:var(--panel);border:1px solid var(--line);padding:22px;display:flex;flex-direction:column;gap:14px;box-shadow:0 0 60px rgba(255,62,165,.18)}
 .logo{font-family:var(--display);font-size:clamp(34px,9vw,52px);line-height:.95;margin:0;background:linear-gradient(180deg,var(--gold),var(--neon) 70%);-webkit-background-clip:text;background-clip:text;color:transparent;text-wrap:balance}
 .tag{margin:0;color:var(--dim);line-height:1.4}
@@ -60,6 +61,14 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px;color:var(--dim)}
 .keys kbd{font:600 12px var(--body);color:var(--ink);background:#1d1830;border:1px solid #3a3157;padding:1px 6px;border-radius:3px;white-space:nowrap}
 #net{font-size:13px;color:var(--cyan)}
+#city{display:flex;flex-direction:column;gap:6px}
+#cityLine{font-size:13px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+#cityPanel{display:flex;gap:6px;align-items:stretch;flex-wrap:wrap}
+#roomCode{flex:1 1 96px;min-width:0;box-sizing:border-box;background:#0a0814;border:1px solid var(--line);color:var(--ink);font:600 13px var(--body);letter-spacing:.16em;text-transform:uppercase;padding:7px 10px;outline:none}
+#roomCode:focus{border-color:var(--cyan)}
+#cityPanel button{font:700 12px var(--body);border:1px solid var(--line);background:#1d1830;color:var(--ink);padding:7px 10px;cursor:pointer;white-space:nowrap}
+#cityPanel button:hover{border-color:var(--cyan)}
+@media (max-width:560px){#cityPanel{flex-direction:column}#cityPanel button{width:100%}#roomCode{flex:0 0 auto}}
 /* touch */
 #weapon{font-family:var(--display);font-size:15px;color:var(--ink);letter-spacing:.03em}
 #weapon span{font-family:var(--body);font-weight:700;color:var(--gold);margin-left:6px;font-variant-numeric:tabular-nums}

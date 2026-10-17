@@ -2,7 +2,8 @@
 //   node scripts/lobby.mjs   (also npm run lobby:test)
 // Starts wrangler on a free port, waits for /ws to answer 426, then checks, in order: hello shape,
 // presence relay both ways, malformed and oversized messages ignored, the leave broadcast, the latest
-// presence in a fresh hello, and the 32 player limit (the 33rd connection gets HTTP 503).
+// presence in a fresh hello, per-room isolation (?room= clients never see the default city), and the
+// 32 player limit (the 33rd connection gets HTTP 503).
 // Needs Node 22+ (global WebSocket, fetch, net). Skips with exit 0 when wrangler is not installed.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -48,8 +49,9 @@ if (!up) {
 }
 
 const wsURL = `ws://127.0.0.1:${port}/ws`;
-function connect() {
-  const ws = new WebSocket(wsURL);
+const wsRoomURL = (room) => `${wsURL}?room=${room}`;
+function connect(url = wsURL) {
+  const ws = new WebSocket(url);
   const q = [], waiters = [];
   ws.addEventListener('message', (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } const w = waiters.shift(); if (w) w(m); else q.push(m); });
   const ready = new Promise((res, rej) => {
@@ -112,6 +114,27 @@ try {
   const C = connect(); await C.ready;
   const hC = await C.next(8000);
   ok('fresh C hello does not list A', !!hC && hC.t === 'hello' && Array.isArray(hC.peers) && !hC.peers.some((p) => p && p.peer === hA.peer), JSON.stringify(hC));
+
+  // Rooms: clients in different rooms never see each other, two in the same room do.
+  const R1 = connect(wsRoomURL('test1')); await R1.ready;
+  const hR1 = await R1.next(8000);
+  ok('test1 R1 hello: empty peers', !!hR1 && hR1.t === 'hello' && Array.isArray(hR1.peers) && hR1.peers.length === 0, JSON.stringify(hR1));
+  const M = connect(); await M.ready; // no ?room=, so the default city
+  const hM = await M.next(8000);
+  ok('default M hello does not list R1', !!hM && hM.t === 'hello' && Array.isArray(hM.peers) && !hM.peers.some((p) => p && p.peer === hR1.peer), JSON.stringify(hM));
+  R1.send({ t: 'p', d: { x: 7, y: 8, n: 'R1' } });
+  await sleep(0.5);
+  ok('room isolation: main receives nothing from test1 within 500 ms', M.left() === 0, `${M.left()} relayed`);
+  const R2 = connect(wsRoomURL('test1')); await R2.ready;
+  const hR2 = await R2.next(8000);
+  const seenR1 = hR2 && Array.isArray(hR2.peers) ? hR2.peers.find((p) => p && p.peer === hR1.peer) : null;
+  ok('test1 R2 hello lists R1 with R1 presence {x:7,y:8,n:"R1"}', !!seenR1 && !!seenR1.d && seenR1.d.x === 7 && seenR1.d.y === 8 && seenR1.d.n === 'R1', JSON.stringify(hR2));
+  R1.send({ t: 'p', d: { x: 9, y: 10, n: 'R1' } });
+  const toR2 = await R2.next(2000);
+  ok('test1 R1 presence reaches R2', !!toR2 && toR2.t === 'p' && toR2.peer === hR1.peer && !!toR2.d && toR2.d.x === 9 && toR2.d.y === 10, JSON.stringify(toR2));
+  ok('room isolation: main still receives nothing from test1', M.left() === 0, `${M.left()} relayed`);
+  R1.ws.close(); R2.ws.close(); M.ws.close();
+  await sleep(0.5);
 
   const conns = [B, C];
   for (let i = 0; i < 30; i++) {
