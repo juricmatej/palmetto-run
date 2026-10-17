@@ -561,26 +561,46 @@ function hikerStep(dt){if(!HIKE.mesh)return;
   HIKE.mesh.instanceMatrix.needsUpdate=true}
 if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='hill').length},hikers:{get:()=>HIKERS.length}});
 
-// minimap layer for the hills, drawn once: shaded contours, roads, the lake and the spot icons. drawMini blits it.
+// minimap layer for the hills, drawn once: terrain colour, roads and the lake. buildMapBase adds the relief on top.
 function buildHillMini(MS,MO){
   const X0=-MO,Y0=HILL.edge-MO,cv=document.createElement('canvas');cv.width=Math.ceil((W+2*MO)/MS);cv.height=Math.ceil(-Y0/MS);cv.ox=X0;cv.oy=Y0;
   const g=cv.getContext('2d'),t=(x,y)=>[(x-X0)/MS,(y-Y0)/MS],i0=Math.max(0,Math.round((X0-HM.x0)/HM.cell)),i1=Math.min(HM.gw-1,Math.round((X0+cv.width*MS-HM.x0)/HM.cell)),
     j0=Math.max(0,Math.round((Y0-HM.y0)/HM.cell)),j1=Math.min(HM.gh-1,Math.round((0-HM.y0)/HM.cell)-1),ni=i1-i0+1,nj=j1-j0+1,hh=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)];
   g.fillStyle='#0b2a3d';g.fillRect(0,0,cv.width,cv.height);
   const img=new ImageData(ni,nj),d=img.data;
-  for(let j=0;j<nj;j++)for(let i=0;i<ni;i++){const I=i0+i,J=j0+j,h=hh(I,J),gx=(hh(I+1,J)-hh(I-1,J))/20,gz=(hh(I,J+1)-hh(I,J-1))/20,
-    lit=clamp((gx*.5+gz*.5+.7)/Math.hypot(gx,1,gz)/Math.hypot(.5,.7,.5),.3,1),k=(j*ni+i)*4;
-    const f=clamp(h/300,0,1),c=h<1?[74,74,54]:[63+(122-63)*f,90+(112-90)*f,46+(74-46)*f],
-      line=h>=1&&(Math.floor(h/50)!==Math.floor(hh(I+1,J)/50)||Math.floor(h/50)!==Math.floor(hh(I,J+1)/50))?.7:1;
-    d[k]=c[0]*lit*line;d[k+1]=c[1]*lit*line;d[k+2]=c[2]*lit*line;d[k+3]=255}
+  for(let j=0;j<nj;j++)for(let i=0;i<ni;i++){const h=hh(i0+i,j0+j),f=clamp(h/300,0,1),c=h<1?[74,74,54]:[63+(122-63)*f,90+(112-90)*f,46+(74-46)*f],k=(j*ni+i)*4;
+    d[k]=c[0];d[k+1]=c[1];d[k+2]=c[2];d[k+3]=255}
   const tmp=document.createElement('canvas');tmp.width=ni;tmp.height=nj;tmp.getContext('2d').putImageData(img,0,0);
   g.imageSmoothingEnabled=true;const[px,py]=t(HM.x0+i0*HM.cell,HM.y0+j0*HM.cell);g.drawImage(tmp,px,py,ni*HM.cell/MS,nj*HM.cell/MS);
   for(const r of HILL_ROADS){const S=roadSamples(r,6);g.beginPath();S.forEach(([x,y],k)=>{const[qx,qy]=t(x,y);k?g.lineTo(qx,qy):g.moveTo(qx,qy)});
     g.strokeStyle=r.dirt?'#8a6a44':'#3a3848';g.lineWidth=Math.max(1.2,r.w/MS);g.lineJoin='round';g.stroke()}
   const[lx,ly]=t(LAKE.x,LAKE.y);g.fillStyle='#1d6a8a';g.beginPath();g.arc(lx,ly,LAKE.r/MS,0,TAU);g.fill();
-  g.font='700 12px "Chakra Petch",sans-serif';g.textAlign='center';g.textBaseline='middle';
-  for(const s of HILL_SPOTS){const[qx,qy]=t(s.x,s.y);g.fillStyle='#0b0814';g.beginPath();g.arc(qx,qy,8,0,TAU);g.fill();g.strokeStyle='#ffc94a';g.lineWidth=1.5;g.stroke();g.fillStyle='#ffc94a';g.fillText(s.icon,qx,qy+1)}
   return cv}
+// shade and contour lines for the whole heightmap, one pixel per 10 unit cell. Light from the north-west at 45 degrees.
+// A line every 40 units, darker every 200. The lake stays clear.
+function buildRelief(){
+  const gw=HM.gw,gh=HM.gh,cv=document.createElement('canvas');cv.width=gw;cv.height=gh;
+  const g=cv.getContext('2d'),img=g.createImageData(gw,gh),d=img.data,hz=(i,j)=>HM.a[clamp(j,0,gh-1)*gw+clamp(i,0,gw-1)],c2=2*HM.cell;
+  for(let j=0;j<gh;j++)for(let i=0;i<gw;i++){
+    const x=HM.x0+i*HM.cell,y=HM.y0+j*HM.cell;if(Math.hypot(x-LAKE.x,y-LAKE.y)<LAKE.r+HM.cell)continue;
+    const h=hz(i,j),hr=hz(i+1,j),hd=hz(i,j+1),k=(j*gw+i)*4,gx=(hr-hz(i-1,j))/c2,gy=(hd-hz(i,j-1))/c2,
+      s=(.5*(gx+gy)+.707)/Math.hypot(gx,gy,1)-.707; // normal dot light, minus flat ground: 0 on flat ground, above 0 facing the light
+    const l40=Math.floor(h/40)!==Math.floor(hr/40)||Math.floor(h/40)!==Math.floor(hd/40),l200=Math.floor(h/200)!==Math.floor(hr/200)||Math.floor(h/200)!==Math.floor(hd/200);
+    if(l200){d[k]=d[k+1]=d[k+2]=20;d[k+3]=235}
+    else if(l40){d[k]=d[k+1]=d[k+2]=40;d[k+3]=150}
+    else if(s<0){d[k+3]=Math.min(130,-s*380)}
+    else if(s>0){d[k]=d[k+1]=d[k+2]=255;d[k+3]=Math.min(70,s*200)}}
+  g.putImageData(img,0,0);return cv}
+function buildMapBase(){
+  const cv=document.createElement('canvas');cv.width=Math.ceil((MAPB.x1-MAPB.x0)/MS);cv.height=Math.ceil((MAPB.y1-MAPB.y0)/MS);
+  const g=cv.getContext('2d'),rel=buildRelief();
+  g.fillStyle='#0b2a3d';g.fillRect(0,0,cv.width,cv.height);
+  g.drawImage(miniBig,(-MO-MAPB.x0)/MS,(-MO-MAPB.y0)/MS);
+  g.drawImage(hillMini,(hillMini.ox-MAPB.x0)/MS,(hillMini.oy-MAPB.y0)/MS);
+  g.drawImage(rel,(HM.x0-MAPB.x0)/MS,(HM.y0-MAPB.y0)/MS,rel.width*HM.cell/MS,rel.height*HM.cell/MS);
+  return cv}
+// one map icon, shared by the phone map and the minimap: a ring for an outdoor spot, a square with a coloured frame for an enterable place
+function mapIcon(c,x,y,r,door,col,glyph){c.fillStyle='#0b0814';c.strokeStyle=col;c.lineWidth=2;c.beginPath();if(door)c.rect(x-r,y-r,2*r,2*r);else c.arc(x,y,r,0,TAU);c.fill();c.stroke();c.fillStyle=col;c.fillText(glyph,x,y+1)}
 // fog thins in the hills so the city lights show from the overlook at night
 let fogHill=false;
 function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;skyLook()}
@@ -3405,32 +3425,57 @@ function phVic(){if(!unlocked('bank'))return phoneNotify('Vic',`Come back at lev
 function phDealer(){waypoint={x:DEALER.x,y:DEALER.y};phoneNotify('Dealer','Pin is on your map. Come alone.')}
 const CONTACTS=[['Taxi','Cab to your waypoint, $100',phTaxi],['Lawyer','Clears 1 or 2 stars, $1,000 each',phLawyer],['Vic','Heists',phVic],['Dealer','Sends you a pin',phDealer],['Mechanic','Cars',()=>phoneNotify('Mechanic','No cars on file yet.')]];
 
-// ---- map: the city at full size, with the waypoint and a GPS line along the roads
-const mapCv=mk('canvas','ph-map');mapCv.width=mapCv.height=560;
+// ---- map: the whole map (city and hills) with relief, spots, a zoom, the waypoint and a GPS line along the roads
+const mapCv=mk('canvas','ph-map');mapCv.style.aspectRatio='5 / 6';
+// view: the whole map fits the canvas at zoom 1. Above 1 the view centres on the player. Zoom runs from 1 to 5.
+let mapZ=1;
+function mapView(){const cw=mapCv.clientWidth||1,ch=mapCv.clientHeight||1,fit=Math.min(cw/(MAPB.x1-MAPB.x0),ch/(MAPB.y1-MAPB.y0)),s=fit*mapZ,far=mapZ>1.001,cx=far?me.x:(MAPB.x0+MAPB.x1)/2,cy=far?me.y:(MAPB.y0+MAPB.y1)/2;
+  return{cw,ch,s,cx,cy,X:x=>cw/2+(x-cx)*s,Y:y=>ch/2+(y-cy)*s}}
+// the bitmap is at device pixels (devicePixelRatio, capped at 2); drawing uses CSS pixels
+function mapSize(){const dpr=Math.min(2,window.devicePixelRatio||1),w=Math.round(mapCv.clientWidth*dpr),h=Math.round(mapCv.clientHeight*dpr);if(mapCv.width!==w||mapCv.height!==h){mapCv.width=w;mapCv.height=h}return dpr}
 // GPS route along the road grid from the nearest intersection. Cached by the snapped start and the waypoint, so it is rebuilt only when either moves.
 let wpRC=[],wpRK='';
 function wpRouteC(x,y,wx,wy){const sn=v=>Math.round((v-60)/B)*B+60,ax=sn(x),ay=sn(y),k=ax+','+ay+','+wx+','+wy;
   if(k!==wpRK){wpRK=k;const p=[[ax,ay],[ax,sn(wy)],[wx,sn(wy)],[wx,wy]];wpRC=p.filter((q,i)=>!i||q[0]!==p[i-1][0]||q[1]!==p[i-1][1])}
   return wpRC}
 function mapPick(p){if(waypoint&&Math.hypot(waypoint.x-p.x,waypoint.y-p.y)<130){waypoint=null;feed('Waypoint cleared')}else{waypoint={x:p.x,y:p.y};feed('Waypoint set')}}
-mapCv.addEventListener('pointerdown',e=>{const r=mapCv.getBoundingClientRect(),k=W+500;mapCur={x:(e.clientX-r.left)/r.width*k-MO,y:(e.clientY-r.top)/r.height*k-MO};mapPick(mapCur)});
+const mapPts=new Map();let mapPinch=null;
+mapCv.addEventListener('pointerdown',e=>{mapCv.setPointerCapture(e.pointerId);mapPts.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,moved:false});
+  if(mapPts.size===2){const[a,b]=[...mapPts.values()];for(const p of mapPts.values())p.moved=true;mapPinch={d:Math.hypot(a.x-b.x,a.y-b.y),z:mapZ}}});
+mapCv.addEventListener('pointermove',e=>{const p=mapPts.get(e.pointerId);if(!p)return;p.x=e.clientX;p.y=e.clientY;if(Math.hypot(p.x-p.sx,p.y-p.sy)>8)p.moved=true;
+  if(mapPinch&&mapPts.size===2){const[a,b]=[...mapPts.values()];mapZ=clamp(mapPinch.z*Math.hypot(a.x-b.x,a.y-b.y)/mapPinch.d,1,5)}});
+function mapUp(e){const p=mapPts.get(e.pointerId);if(!p)return;mapPts.delete(e.pointerId);if(!mapPts.size)mapPinch=null;
+  if(!p.moved&&!mapPinch){const r=mapCv.getBoundingClientRect(),v=mapView();mapCur={x:v.cx+(e.clientX-r.left-v.cw/2)/v.s,y:v.cy+(e.clientY-r.top-v.ch/2)/v.s};mapPick(mapCur)}}
+mapCv.addEventListener('pointerup',mapUp);
+mapCv.addEventListener('pointercancel',e=>{mapPts.delete(e.pointerId);if(!mapPts.size)mapPinch=null});
+mapCv.addEventListener('wheel',e=>{e.preventDefault();mapZ=clamp(mapZ*Math.exp(-e.deltaY*.002),1,5)},{passive:false});
 const PHSHORT={airport:'Airport',hood:'Low Palms',beach:'Beach',industrial:'Docks',suburb:'Heights',park:'Lagoon',downtown:'Downtown',midtown:'Midtown'};
 function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:PHSHORT[k],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
+// outdoor spots (rings) and enterable places (squares in the door colour), named when zoomed in
+function mapSpots(){return[...HILL_SPOTS.map(s=>({x:s.x,y:s.y,name:s.name,icon:s.icon,door:false,col:'#ffc94a'})),...LANDMARKS.map(l=>({x:l.x+l.w/2,y:l.y+l.h/2,name:l.name,icon:l.ic,door:false,col:'#ffc94a'})),
+  {x:GARAGE.x,y:GARAGE.y,name:'Garage',icon:'C',door:false,col:'#ffc94a'},...DOORS.map(d=>({x:d.x,y:d.y,name:d.label,icon:DOORICON[d.label]||d.label[0],door:true,col:d.col}))]}
+let mapSpotsC=null;
+// the base layer is blitted, then the icons, markers and the player are drawn over it. Only this runs per frame.
 function phMapDraw(){
-  const c=mapCv.getContext('2d'),S=560,k=S/(W+500),X=x=>(x+MO)*k,Y=y=>(y+MO)*k;
-  c.setTransform(1,0,0,1,0,0);c.drawImage(miniBig,0,0,S,S);
+  const dpr=mapSize(),c=mapCv.getContext('2d'),v=mapView(),X=v.X,Y=v.Y,s=v.s;
+  c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle='#0b2a3d';c.fillRect(0,0,v.cw,v.ch);
+  c.drawImage(mapBase,X(MAPB.x0),Y(MAPB.y0),(MAPB.x1-MAPB.x0)*s,(MAPB.y1-MAPB.y0)*s);
   phDistr=phDistr||phDistricts();
-  c.textAlign='center';c.textBaseline='middle';c.font='700 22px "Chakra Petch",sans-serif';
-  for(const d of DOORS){c.fillStyle='#0b0814';c.beginPath();c.arc(X(d.x),Y(d.y),17,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=3;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',X(d.x),Y(d.y)+1)}
-  c.font='700 30px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=10;
+  c.textAlign='center';c.textBaseline='middle';
+  c.font='700 13px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=6;
   for(const d of phDistr)c.fillText(d.name,X(d.x),Y(d.y));
   c.shadowBlur=0;
-  for(const r of remotes.values()){if(r.dead)continue;c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(X(r.x),Y(r.y),11,0,TAU);c.fill();c.stroke()}
-  if(job&&job.phase!=='wait'&&!job.noMarker){c.fillStyle=jobCol();c.beginPath();c.arc(X(job.x),Y(job.y),15,0,TAU);c.fill()}
-  if(waypoint){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.lineWidth=3;c.setLineDash([6,5]);c.beginPath();c.moveTo(X(A.x),Y(A.y));rt.forEach(([x,y])=>c.lineTo(X(x),Y(y)));c.stroke();c.setLineDash([]);
-    c.fillStyle='#29e6d6';c.strokeStyle='#0b0814';c.lineWidth=3;c.beginPath();c.arc(X(waypoint.x),Y(waypoint.y),16,0,TAU);c.fill();c.stroke()}
-  c.save();c.translate(X(me.x),Y(me.y));c.rotate(me.car?me.car.a:me.a);c.scale(1.9,1.9);c.fillStyle='#fff';c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.moveTo(11,0);c.lineTo(-7,8);c.lineTo(-3,0);c.lineTo(-7,-8);c.closePath();c.fill();c.stroke();c.restore();
-  if(mapCur){c.strokeStyle='#ffc94a';c.lineWidth=3;c.beginPath();c.arc(X(mapCur.x),Y(mapCur.y),20,0,TAU);c.stroke()}
+  mapSpotsC=mapSpotsC||mapSpots();
+  c.font='700 11px "Chakra Petch",sans-serif';
+  for(const p of mapSpotsC){const px=X(p.x),py=Y(p.y);if(px<-20||py<-20||px>v.cw+20||py>v.ch+20)continue;
+    mapIcon(c,px,py,8,p.door,p.col,p.icon);
+    if(mapZ>1.5){c.textAlign='left';c.strokeStyle='#0b0814';c.lineWidth=3;c.strokeText(p.name,px+12,py);c.fillStyle='#f3ecff';c.fillText(p.name,px+12,py);c.textAlign='center'}}
+  for(const r of remotes.values()){if(r.dead)continue;c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(X(r.x),Y(r.y),6,0,TAU);c.fill();c.stroke()}
+  if(job&&job.phase!=='wait'&&!job.noMarker){c.fillStyle=jobCol();c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.arc(X(job.x),Y(job.y),9,0,TAU);c.fill();c.stroke()}
+  if(waypoint){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.lineWidth=2.5;c.setLineDash([6,5]);c.beginPath();c.moveTo(X(A.x),Y(A.y));rt.forEach(([x,y])=>c.lineTo(X(x),Y(y)));c.stroke();c.setLineDash([]);
+    c.fillStyle='#29e6d6';c.strokeStyle='#0b0814';c.lineWidth=2.5;c.beginPath();c.arc(X(waypoint.x),Y(waypoint.y),8,0,TAU);c.fill();c.stroke()}
+  c.save();c.translate(X(me.x),Y(me.y));c.rotate(me.car?me.car.a:me.a);c.scale(1.15,1.15);c.fillStyle='#fff';c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.moveTo(11,0);c.lineTo(-7,8);c.lineTo(-3,0);c.lineTo(-7,-8);c.closePath();c.fill();c.stroke();c.restore();
+  if(mapCur){c.strokeStyle='#ffc94a';c.lineWidth=2.5;c.beginPath();c.arc(X(mapCur.x),Y(mapCur.y),12,0,TAU);c.stroke()}
 }
 
 // ---- 3D waypoint: the job beacon look in cyan
@@ -3438,7 +3483,21 @@ function wpBuild(){wpGroup=new THREE.Group();const cyl=new THREE.Mesh(new THREE.
   cyl.position.y=80;const ring=new THREE.Mesh(new THREE.RingGeometry(15,19,32),new THREE.MeshBasicMaterial({color:'#29e6d6',side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=1.8;wpGroup.add(cyl,ring);scene.add(wpGroup)}
 
 // ---- apps
-phoneApp('map','Map',IC.map,el=>{el.append(mapCv,mk('div','ph-sub','Click or press Enter to drop a pin. Click the pin again to clear it.'))},'#29e6d6');
+function mapZoomBtn(t,label,fn){const b=mk('button','',t);b.type='button';b.dataset.nav='';b.setAttribute('aria-label',label);b.style.cssText='width:34px;height:34px;padding:0;border-radius:50%;border:1px solid rgba(243,236,255,.35);background:rgba(11,8,20,.82);color:#f3ecff;font:700 20px/1 var(--body);cursor:pointer';b.onclick=fn;return b}
+function mapLegend(){const L=mk('div','ph-sub');L.style.cssText='display:flex;flex-wrap:wrap;gap:5px 11px';
+  const sw=css=>{const s=mk('span');s.style.cssText='display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px;box-sizing:border-box;'+css;return s},
+    item=(css,t)=>{const i=mk('span');i.append(sw(css),t);return i};
+  L.append(item('border-radius:50%;border:2px solid #ffc94a;background:#0b0814','Outdoor spot'),item('border:2px solid #29e6d6;background:#0b0814;border-radius:2px','Enterable place'),
+    item('border-radius:50%;background:#ffc94a;border:2px solid #0b0814','Mission'),item('border-radius:50%;background:#29e6d6;border:2px solid #0b0814','Waypoint'),
+    item('width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:10px solid #fff;background:none','You'));
+  return L}
+phoneApp('map','Map',IC.map,el=>{
+  const wrap=mk('div');wrap.style.cssText='position:relative;margin:0 -12px';
+  const zb=mk('div');zb.style.cssText='position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px';
+  zb.append(mapZoomBtn('+','Zoom in',()=>{mapZ=clamp(mapZ*1.6,1,5)}),mapZoomBtn('−','Zoom out',()=>{mapZ=clamp(mapZ/1.6,1,5)}));
+  wrap.append(mapCv,zb);
+  el.append(wrap,mapLegend(),mk('div','ph-sub','Click or press Enter to drop a pin. Click the pin again to clear it. Scroll or pinch to zoom.'));
+},'#29e6d6');
 phoneApp('contacts','Contacts',IC.contacts,el=>{for(const[n,r,f]of CONTACTS){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',n),mk('span','ph-sub',r));b.append(mk('span','ph-av',n[0]),g,mk('span','ph-go','Call'));b.onclick=()=>phCallTo(n,f);el.append(b)}},'#ff3ea5');
 phoneApp('messages','Messages',IC.msg,el=>{
   const ns=notes.filter(relMsg).slice(0,3);
@@ -3500,7 +3559,7 @@ function phoneKey(e){
   if(phDrv&&c!=='Escape'&&codeToAction(c)!=='phone')return; // no typing while driving over 100
   if(c==='Escape'||(codeToAction(c)==='phone'&&!rep)){phoneClose();return}
   if(/^Arrow/.test(c)){e.preventDefault();const dx=c==='ArrowLeft'?-1:c==='ArrowRight'?1:0,dy=c==='ArrowUp'?-1:c==='ArrowDown'?1:0;
-    if(phApp==='map'&&mapCur){mapCur.x=clamp(mapCur.x+dx*70,-MO,W+400);mapCur.y=clamp(mapCur.y+dy*70,-MO,W+400)}else phMove(dx,dy);return}
+    if(phApp==='map'&&mapCur){mapCur.x=clamp(mapCur.x+dx*70,MAPB.x0,MAPB.x1);mapCur.y=clamp(mapCur.y+dy*70,MAPB.y0,MAPB.y1)}else phMove(dx,dy);return}
   if(c==='Enter'){e.preventDefault();if(rep)return;if(phApp==='map'&&mapCur)mapPick(mapCur);else{const el=document.activeElement;if(el&&el.matches&&el.matches('[data-nav]'))el.click()}return}
   if(c==='Backspace'){e.preventDefault();if(phApp)phHomeShow()}
 }
@@ -3533,7 +3592,7 @@ function phoneStep(dt){
   const u=notes.filter(n=>!n.read).length;
   if(u!==phBadge){phBadge=u;apps.messages.bd.textContent=u;apps.messages.bd.hidden=!u;$('phTabN').textContent=u;$('phTabN').hidden=!u}
 }
-if(DBG)Object.defineProperties(DBG,{phoneOpen:{get:()=>phoneOpen},waypoint:{get:()=>waypoint},phoneNotify:{get:()=>phoneNotify},phoneApps:{get:()=>Object.keys(apps)}});
+if(DBG)Object.defineProperties(DBG,{phoneOpen:{get:()=>phoneOpen},waypoint:{get:()=>waypoint},phoneNotify:{get:()=>phoneNotify},phoneApps:{get:()=>Object.keys(apps)},mapTest:{get:()=>({zoom:z=>{mapZ=z},level:()=>mapZ})}});
 if(DBG)DBG.phoneTest=id=>{phoneOpenNow(false);phShow(id)};
 
 // ---------- perf ----------
@@ -5844,6 +5903,9 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
 g.fillStyle='#6a5040';g.fillRect(t(2077),t(W+300),46/MS,520/MS);
  g.strokeStyle='rgba(255,201,74,.35)';g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();for(let k=0;k<=N;k++){g.moveTo(t(0),t(k*B+60));g.lineTo(t(W),t(k*B+60));g.moveTo(t(k*B+60),t(0));g.lineTo(t(k*B+60),t(W))}g.stroke();g.setLineDash([])}
 const hillMini=buildHillMini(MS,MO);
+// the whole map at MS units a pixel, built once: city, hills, then the relief on top. The phone map and drawMini blit it.
+const MAPB={x0:-MO,y0:HILL.edge-MO,x1:W+400,y1:W+400};
+const mapBase=buildMapBase();
 const DOORICON={'Pink Flamingo':'D','Ink & Fade':'T','Iron Palms':'W','Palmetto PD':'P',"St. Palm's":'+','Pixel Palace':'A','Rusty Anchor':'R','Union Bank':'B','Gun shop':'G','Velvet Palms':'V','Snack & Go':'S','Safehouse':'H','Casino':'$','Low Palms apartment':'L','Midtown condo':'M','Sunset beach house':'E','Palm Heights villa':'Y','Downtown penthouse':'N'};
 let miniSc=.35;
 function drawMini(){
@@ -5851,7 +5913,7 @@ function drawMini(){
   c.save();c.beginPath();c.arc(C,C,148,0,TAU);c.clip();c.fillStyle='#0b2a3d';c.fillRect(0,0,S,S);
   const cx=A.x,cy=A.y,heading=me.car?me.car.a:look.yaw,rot=-heading-Math.PI/2,cs=Math.cos(rot),sn=Math.sin(rot);
   const sp=me.car?Math.hypot(me.car.vx,me.car.vy):0,want=148/(me.car?520+sp*1.3:380);miniSc+=(want-miniSc)*.06;const sc=miniSc;
-  c.translate(C,C);c.rotate(rot);c.scale(sc*MS,sc*MS);c.drawImage(miniBig,-(cx+MO)/MS,-(cy+MO)/MS);c.drawImage(hillMini,(hillMini.ox-cx)/MS,(hillMini.oy-cy)/MS);c.setTransform(1,0,0,1,0,0);
+  c.translate(C,C);c.rotate(rot);c.scale(sc*MS,sc*MS);c.drawImage(mapBase,(MAPB.x0-cx)/MS,(MAPB.y0-cy)/MS);c.setTransform(1,0,0,1,0,0);
   const Pt=(x,y)=>{const dx=(x-cx)*sc,dy=(y-cy)*sc;return[C+dx*cs-dy*sn,C+dx*sn+dy*cs]};
   const edge=(x,y)=>{let[px,py]=Pt(x,y);const dx=px-C,dy=py-C,d=Math.hypot(dx,dy);if(d>RIM){px=C+dx/d*RIM;py=C+dy/d*RIM;return[px,py,true]}return[px,py,false]};
   const inView=(x,y)=>{const[px,py]=Pt(x,y);return Math.hypot(px-C,py-C)<RIM+6};
@@ -5859,11 +5921,12 @@ function drawMini(){
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[jx,jy]=edge(job.x,job.y);c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(jx,jy);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // waypoint: GPS line along the road grid
   if(waypoint&&!me.inside){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();c.moveTo(...Pt(A.x,A.y));rt.forEach(([x,y])=>c.lineTo(...Pt(x,y)));c.stroke();c.setLineDash([]);c.globalAlpha=1}
-  // places
-  c.font='700 13px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
-  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,9,0,TAU);c.fill();c.strokeStyle='#ffc94a';c.lineWidth=2;c.stroke();c.fillStyle='#ffc94a';c.fillText(l.ic,px,py+1)}
-  for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle=d.col;c.lineWidth=2.5;c.stroke();c.fillStyle=d.col;c.fillText(DOORICON[d.label]||'?',px,py+1)}
-  {const[px,py]=edge(GARAGE.x,GARAGE.y);c.fillStyle='#0b0814';c.beginPath();c.arc(px,py,10,0,TAU);c.fill();c.strokeStyle='#ff3ea5';c.lineWidth=2.5;c.stroke();c.fillStyle='#ff3ea5';c.fillText('C',px,py+1)}
+  // places and spots: small icons, rings for outdoor spots, squares for enterable places
+  c.font='700 11px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
+  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);mapIcon(c,px,py,6,false,'#ffc94a',l.ic)}
+  for(const s of HILL_SPOTS){if(!inView(s.x,s.y))continue;const[px,py]=Pt(s.x,s.y);mapIcon(c,px,py,6,false,'#ffc94a',s.icon)}
+  for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);mapIcon(c,px,py,6.5,true,d.col,DOORICON[d.label]||'?')}
+  {const[px,py]=edge(GARAGE.x,GARAGE.y);mapIcon(c,px,py,6,false,'#ffc94a','C')}
   for(const b of ladders){if(!inView(b.ladder.x,b.ladder.base))continue;const[px,py]=Pt(b.ladder.x,b.ladder.base);c.fillStyle='#a7a1ba';c.fillRect(px-2,py-2,4,4)}
   // armored truck
   for(const v of cars)if(v.type==='armored'&&v.kind!=='dead'&&v!==me.car){const[px,py,e]=edge(v.x,v.y);c.fillStyle='#0b0814';c.fillRect(px-9,py-9,18,18);c.strokeStyle='#ffc94a';c.lineWidth=2.5;c.strokeRect(px-9,py-9,18,18);c.fillStyle='#ffc94a';c.fillText('A',px,py+1)}
