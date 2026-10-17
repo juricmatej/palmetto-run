@@ -40,6 +40,15 @@ function landmarkMeshes(){
   pyl.forEach(([x,y],i)=>{inst(pp,i,x,18,y);inst(ph,i,x,37,y)});pp.count=ph.count=pyl.length;scene.add(pp,ph);
   for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,38,y);g.scale.set(40,40,1);scene.add(g)}
   const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);pitMeshes();
+  // pier: a lit arcade front, a chip shack with a flue and a stack of crates at the boardwalk end
+  {const gz=groundZ(2100,4560),shack=mergeGeos([[new THREE.BoxGeometry(16,10,9),new THREE.Matrix4().makeTranslation(0,5,0)],
+     [new THREE.BoxGeometry(17,1.2,10),new THREE.Matrix4().makeTranslation(0,10.4,0)]]);
+   const sm=new THREE.Mesh(shack,lmm.wood);sm.position.set(2062,gz+4,4610);scene.add(sm);
+   const fl=new THREE.Mesh(new THREE.CylinderGeometry(.8,.8,7,6),lmm.metal);fl.position.set(2066,gz+14,4613);scene.add(fl);
+   const sg=new THREE.Mesh(new THREE.PlaneGeometry(12,3),new THREE.MeshBasicMaterial({map:signTex('CHIPS','#ffc94a')}));sg.position.set(2062,gz+12.4,4614.6);scene.add(sg);
+   for(const[w,h,d,x,z,ry]of[[6,5,5,2100,4600,.3],[5,4,5,2093,4606,-.2],[5,5,5,2106,4596,.6]]){const c=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),lmm.wood);c.position.set(x,gz+6+h/2,z);c.rotation.y=ry;scene.add(c)}
+   for(const sx of[-26,26]){const lp=new THREE.Mesh(new THREE.CylinderGeometry(.5,.7,14,6),lmm.metal);lp.position.set(2100+sx,gz+17,4590);scene.add(lp);
+    const lh=new THREE.Mesh(new THREE.SphereGeometry(1.4,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}));lh.position.set(2100+sx,gz+24.2,4590);scene.add(lh)}}
   // pier: pilings under the deck, a rail along the boardwalk's sea edge, stall awnings
   const pg=[];for(let y=4584;y<4772;y+=24)for(const x of[2084,2116])pg.push([new THREE.CylinderGeometry(.9,1,9,5).translate(x,0,y),new THREE.Matrix4()]);scene.add(new THREE.Mesh(mergeGeos(pg),lmm.wood));
   // sea east of the pier: a water plane over the beach sand (sand is at -0.5), above the -6 bed from the heightmap

@@ -261,6 +261,13 @@ function footpath(x0,y0,x1,y1,w){
   return new THREE.Mesh(g,tpath)
 }
 for(const[x0,y0,x1,y1]of[[hillA.x,hillA.y,hillA.x,440],[hillA.x,hillA.y,1440,hillA.y],[hillB.x,hillB.y,1440,hillB.y],[hillB.x,hillB.y,hillB.x,562]])scene.add(footpath(x0,y0,x1,y1,10));
+// Sunset Beach: seeded walkable dunes on the sand blocks, plus huts, lifeguard towers, volleyball, boats,
+// a foam line and a shallow band so the waterline reads as water and not a wall.
+{for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='beach')continue;
+  const x0=bi*B+R,y0=bj*B+R,s=B-R,dr=seeded(bi*29+bj*83+7);
+  for(let k=0;k<2;k++){const dx=x0+70+dr()*(s-140),dy=y0+70+dr()*(s-140),r0=38+dr()*20,h=2.6+dr()*2.2;
+    if(!rampZone(dx,dy))addShape({kind:'mound',x:dx,y:dy,r:r0,h})}}}
+
 for(const s of TERRAIN){const m=terrainMesh(s);Array.isArray(m)?scene.add(...m):scene.add(m)}
 for(const m of hillMeshes())scene.add(m);
 // buildings
@@ -442,6 +449,85 @@ for(const b of buildings){
  if(D.length){const pg=new THREE.CircleGeometry(1,14).rotateX(-Math.PI/2),pl=[];
   for(const[x,y,rx,ry]of D)pl.push([pg,new THREE.Matrix4().makeScale(rx,1,ry).setPosition(x,1.31,y)]);
   scene.add(new THREE.Mesh(mergeGeos(pl),new THREE.MeshBasicMaterial({color:'#2a3140'})))}}
+{const T_=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z),BM={},bmat=c=>BM[c]||(BM[c]=new THREE.MeshLambertMaterial({color:c})),huts=[],tows=[],nets=[],boats=[],parts=[],
+ push=(L,g,c,x,y,z,ry)=>L.push([g,bmat(c),new THREE.Matrix4().makeRotationY(ry||0).setPosition(x,y,z)]),
+ cabinG=mergeGeos([[new THREE.BoxGeometry(13,9,11),T_(0,0,0)],[new THREE.BoxGeometry(15,1.2,13),T_(0,5,0)]]),
+ legG=new THREE.BoxGeometry(1.1,11,1.1),netG=mergeGeos([[new THREE.BoxGeometry(.6,9,.6),T_(0,4.5,0)]]),
+ hullG=mergeGeos([[new THREE.BoxGeometry(11,3.4,4.4),T_(0,1.7,0)],[new THREE.BoxGeometry(11.6,.8,5),T_(0,3.5,0)]]),
+ flagG=mergeGeos([[new THREE.BoxGeometry(4,2.6,.2),T_(2,1.3,0)]]);
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='beach')continue;
+  const x0=bi*B+R,y0=bj*B+R,s=B-R,dr=seeded(bi*37+bj*19+5);
+  for(let k=0;k<(2+Math.round(dr()*2));k++){const hx=x0+40+dr()*(s-80),hy=y0+60+dr()*(s-140),ry2=dr()*TAU;
+   if(rampZone(hx,hy)||DOORS.some(d=>Math.hypot(d.x-hx,d.y-hy)<24))continue;
+   push(huts,cabinG,['#e8b4c8','#b4d8e8','#f1e3a8'][Math.floor(dr()*3)],hx,5,hy,ry2);
+   push(huts,new THREE.BoxGeometry(3.4,7.4,.4),'#3a3742',hx,3.6,hy+5.6,ry2);
+   push(huts,new THREE.BoxGeometry(6,1,.9),'#ff3ea5',hx+2.6,10.2,hy+5.4,ry2)}
+  if((bi+bj)%3===0){const hx=x0+s-40,hy=y0+60;
+   for(const[dx,dz]of[[-5,-4],[5,-4],[-5,4],[5,4]])push(tows,legG,'#8a6a44',hx+dx,7,hy+dz);
+   push(tows,cabinG,'#f1e3a8',hx,13.5,hy);
+   push(tows,new THREE.BoxGeometry(9,1,1),'#8a6a44',hx,9.5,hy+8,0);
+   push(tows,flagG,'#ff3ea5',hx+6,18,hy)}
+  if(dr()<.5){const nx=x0+s/2+dr()*20-10,ny=y0+s/2-10;
+   if(!rampZone(nx,ny)){const nm=new THREE.Mesh(new THREE.PlaneGeometry(26,3.2),chainMat);
+    nm.position.set(nx,7,ny);nm.rotation.y=Math.PI/2;scene.add(nm);
+    push(nets,netG,'#c9c3d6',nx,0,ny-13);push(nets,netG,'#c9c3d6',nx,0,ny+13)}}
+  if(dr()<.5)push(boats,hullG,['#d23c5a','#4aa3ff','#e8e4f0'][Math.floor(dr()*3)],x0+70+dr()*80,y0+s-70,dr()*TAU)}
+ const build=(L)=>{if(!L.length)return;const byMat=new Map();
+  for(const[g,m,mx]of L){const k=m.uuid;let a=byMat.get(k);if(!a){a={m,list:[]};byMat.set(k,a)}a.list.push([g,mx])}
+  for(const{m,list}of byMat.values())scene.add(new THREE.Mesh(mergeGeos(list),m))};
+ build(huts);build(tows);build(nets);build(boats);
+ // foam at the waterline and a pale shallow band over the sea bed
+ const foam=(z,w,op)=>{const f=new THREE.Mesh(new THREE.BoxGeometry(W+600,.5,w),new THREE.MeshBasicMaterial({color:'#e8f8ff',transparent:true,opacity:op}));
+  f.position.set(W/2,-.35,z);scene.add(f)};
+ foam(W+320,4,.5);foam(W+300,10,.22);
+ const shal=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(62,166,200,.5)')),'opacity',.7,.25));
+ shal.rotation.x=-Math.PI/2;shal.scale.set(W+700,320,1);shal.position.set(W/2,-2.5,W+430);scene.add(shal)}
+// Lagoon Park: a path loop on every park block, pond stones, reeds and a lamp, a gazebo, a playground,
+// flowerbeds and hedges along the street sides.
+{const T_=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z),BM={},bmat=c=>BM[c]||(BM[c]=new THREE.MeshLambertMaterial({color:c})),
+  A=[],B=[],push=(L,g,c,x,y,z,ry)=>L.push([g,bmat(c),new THREE.Matrix4().makeRotationY(ry||0).setPosition(x,y,z)]);
+ const paths=(x0,y0,s)=>{const p=60,q=4;
+  for(const[a,b2,c,d]of[[x0+p,y0+p,x0+s-p,y0+p],[x0+s-p,y0+p,x0+s-p,y0+s-p],[x0+s-p,y0+s-p,x0+p,y0+s-p],[x0+p,y0+s-p,x0+p,y0+p]])scene.add(footpath(a,b2,c,d,q))};
+ parks.forEach((pk,i)=>{const{x,y,s}=pk,cr=seeded(Math.round(x*3+y*7)|0);
+  paths(x,y,s);
+  // flowerbeds with a stone rim
+  for(let k=0;k<3;k++){const bx=x+70+cr()*(s-140),by=y+70+cr()*(s-140);
+   if(Math.hypot(bx-(x+s/2),by-(y+s/2))<70)continue;
+   push(A,new THREE.BoxGeometry(16,1.6,7),'#6a655c',bx,groundZ(bx,by)+1.1,by);
+   push(A,new THREE.BoxGeometry(13,.8,4.4),['#c94a6a','#c9a24a','#7b6bff'][Math.floor(cr()*3)],bx,groundZ(bx,by)+1.7,by);
+   for(let d2=0;d2<4;d2++)push(A,new THREE.IcosahedronGeometry(1,0),'#2a7a4c',bx-4.5+d2*3,groundZ(bx,by)+2.4,by+(cr()-.5)*2)}
+  // hedges along the north and west sides with a gap at the paths
+  for(const[side]of[[0],[1]]){const hx=side?x+6:x+s/2,hz=side?y+s/2:y+6;
+   for(const seg of[-1,1]){const len=s/2-70;
+    push(A,new THREE.BoxGeometry(side?3.4:len,3.4,side?len:3.4),'#2a6a3a',side?hx:x+s/4+seg*(s/4-20),groundZ(hx,hz)+2.9,side?y+s/4+seg*(s/4-20):hz)}}});
+ // pond: stones, reeds, benches and a lamp on the block that holds the water
+ {const pk=parks.find(p=>p.x===4*B+R&&p.y===R);if(pk){const cx=pk.x+pk.s/2,cy=pk.y+pk.s/2,r0=(pk.s-100)/2;
+   for(let k=0;k<26;k++){const a=k/26*TAU,q=2.6+((k*7)%5)*.5,px=cx+Math.cos(a)*(r0+q*.6),py=cy+Math.sin(a)*(r0+q*.6);
+    push(A,new THREE.IcosahedronGeometry(q*.9,0),'#6e655c',px,groundZ(px,py)+q*.4,py)}
+   for(const a of[.4,1.6,2.9,4.4]){const px=cx+Math.cos(a)*(r0+8),py=cy+Math.sin(a)*(r0+8);
+    for(let k=0;k<4;k++)push(A,new THREE.ConeGeometry(.35,3.4,4),'#4d6b3a',px+(k-1.5)*1.6,groundZ(px,py)+2,py)}
+   for(const sx of[-1,1])push(A,new THREE.BoxGeometry(14,1.2,4.5),'#5a4030',cx+sx*46,groundZ(cx+sx*46,cy-r0-16)+1.8,cy-r0-16);
+   push(A,new THREE.CylinderGeometry(.5,.7,14,6),'#2c2938',cx-r0-8,groundZ(cx-r0-8,cy)+8,cy);
+   push(B,new THREE.SphereGeometry(.8,8,6),'#ffdf9e',cx-r0-8,groundZ(cx-r0-8,cy)+15.6,cy)}}
+ // gazebo and playground on the two blocks without a mound under them
+ {const pk=parks[3];if(pk){const gx=pk.x+pk.s*.62,gy=pk.y+pk.s*.4,gz=groundZ(gx,gy);
+   push(A,new THREE.CylinderGeometry(13,13,1.6,8),'#6a655c',gx,gz+1,gz?0+gy:gy);
+   for(let k=0;k<8;k++){const a=k/8*TAU;push(A,new THREE.BoxGeometry(1.2,11,1.2),'#8a6a44',gx+Math.cos(a)*11,gz+6.6,gy+Math.sin(a)*11)}
+   push(A,new THREE.ConeGeometry(15,7,8),'#5a3328',gx,gz+15.6,gy);
+   push(B,new THREE.SphereGeometry(.9,8,6),'#ffdf9e',gx,gz+11.4,gy)}
+  const pk2=parks[2];if(pk2){const px=pk2.x+pk2.s-70,py=pk2.y+pk2.s-70,pz=groundZ(px,py);
+   push(A,new THREE.CylinderGeometry(26,26,.4,18),'#8a7350',px,pz+.35,py); // sand patch
+   for(const sx of[-6,6]){const ax=px+sx,ay=py-8;
+    for(const ex of[-4,4]){push(A,new THREE.BoxGeometry(1.2,11,1.2),'#8a8699',ax+ex,pz+5.5,ay+3);push(A,new THREE.BoxGeometry(1.2,11,1.2),'#8a8699',ax+ex,pz+5.5,ay-3)}
+    push(A,new THREE.BoxGeometry(.5,.6,7),'#4a4658',ax,pz+9.4,ay);push(A,new THREE.BoxGeometry(3.4,.5,1.6),'#c0283c',ax,pz+6.4,ay)}
+   push(A,new THREE.BoxGeometry(4,9,4),'#4aa3ff',px+16,pz+4.5,py+6);push(A,new THREE.BoxGeometry(4,1,9),'#4aa3ff',px+13.5,pz+2.4,py+6);
+   for(let k=0;k<4;k++)push(A,new THREE.BoxGeometry(2,1.4,2),'#ffc94a',px+16,pz+1.6+k*2.2,py+6-(k<2?0:0));
+   push(A,new THREE.BoxGeometry(14,1.2,14),'#3a3742',px-14,pz+.8,py+10);
+   for(const[ox,oz]of[[-19,-6],[9,-6],[9,24],[-19,24]])push(A,new THREE.BoxGeometry(1.4,8,1.4),'#3a3742',px+ox,pz+5,py+oz)}}
+ const build=L=>{if(!L.length)return;const by=new Map();for(const[g,m,mx]of L){let a=by.get(m.uuid);if(!a){a={m,list:[]};by.set(m.uuid,a)}a.list.push([g,mx])}
+  for(const{m,list}of by.values())scene.add(new THREE.Mesh(mergeGeos(list),m))};
+ build(A);build(B)}
+
 // Low Palms lot lines: chain-link runs along the back lines between the row-house yards, with posts
 {const cl=[];
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='hood')continue;
@@ -490,7 +576,7 @@ let ferris=null;
  const spk=[],cabs=[[],[],[]],I=new THREE.Matrix4();for(let i=0;i<12;i++){const a=i/12*TAU;spk.push([new THREE.BoxGeometry(230,1.2,1.2).rotateZ(a),I]);cabs[i%3].push([new THREE.BoxGeometry(12,12,10).translate(Math.cos(a)*115,Math.sin(a)*115,0),I])}
  ferris.add(new THREE.Mesh(mergeGeos(spk),spokeMat));cabs.forEach((l,k)=>ferris.add(new THREE.Mesh(mergeGeos(l),new THREE.MeshBasicMaterial({color:['#ffc94a','#7b6bff','#3dd68c'][k]}))));
  scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,4700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
- const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,62,165,.4)')));fg.scale.set(420,420,1);fg.position.set(2100,140,4690);scene.add(fg);
+ const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(255,62,165,.4)')),'opacity',1,.3));fg.scale.set(240,240,1);fg.position.set(2100,140,4690);scene.add(fg);
  // palms
  const trunkG=new THREE.CylinderGeometry(1.4,2.4,1,6),trunk=new THREE.InstancedMesh(trunkG,new THREE.MeshLambertMaterial({color:'#6b4a32'}),Math.max(1,palms.length)),frond=new THREE.InstancedMesh(new THREE.BoxGeometry(24,1,6),new THREE.MeshLambertMaterial({color:'#2f8a4e'}),Math.max(1,palms.length*6));
  palms.forEach(([x,y,rot],i)=>{const h=44;inst(trunk,i,x,h/2,y,0,1,h,1);for(let k=0;k<6;k++){const a=rot+k/6*TAU;dummy.position.set(x+Math.cos(a)*10,h-2,y+Math.sin(a)*10);dummy.rotation.set(0,-a,-.45);dummy.scale.set(1,1,1);dummy.updateMatrix();frond.setMatrixAt(i*6+k,dummy.matrix)}});
