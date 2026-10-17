@@ -274,16 +274,17 @@ function laneSpawn(kind,min,max){
 }
 function drive(c,thr,steer,hand,dt){
   const fx=Math.cos(c.a),fy=Math.sin(c.a),P=c===me.car;
+  if(P)modCar(c,thr,dt); // mod shop: nitro fuel + flames, the customs bay and the HUD bar
   let fwd=c.vx*fx+c.vy*fy,lat=-c.vx*fy+c.vy*fx;
-  const T=ctOf(c),max=c.kind==='police'?300:T.max;
-  let lg=hand?1.4:T.grip,hl=180,brk=650,coast=110;
+  const T=ctOf(c),boost=P&&c.boost,max=c.kind==='police'?300:T.max*(P?modK(c,'eng')*(boost?1.2:1):1);
+  let lg=hand?1.4:T.grip*(P?modK(c,'grip'):1),hl=180,brk=650,coast=110;
   if(P){ // player car: handbrake drift, calmer steering at speed, sharper braking
     const dr=hand&&steer&&Math.hypot(c.vx,c.vy)>160;
-    hl=dr?60:180;brk=800;coast=80;
-    const tg=dr?.9:hand?1.4:T.grip;driftG=tg<driftG?tg:Math.min(tg,driftG+dt*(T.grip-.9)/.4);lg=driftG;
+    hl=dr?60:180;brk=800*modK(c,'brak');coast=80;
+    const tg=dr?.9:hand?1.4:T.grip*modK(c,'grip');driftG=tg<driftG?tg:Math.min(tg,driftG+dt*(T.grip-.9)/.4);lg=driftG;
     c.brk=thr<0&&fwd>0;
   }
-  if(thr>0)fwd+=(fwd<0?650:T.acc)*thr*dt;
+  if(thr>0)fwd+=(fwd<0?650:T.acc*(P?modK(c,'eng')*(boost?1.8:1):1))*thr*dt;
   else if(thr<0)fwd+=(fwd>0?-brk:-240)*(-thr)*dt;
   else fwd-=Math.sign(fwd)*Math.min(Math.abs(fwd),coast*dt);
   if(hand)fwd-=Math.sign(fwd)*Math.min(Math.abs(fwd),hl*dt);
@@ -312,7 +313,7 @@ function carPair(a,b){
 }
 function damageCar(c,amt,byMe){
   if(c.kind==='dead'||amt<=0)return;if(byMe)c.lastByMe=true;
-  c.hp-=amt;
+  c.hp-=amt*modK(c,'arm');
   if(c.kind==='traffic'&&amt>4){wreck(c,byMe)}
   if(c.kind==='police'&&byMe)addHeat(.2);
   if(c.hp<=0&&!c.burn){c.burn=3.2;c.hp=0}
@@ -1298,10 +1299,11 @@ const MODS_NEON=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d'];
 const MODS_RIM=['#e8e6f0','#17161c','#ffc94a','#ff3ea5','#29e6d6'];
 const MODS_TINT=['#0b0e1c','#2a2438','#4d405c'];
 const MODS_HORN=[[400,500,'Stock'],[520,660,'Air horn'],[300,380,'Muscle']];
-const MODS_PAINT_NAMES=['Stock',...CARCOL.map(c=>c),...['Pearl white','Matte black']];
+const MODS_PAINT_NAMES=['Frost grey','Neon pink','Electric teal','Taxi gold','Sunset orange','Grape purple','Mint green','Slate grey','Cherry red','Ocean blue','Pearl white','Matte black'];
 function modK(c,k){const m=c&&c.mods;if(!m)return 1;
   if(k==='eng')return[1,1.08,1.16,1.25][m.eng|0]||1;
-  if(k==='brk')return[1,1.12,1.25][m.brk|0]||1;
+  if(k==='grip')return[1,1.12,1.25][m.brk|0]||1;
+  if(k==='brak')return[1,1.15,1.3][m.brk|0]||1;
   if(k==='arm')return[1,.8,.65,.5][m.arm|0]||1;
   return 1}
 let nitroT=0,nitroMax=3;
@@ -1327,8 +1329,121 @@ function openMods(){
 $('modClose').addEventListener('click',()=>{$('modshop').hidden=true;if(!$('shop').hidden&&!document.querySelector('.gm:not([hidden])'))return;state='play';cv.focus&&cv.focus()});
 function jobCol(){return!job?'#ffc94a':job.col||(job.phase==='pickup'?'#ffc94a':'#ff3ea5')}
 const MOD_MENUS=[['paint','Paint'],['engine','Engine'],['brakes','Brakes & handling'],['armor','Armor'],['nitro','Nitro'],['neon','Neon'],['rims','Rims'],['tint','Tint'],['horn','Horn']];
-const MOD_CAT=(c,k,key,lv,price,cur,names)=>{
-  return{name:k,lv,price,owned:((c.mods||{})[key]|0)===i=>0}};
+let modCat=0,modMenuC=null;
+const modsBtn=(row,label,cls,dis,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;if(cls)b.className=cls;b.disabled=!!dis;b.onclick=fn;row.appendChild(b);return b};
+function modsRow(L,cat,title,desc){
+  const row=document.createElement('div');row.className='gun';
+  const nm=document.createElement('div');nm.className='nm';nm.textContent=title;
+  const acts=document.createElement('div');acts.className='acts';
+  const ds=document.createElement('div');ds.className='ds';ds.textContent=desc||'';
+  row.append(nm,acts,ds);L.appendChild(row);return acts}
+function renderMods(){
+  const c=modMenuC=me.car&&me.car.kind==='mine'&&!me.car.burn?me.car:null;
+  $('modCash').textContent='$'+me.cash.toLocaleString('en-US');
+  const cats=$('modCats');cats.replaceChildren();
+  MOD_MENUS.forEach(([k,label],i)=>{
+    const b=document.createElement('button');b.type='button';b.textContent=label;
+    if(i===modCat)b.className='on';
+    b.onclick=()=>{modCat=i;renderMods()};
+    cats.appendChild(b)});
+  const L=$('modList');L.replaceChildren();
+  if(!c){modsRow(L,'no car','No car','Drive a car into the spray bay to tune it');return}
+  if(!c.mods)c.mods={};
+  const m=c.mods;
+  // paint
+  if(modCat===0){
+    MODS_COL.forEach((col,i)=>{
+      const cur=m.paint||c.color;
+      const nm=col===cur?'':MODS_PAINT_NAMES[i];
+      const acts=modsRow(L,'paint',(col===cur?'\u2713 ':'')+MODS_PAINT_NAMES[i],col===cur?'Your current coat':'$300 · spray booth, six tones of neon heat');
+      modsBtn(acts,col===cur?'On':'Paint $300','buy',col===cur||me.cash<300,()=>{
+        if(me.cash<300)return;me.cash-=300;m.paint=col;modSave(c);
+        const st=Math.ceil(heat-.001);
+        if(st>=1&&st<=2&&!cars.some(q=>q.kind==='police'&&Math.hypot(q.x-c.x,q.y-c.y)<400)){heat=0;coolT=0;feed('New colour, new car. The cops lost you')}
+        jingle('buy');renderMods()})})}
+  // engine
+  if(modCat===1){
+    [[1,1500,1],[2,4000,4],[3,9000,8]].forEach(([t,p,l])=>{
+      const own=(m.eng|0)>=t,ready=lv>=l;
+      const acts=modsRow(L,'engine',(own?'\u2713 ':'')+'Engine '+t,own?'Fitted':`$${p.toLocaleString('en-US')} · top speed and acceleration \u00d7${[0,1.08,1.16,1.25][t]}`);
+      modsBtn(acts,own?'Fitted':ready?`Buy $${p.toLocaleString('en-US')}`:`Level ${l}`,own?'':ready?'buy':'',own||(!ready&&me.cash<p||me.cash<p),()=>{
+        if(me.cash<p||lv<l)return;me.cash-=p;m.eng=t;modSave(c);jingle('buy');renderMods()})})}
+  // brakes
+  if(modCat===2){
+    [[1,1200,1],[2,3000,5]].forEach(([t,p,l])=>{
+      const own=(m.brk|0)>=t,ready=lv>=l;
+      const acts=modsRow(L,'brakes',(own?'\u2713 ':'')+'Brakes & handling '+t,own?'Fitted':`$${p.toLocaleString('en-US')} · grip \u00d7${[0,1.12,1.25][t]}, braking \u00d7${[0,1.15,1.3][t]}`);
+      modsBtn(acts,own?'Fitted':ready?`Buy $${p.toLocaleString('en-US')}`:`Level ${l}`,own?'':ready?'buy':'',own||me.cash<p,()=>{
+        if(me.cash<p||lv<l)return;me.cash-=p;m.brk=t;modSave(c);jingle('buy');renderMods()})})}
+  // armor
+  if(modCat===3){
+    [[1,2000,2],[2,5000,6],[3,10000,10]].forEach(([t,p,l])=>{
+      const own=(m.arm|0)>=t,ready=lv>=l;
+      const acts=modsRow(L,'armor',(own?'\u2713 ':'')+'Armor '+t,own?'Fitted':`$${p.toLocaleString('en-US')} · damage taken \u00d7${[0,.8,.65,.5][t]}`);
+      modsBtn(acts,own?'Fitted':ready?`Buy $${p.toLocaleString('en-US')}`:`Level ${l}`,own?'':ready?'buy':'',own||me.cash<p,()=>{
+        if(me.cash<p||lv<l)return;me.cash-=p;m.arm=t;modSave(c);jingle('buy');renderMods()})})}
+  // nitro
+  if(modCat===4){
+    const own=!!m.nitro,ready=lv>=6;
+    const acts=modsRow(L,'nitro',(own?'\u2713 ':'')+'Nitro',own?'Hold V in the car for a 3 s oxidiser blast, refills in 10 s':'$6,000 · hold V for a 3 s oxidiser blast, refills in 10 s');
+    modsBtn(acts,own?'Fitted':ready?'Buy $6,000':'Level 6',own?'':ready?'buy':'',own||me.cash<6000,()=>{
+      if(me.cash<6000||lv<6)return;me.cash-=6000;m.nitro=1;nitroT=nitroMax;modSave(c);jingle('buy');renderMods()})}
+  // neon
+  if(modCat===5){
+    MODS_NEON.forEach((col,i)=>{
+      const own=!!m.neon,cur=m.neon===col;
+      const nm=['Pink','Cyan','Gold','Violet','Green','Orange'][i];
+      const acts=modsRow(L,'neon',(cur?'\u2713 ':'')+nm+' underglow',own&&!cur?'Change for free':own?'Lit up':'$2,500 · a coloured glow and light under your car');
+      modsBtn(acts,cur?'On':own?'Change':'Install $2,500',own&&!cur?'buy':'',cur||(!own&&me.cash<2500),()=>{
+        if(!own&&me.cash<2500)return;if(!own){if(me.cash<2500)return;me.cash-=2500}
+        m.neon=col;modSave(c);jingle('buy');renderMods()})})}
+  // rims
+  if(modCat===6){
+    MODS_RIM.forEach((col,i)=>{
+      const cur=m.rim||'';
+      const nm=['Polished','Blackout','Gold','Pink','Cyan'][i];
+      const acts=modsRow(L,'rims',(cur===col?'\u2713 ':'')+nm+' rims',cur===col?'Your wheels':'$800 · a fresh set of rims');
+      modsBtn(acts,cur===col?'On':'Buy $800','buy',cur===col||me.cash<800,()=>{
+        if(me.cash<800)return;me.cash-=800;m.rim=col;modSave(c);jingle('buy');renderMods()})})}
+  // tint
+  if(modCat===7){
+    const cur=m.tint|0;
+    MODS_TINT.forEach((col,t)=>{
+      if(t===0)return;
+      const owned=cur===t;
+      const acts=modsRow(L,'tint',(owned?'\u2713 ':'')+'Window tint '+t,owned?'Fitted':'$500 · darker glass, cooler cabin');
+      modsBtn(acts,owned?'Fitted':'Buy $500','buy',owned||me.cash<500,()=>{
+        if(me.cash<500)return;me.cash-=500;m.tint=t;modSave(c);jingle('buy');renderMods()})})}
+  // horn
+  if(modCat===8){
+    MODS_HORN.forEach(([f1,f2,label],i)=>{
+      const cur=m.horn||0,owned=cur===f1;
+      const acts=modsRow(L,'horn',(owned?'\u2713 ':'')+label+' horn',owned?'Fitted':'$300 · new tone, hits at '+f1+' Hz');
+      modsBtn(acts,owned?'Fitted':(i===0?'Stock':'Buy $300'),'buy',owned||(!owned&&i===0)||(me.cash<300&&i!==0),()=>{
+        if(me.cash<300||i===0)return;me.cash-=300;m.horn=f1;modSave(c);jingle('buy');renderMods()})})}
+}
+function modSave(c){if(!c||c.kind==='dead')return;carMods[c.type]=cleanMods(c.mods);saveArsenal()}
+// carMods: type -> mods you own for that type. Saved with the arsenal so a reload keeps your ride; no entry means stock.
+const carMods={};
+function cleanMods(o){const r={};if(!o||typeof o!=='object')return r;
+  const lc=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():null;
+  const p=lc(o.paint);if(p)r.paint=p;
+  const n=lc(o.neon);if(n)r.neon=n;
+  if(MODS_RIM.includes(o.rim))r.rim=o.rim;
+  if(o.eng>=1&&o.eng<=3)r.eng=o.eng|0;
+  if(o.brk>=1&&o.brk<=2)r.brk=o.brk|0;
+  if(o.arm>=1&&o.arm<=3)r.arm=o.arm|0;
+  if(o.nitro===1)r.nitro=1;
+  if(MODS_TINT.indexOf(o.tint)>0)r.tint=o.tint|0;
+  if(MODS_HORN.some(h=>h[0]===o.horn))r.horn=o.horn;
+  return r}
+function seedMods(c){ // a car type you have modded before keeps your mods when you get behind the wheel again
+  if(!c||c.mods||!hasCT(c.type))return;const m=carMods[c.type];if(m)c.mods=Object.assign({},m)}
+function nitroTap(){if(state!=='play'||!me.car)return;if(!(me.car.mods&&me.car.mods.nitro))feed('No nitro fitted. Palmetto Customs sells it')}
+function bait(){ // test helper (?debug only): spawn a sports car in the Customs bay and get in
+  const c=mkCar(GARAGE.x,GARAGE.y-24,Math.PI/2,'parked','#ff3ea5','sports');cars.push(c);
+  c.kind='mine';c.vx=0;c.vy=0;me.car=c;me.x=c.x;me.y=c.y;me.a=c.a;return 'ok'}
+if(DBG)Object.defineProperties(DBG,{modK:{get:()=>modK},openMods:{get:()=>openMods},mods:{get:()=>carMods},bait:{get:()=>bait}});
 function endJob(){if(job&&job.car)job.car.mark=false}
 function jobDone(reward,msg){endJob();me.cash+=reward;showBig('MISSION PASSED','#ffc94a',`+$${reward}`,2);jingle('pass');job={phase:'wait',t:4,msg:msg||'Nice work. Next job incoming...'};gainXP(60+reward*.08,'Mission');saveArsenal()}
 function jobFail(msg){endJob();jingle('fail');showBig('MISSION FAILED','#ff4b4b',msg,1.8);job={phase:'wait',t:4,msg:'Next job incoming...'}}
@@ -1524,7 +1639,7 @@ function syncRoom(dt){
     r.k=s.k&&typeof s.k==='object'?s.k:{};
     if(myPeer){
       const dv=s.d&&typeof s.d==='object'?num(s.d[myPeer]):0;
-      if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}else r.dmgSeen=dv;
+      if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){damageCar(me.car,amt*BAL.remote.car,false);hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}else r.dmgSeen=dv;
       const km=num(r.k[myPeer]);if(r.kMe===null)r.kMe=km;else if(km>r.kMe){r.kMe=km;feed(`You wasted ${r.name}`);me.cash+=50;if(time-(killXpT[p.peer]||-99)>60){killXpT[p.peer]=time;gainXP(50,'Takedown')}}
     }
     if(s.fl!==r.fl){r.fl=s.fl;r.flareT=time;for(let i=0;i<14;i++){const a=rand()*TAU,sp=60+rand()*140;parts.push({x:r.x,y:r.y,z0:(r.z||0)+6,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:2.4,max:2.4,col:'#ffd27a',k:'flare',sz:3})}}
