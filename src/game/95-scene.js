@@ -264,6 +264,19 @@ const graffMats=['KINGS','LOW PALMS','LPK 4 LIFE'].map((t,i)=>new THREE.MeshBasi
 const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{})));
 const glassMat=fade(new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3);
 const winMat=fadeC(new THREE.MeshBasicMaterial({color:'#ffd28a'}),'color','#ffd28a','#6b5f45'),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
+// rooftop dressing: parapets, set-backs, roof plant, lit crowns and shop blade signs.
+// Per-building detail runs on its own seeded stream (keyed off the footprint), so the world stream never moves.
+const mtx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+const roofG={
+ tank:mergeGeos([[new THREE.CylinderGeometry(6,6,13,10),mtx(0,8.5,0)],[new THREE.CylinderGeometry(6.4,6.4,1.5,10),mtx(0,15.7,0)],
+  ...[[-5.5,6],[5.5,6],[-5.5,-6],[5.5,-6]].map(([x,z])=>[new THREE.BoxGeometry(1.3,4.5,1.3),mtx(x,2.2,z)])]),
+ bulk:mergeGeos([[new THREE.BoxGeometry(15,11,13),mtx(0,5.5,0)],[new THREE.BoxGeometry(5,8,1),mtx(0,4,6.8)]]),
+ ac:mergeGeos([[new THREE.BoxGeometry(9,4,6),mtx(-7,2,0)],[new THREE.BoxGeometry(7,3.4,5),mtx(3,1.7,1)],[new THREE.BoxGeometry(6,3.4,5),mtx(2,1.7,-5)]]),
+ ant:mergeGeos([[new THREE.BoxGeometry(1.1,24,1.1),mtx(0,12,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,19,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,23.5,0)]])};
+const crownMats={},BLADE=[['PALMETTO LIQUOR','#3dd68c'],['24 HR','#29e6d6'],['DINER','#ff3ea5'],['LAUNDRY','#4aa3ff'],['PAWN','#ffc94a'],['TATTOO','#ff7ad9'],['NOODLES','#ff6b3d'],['MOTEL','#c08bff']],
+ bladeMats=BLADE.map(([t,c])=>fadeC(new THREE.MeshBasicMaterial({map:signTex(t,c),side:THREE.DoubleSide}),'color','#ffffff','#8f8f96'));
+const roofN={blade:0,parapet:0,clutter:0,crown:0,setback:0,blades:[]};
+if(DBG)Object.defineProperties(DBG,{roof:{get:()=>roofN}});
 for(const b of buildings){
   if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
   if(b.kind==='fence'||b.kind==='ctower')continue; // airfield fence and control tower: drawn with the airfield
@@ -292,14 +305,31 @@ for(const b of buildings){
     const gl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,201,74,.35)')));gl.rotation.x=-Math.PI/2;gl.scale.set(b.w*1.6,b.h*1.6,1);gl.position.set(cx,1.8,cz);scene.add(gl);
     continue}
   const glass=b.kind==='glass',fv=facPick(b),ft=glass?'glass':(b.x*7+b.y)%3<1?'brick':'stucco';
-  const geo=new THREE.BoxGeometry(b.w,H,b.h);boxUV(geo,b.w,H,b.h,...tileOf(b));
-  put(geo,facMat(ft,fv),cx,H/2,cz);shopfronts(b,fv);
+  const br=seeded((b.x*197+b.y*73+b.w*31+b.h*7)|0),setback=glass&&H>140&&!b.ladder,rw=setback?b.w-14:b.w,rh=setback?b.h-14:b.h;
+  if(setback){roofN.setback++;const g0=new THREE.BoxGeometry(b.w,34,b.h);boxUV(g0,b.w,34,b.h,...tileOf(b));put(g0,facMat(ft,fv),cx,17,cz);
+   const g1=new THREE.BoxGeometry(rw,H-34,rh);boxUV(g1,rw,H-34,rh,...tileOf(b));put(g1,facMat(ft,fv),cx,34+(H-34)/2,cz)}
+  else{const geo=new THREE.BoxGeometry(b.w,H,b.h);boxUV(geo,b.w,H,b.h,...tileOf(b));put(geo,facMat(ft,fv),cx,H/2,cz)}
+  shopfronts(b,fv);
   const tm=trimMats[b.trim]||(trimMats[b.trim]=new THREE.MeshBasicMaterial({color:b.trim}));
   put(new THREE.BoxGeometry(b.w+1.6,2.4,b.h+1.6),tm,cx,H,cz);
-  put(roofBox(b.w-3,1.4,b.h-3),roofMat,cx,H+.9,cz);
+  put(roofBox(rw-3,1.4,rh-3),roofMat,cx,H+.9,cz);
+  if(br()<.75){roofN.parapet++;put(new THREE.BoxGeometry(rw+1.2,1.5,1.4),tm,cx,H+.75,cz-(rh/2-.7));put(new THREE.BoxGeometry(rw+1.2,1.5,1.4),tm,cx,H+.75,cz+(rh/2-.7));
+   put(new THREE.BoxGeometry(1.4,1.5,rh-1.4),tm,cx-(rw/2-.7),H+.75,cz);put(new THREE.BoxGeometry(1.4,1.5,rh-1.4),tm,cx+(rw/2-.7),H+.75,cz)}
+  if(rw>50&&rh>50&&br()<.5){roofN.clutter++;const t=['tank','bulk','ac','ant'][Math.floor(br()*4)];
+   put(roofG[t],capMat,cx+(br()-.5)*Math.max(8,rw-46),H+.1,cz+(br()-.5)*Math.max(8,rh-46))}
+  if(H>200){roofN.crown++;const cm=crownMats[b.trim]||(crownMats[b.trim]=fadeC(new THREE.MeshBasicMaterial({color:b.trim}),'color',b.trim,shade(b.trim,.5)));
+   put(new THREE.BoxGeometry(rw+1.6,2.2,1.2),cm,cx,H-1.1,cz-(rh/2+.1));put(new THREE.BoxGeometry(rw+1.6,2.2,1.2),cm,cx,H-1.1,cz+(rh/2+.1));
+   put(new THREE.BoxGeometry(1.2,2.2,rh+1.6),cm,cx-(rw/2+.1),H-1.1,cz);put(new THREE.BoxGeometry(1.2,2.2,rh+1.6),cm,cx+(rw/2+.1),H-1.1,cz)}
   if(b.sign)put(new THREE.BoxGeometry(Math.min(60,b.w*.6),7,1),tm,cx,30,b.y+b.h+.6);
   if(b.vent)put(new THREE.BoxGeometry(Math.min(26,b.w*.3),8,Math.min(18,b.h*.25)),capMat,b.x+b.w*(b.vent[0]+.1),H+5,b.y+b.h*(b.vent[1]+.1));
   if(glass&&H>240){put(new THREE.CylinderGeometry(1,1.6,60,6),capMat,cx,H+30,cz);put(new THREE.BoxGeometry(3,3,3),redLight,cx,H+61,cz)}
+  if(b.kind!=='brick'&&(b.sign||br()<.55)){ // a blade sign on the face that fronts a street
+   const bx=Math.floor(cx/B),bz=Math.floor(cz/B),x0=bx*B+R,y0=bz*B+R,x1=(bx+1)*B,y1=(bz+1)*B,faces=[];
+   for(const f of[[b.x,b.y+b.h/2,-1,0,b.h,b.x-x0],[b.x+b.w,b.y+b.h/2,1,0,b.h,x1-b.x-b.w],[b.x+b.w/2,b.y,0,-1,b.w,b.y-y0],[b.x+b.w/2,b.y+b.h,0,1,b.w,y1-b.y-b.h]])
+    if(f[5]<30&&f[4]>=28)faces.push(f);
+   if(faces.length){roofN.blade++;const f=faces[Math.floor(br()*faces.length)],mat=bladeMats[Math.floor(br()*bladeMats.length)],w=Math.min(9,f[4]*.35);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(w,4.4),mat);m.position.set(f[0]+f[2]*4.9,18.5,f[1]+f[3]*4.9);if(f[2]!==0)m.rotation.y=Math.PI/2;scene.add(m);
+    if(roofN.blades.length<12)roofN.blades.push([Math.round(m.position.x),Math.round(m.position.z),f[2]!==0?1:0,f[0],f[1]])}}
 }
 landmarkMeshes(); // after graffMats
 // ladders
