@@ -397,6 +397,9 @@ function treeMeshes(){
     else if(u<.7){const q=HILL_RP[Math.floor(tq()*HILL_RP.length)],a=tq()*TAU,d=q[2]+10+tq()*24;x=q[0]+Math.cos(a)*d;y=q[1]+Math.sin(a)*d}
     else{x=tq()*(W+250);y=-2380+tq()*2320}
     if(hillFree(x,y,10,8)&&groundZ(x,y)>LAKE.water+1)C.push([x,y])}
+  // lookout groves: fourteen clusters in a ring 30 to 90 from each viewpoint (Overlook, Griffith Observatory). Appended after the random ones, so those keep their trees.
+  const vq=seeded(97);
+  for(const[vx,vy]of[[1000,-940],[2802,-1900]])for(let i=0;i<14;i++){const a=(i+vq())/14*TAU,d=30+vq()*60,x=vx+Math.cos(a)*d,y=vy+Math.sin(a)*d;if(hillFree(x,y,10,8)&&groundZ(x,y)>LAKE.water+1)C.push([x,y])}
   let n=0;
   for(const[cx,cy]of C){const cnt=4+Math.floor(tq()*6),broad=tq()<.3;
     for(let i=0;i<cnt;i++){const a=tq()*TAU,d=Math.sqrt(tq())*11,x=cx+Math.cos(a)*d,y=cy+Math.sin(a)*d;
@@ -484,25 +487,28 @@ function roadMeshes(){
   return[new THREE.Mesh(geo(asph),roadM),new THREE.Mesh(geo(dirt),dirtM),new THREE.Mesh(geo(dash),lineM),new THREE.Mesh(geo(rail),railM),pm]}
 // one mesh per 400 units of y. Vertex colours: dry grass, darker meadow patches, bare dirt on the trail and round the campsite, rock on steep faces (dark at the foot, lighter up high).
 // Steep quads leave the grass meshes and go into one rock mesh with horizontal strata.
-const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),meadow:new THREE.Color('#3e6b35'),dry:new THREE.Color('#a8a25a'),dirt:new THREE.Color('#6b5a3e'),r1:new THREE.Color('#4f4a47'),r2:new THREE.Color('#a39c93')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
+const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),meadow:new THREE.Color('#2c5a2a'),dry:new THREE.Color('#a8a25a'),dirt:new THREE.Color('#6b5a3e'),r1:new THREE.Color('#4f4a47'),r2:new THREE.Color('#a39c93')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
 function hillMeshes(){
   const det=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#c8c8c8';g.fillRect(0,0,w,h);grit(g,w,h,9000,31,.12)});det.wrapS=det.wrapT=THREE.RepeatWrapping;
   const strata=canvasTex(128,128,(g,w,h)=>{for(let k=0;k<8;k++){g.fillStyle=k%2?'#c4c4c4':'#e8e8e8';g.fillRect(0,k*16,w,16);g.fillStyle='#7a7a7a';g.fillRect(0,k*16,w,2)}grit(g,w,h,1200,57,.12)});strata.wrapS=strata.wrapT=THREE.RepeatWrapping;
   const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[],DIRT=roadSamples(HILL_ROADS.find(r=>r.dirt),12),rk={p:[],n:[],c:[],u:[]};
   // every 2nd heightmap sample (20 units): a quarter of the triangles, the same slopes
   const cs=[];for(let i=0;i<nx;i+=2)cs.push(i);if(cs[cs.length-1]!==nx-1)cs.push(nx-1);
-  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),rs=[];for(let j=j0;j<=j1;j+=2)rs.push(j);if(rs[rs.length-1]!==j1)rs.push(j1);const pos=[],nor=[],col=[],uv=[],sl=[],ix=[];
+  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),rs=[];for(let j=j0;j<=j1;j+=2)rs.push(j);if(rs[rs.length-1]!==j1)rs.push(j1);const pos=[],nor=[],col=[],uv=[],sl=[],dv=[],ix=[];
     for(const j of rs)for(const i of cs){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell,h=hz(i,j);
       const gx=(hz(i+1,j)-hz(i-1,j))/(2*HM.cell),gz=(hz(i,j+1)-hz(i,j-1))/(2*HM.cell),s=Math.hypot(gx,gz),ln=Math.hypot(gx,1,gz);
       pos.push(x,h,z);nor.push(-gx/ln,1/ln,-gz/ln);uv.push(x/120,z/120);sl.push(s);
       if(h<1.5)HCOL.copy(HC.verge);else HCOL.lerpColors(HC.g1,HC.g2,clamp(h/360,0,1));
-      const pn=vnoise(x/70+3,z/70+9);if(pn>.6)HCOL.lerp(HC.meadow,.6);else if(pn<.38)HCOL.lerp(HC.dry,.5);
+      const pn=vnoise(x/70+3,z/70+9);if(pn>.6)HCOL.lerp(HC.meadow,.8);else if(pn<.38)HCOL.lerp(HC.dry,.65);
       let dd=1e9;for(const q of DIRT)dd=Math.min(dd,Math.hypot(x-q[0],z-q[1]));
-      HCOL.lerp(HC.dirt,clamp(Math.max(1-(dd-6)/12,1-(Math.hypot(x-430,z+430)-30)/12),0,1)*.85);
-      const k=clamp((s-.42)/.28,0,1);HCOL2.lerpColors(HC.r1,HC.r2,clamp(h/420,0,1)*.6+.4*vnoise(x/90,z/90));HCOL.lerp(HCOL2,k*k*(3-2*k));
+      // the campsite pad (padFlat 430,-430, 38 by 32) and its 20-unit height blend are packed earth. The blend is steep on the north side, so it stays dirt past the pad edge and fades only after it.
+      const cx=Math.max(0,Math.abs(x-430)-38),cz=Math.max(0,Math.abs(z+430)-32),dirtA=clamp(Math.max(1-(dd-6)/12,1-clamp((Math.hypot(cx,cz)-18)/22,0,1)),0,1)*.9;
+      HCOL.lerp(HC.dirt,dirtA).multiplyScalar(1-.2*dirtA);dv.push(dirtA);
+      const k=clamp((s-.42)/.28,0,1);HCOL2.lerpColors(HC.r1,HC.r2,clamp(h/420,0,1)*.6+.4*vnoise(x/90,z/90));HCOL.lerp(HCOL2,k*k*(3-2*k)*(1-dirtA));
       col.push(HCOL.r,HCOL.g,HCOL.b)}
     const nc=cs.length;for(let j=0;j<rs.length-1;j++)for(let i=0;i<nc-1;i++){const a=j*nc+i,b=a+1,c=a+nc,d=c+1;
-      if((sl[a]+sl[b]+sl[c]+sl[d])/4<.42){ix.push(a,c,b,b,c,d);continue}
+      // a quad on the campsite rim is steep but dirt, so it stays in the grass mesh (the strata texture would pale it)
+      if((sl[a]+sl[b]+sl[c]+sl[d])/4<.42||dv[a]+dv[b]+dv[c]+dv[d]>2){ix.push(a,c,b,b,c,d);continue}
       for(const v of[a,c,b,b,c,d])rk.p.push(pos[v*3],pos[v*3+1],pos[v*3+2]),rk.n.push(nor[v*3],nor[v*3+1],nor[v*3+2]),rk.c.push(col[v*3],col[v*3+1],col[v*3+2]),rk.u.push((pos[v*3]+pos[v*3+2])/150,pos[v*3+1]/48)}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
