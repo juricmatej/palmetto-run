@@ -717,7 +717,7 @@ function prop(r,x,y,w,h,ht,col,solid){const p={x:r.ox+x,y:r.oy+y,w,h,ht,col};r.p
 const tableProp=(r,x,y,w,h,ht,col)=>{const p=prop(r,x,y,w,h,ht,col);p.tbl=1;return p};
 const spot=(r,x,y,act,label)=>r.spots.push({x:r.ox+x,y:r.oy+y,act,label});
 const gunInt=mkRoom('guns','Gun shop',260,200,'#1b2a33',0);
-prop(gunInt,40,40,180,18,14,'#3a3348');prop(gunInt,0,0,260,10,44,'#2a2333');prop(gunInt,0,60,10,100,36,'#2a2333');prop(gunInt,250,60,10,100,36,'#2a2333');
+prop(gunInt,40,40,180,18,14,'#3a3348');prop(gunInt,0,0,260,10,44,'#2a2333');prop(gunInt,0,60,10,100,36,'#2a2333');prop(gunInt,250,60,10,100,36,'#2a2333');prop(gunInt,14,94,30,16,14,'#3a3348');
 spot(gunInt,130,80,'shop','Browse weapons');spot(gunInt,220,150,'safe','Safe');
 const club=mkRoom('club','Velvet Palms',440,330,'#24102a',1);
 prop(club,110,18,220,62,6,'#3a1840');prop(club,18,110,26,150,16,'#3b2416');prop(club,370,150,50,40,14,'#151022');
@@ -725,6 +725,7 @@ for(const[x,y]of[[70,290],[380,280],[90,60],[360,60]])prop(club,x,y,18,18,10,'#2
 spot(club,220,100,'tip','Tip the dancers ($10)');prop(club,350,300,72,18,9,'#6a1a52');spot(club,386,262,'vip','Private dance in the VIP booth ($100)');spot(club,62,185,'drink','Buy a drink ($15, +25 health)');
 const store=mkRoom('store','Snack & Go',240,180,'#1c2622',2);
 prop(store,30,40,14,90,26,'#2f3b35');prop(store,80,40,14,90,26,'#2f3b35');prop(store,130,40,14,90,26,'#2f3b35');prop(store,180,20,50,16,14,'#3a3348');prop(store,0,0,240,8,40,'#2a3a34');
+iwalls.push({x:store.ox+214,y:store.oy+36,w:26,h:84}); // fridge row: walls for the cabinet drawn in the interior look
 spot(store,205,52,'snack','Buy snacks ($20, full health)');
 const home=mkRoom('home','Safehouse',260,200,'#1e1a2c',3);
 prop(home,20,20,60,80,10,'#3b3355');prop(home,150,30,80,26,12,'#4a2f3a');prop(home,150,0,80,6,30,'#121018');
@@ -5413,7 +5414,12 @@ const IDEF={
   beams:{t:128,c:1,d:(g,w,h)=>{g.fillStyle='#22242c';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=64){g.fillStyle='#34384a';g.fillRect(0,y,w,10);g.fillStyle='#14161c';g.fillRect(0,y+10,w,2)}g.fillStyle='#55504a';for(let x=20;x<w;x+=56)g.fillRect(x,0,4,h);g.fillStyle='rgba(255,201,74,.4)';g.fillRect(0,96,w,3)}},
   tile:{t:128,c:1,d:(g,w,h)=>{g.fillStyle='#8f9c99';g.fillRect(0,0,w,h);for(let y=0;y<h;y+=32)for(let x=0;x<w;x+=32){g.fillStyle='#c7d2cf';g.fillRect(x+1,y+1,30,30)}g.fillStyle='#ffffff';for(let y=32;y<h;y+=96)for(let x=32;x<w;x+=96)g.fillRect(x-14,y-6,28,12)}},
   haze:{t:128,c:1,d:(g,w,h)=>{g.fillStyle='#1a0a22';g.fillRect(0,0,w,h);const r=seeded(38);g.lineWidth=1.5;for(let i=0;i<10;i++){g.strokeStyle=r()<.5?'rgba(255,62,165,.6)':'rgba(41,230,214,.5)';g.beginPath();const x=r()*w,y=r()*h;g.moveTo(x,y);g.lineTo(x+r()*120-60,y+r()*120-60);g.stroke()}g.fillStyle='rgba(255,62,165,.12)';g.beginPath();g.arc(w/2,h/2,w*.4,0,TAU);g.fill()}},
-  neon:{t:128,c:1,d:(g,w,h)=>{g.fillStyle='#0d0718';g.fillRect(0,0,w,h);g.lineWidth=3;for(let i=0;i<4;i++){g.strokeStyle=['#ff3ea5','#29e6d6','#ffc94a','#7dff6a'][i];g.beginPath();g.moveTo(0,(i+1)*h/5);for(let x=0;x<=w;x+=16)g.lineTo(x,(i+1)*h/5+Math.sin(x/w*TAU*2+i)*10);g.stroke()}}}};
+  neon:{t:128,c:1,d:(g,w,h)=>{g.fillStyle='#0d0718';g.fillRect(0,0,w,h);g.lineWidth=3;for(let i=0;i<4;i++){g.strokeStyle=['#ff3ea5','#29e6d6','#ffc94a','#7dff6a'][i];g.beginPath();g.moveTo(0,(i+1)*h/5);for(let x=0;x<=w;x+=16)g.lineTo(x,(i+1)*h/5+Math.sin(x/w*TAU*2+i)*10);g.stroke()}}},
+  // gun shop: vertical wall panels with bevelled seams, a diamond plate floor
+  gpan:{t:128,e:'#262a33',d:(g,w,h)=>{g.fillStyle='#3a404c';g.fillRect(0,0,w,h);for(let x=0;x<w;x+=64){g.fillStyle='#1c2029';g.fillRect(x,0,2,h);g.fillStyle='#5a6474';g.fillRect(x+2,0,1,h);g.fillStyle='rgba(0,0,0,.2)';g.fillRect(x+8,0,52,h)}grit(g,w,h,1200,44,.05)}},
+  dplate:{t:64,e:'#22262e',d:(g,w,h)=>{g.fillStyle='#4a505b';g.fillRect(0,0,w,h);g.fillStyle='#363c46';for(let i=-h;i<w;i+=16){g.beginPath();g.moveTo(i,0);g.lineTo(i+8,0);g.lineTo(i+8+h,h);g.lineTo(i+h,h);g.closePath();g.fill()}grit(g,w,h,1000,45,.05)}},
+  // vault: steel plates with a seam grid
+  steel:{t:96,e:'#1b1f27',d:(g,w,h)=>{g.fillStyle='#5d6573';g.fillRect(0,0,w,h);g.fillStyle='#2b3038';for(let i=0;i<=w;i+=64){g.fillRect(i,0,3,h);g.fillRect(0,i,w,3)}g.fillStyle='rgba(255,255,255,.08)';for(let i=0;i<w;i+=64){g.fillRect(i+3,0,1,h);g.fillRect(0,i+3,w,1)}grit(g,w,h,1400,46,.04)}}};
 const ITEX={};
 // one canvas texture per name; each room gets its own material object on it, so staticBatch keeps a room's shell in its own group
 function iMat(n){const D=IDEF[n],tx=ITEX[n]||(ITEX[n]=rtex(256,256,D.d));return D.c?new THREE.MeshBasicMaterial({map:tx}):new THREE.MeshLambertMaterial({map:tx,emissive:new THREE.Color(D.e),emissiveMap:tx})}
@@ -5468,9 +5474,9 @@ function iArt(c){return atlas(192,224,(g,X,Y,W,H)=>{g.save();g.beginPath();g.rec
   g.fillStyle='#07040f';g.fillRect(X,Y+H*.72,W,H*.28);g.save();g.translate(X+W*.66,Y+H*.72);g.fillRect(-2,-H*.4,4,H*.4);
   for(let i=0;i<5;i++){g.save();g.translate(0,-H*.4);g.rotate(-1.3+i*.65);g.beginPath();g.ellipse(0,-12,4,22,0,0,TAU);g.fill();g.restore()}g.restore();g.restore()})}
 // the room shell: tiled walls, skirting, ceiling. Floors are added in the interior loop.
-const IROOM={guns:{f:'conc',w:'metal',c:'beams'},club:{f:'carpet',w:'velvet',c:'haze'},store:{f:'lino',w:'stile',c:'grid'},
+const IROOM={guns:{f:'dplate',w:'gpan',c:'beams'},club:{f:'carpet',w:'velvet',c:'haze'},store:{f:'lino',w:'stile',c:'grid'},
   home:{f:'plank',w:'wood',c:'grid'},casino:{f:'carpet',w:'velvet',c:'grid'},bank1:{f:'marb',w:'plaster',c:'tile'},bank2:{f:'conc',w:'metal',c:'beams'},
-  bank3:{f:'conc',w:'metal',c:'beams'},diner:{f:'chk',w:'pinkT',c:'grid'},ink:{f:'inkf',w:'brick',c:'grid'},gym:{f:'conc',w:'metal',c:'beams'},
+  bank3:{f:'steel',w:'metal',c:'beams'},diner:{f:'chk',w:'pinkT',c:'grid'},ink:{f:'inkf',w:'brick',c:'grid'},gym:{f:'conc',w:'metal',c:'beams'},
   pd:{f:'conc',w:'panelB',c:'grid'},hosp:{f:'lino',w:'whiteT',c:'tile'},arcade:{f:'arcf',w:'arcW',c:'neon'},anchor:{f:'plank',w:'wood',c:'beams'},
   low:{f:'wood',w:'plaster',c:'beams'},mid:{f:'carpet',w:'wood',c:'grid'},beach:{f:'plank',w:'whiteT',c:'beams'},heights:{f:'marb',w:'plaster',c:'grid'},penth:{f:'carpet',w:'velvet',c:'grid'}};
 function iShell(r,L){const t=14,cx=r.ox+r.w/2,cz=r.oy+r.h/2,W=IDEF[L.w],wm=iMat(L.w);
@@ -5496,7 +5502,7 @@ for(const r of INT){
  iB(g,8,150,0,36,16,26,wood);iB(g,8,150,16,36,14,26,wood);iB(g,48,160,0,26,14,22,wood);
  iB(g,0,0,44,260,1,10,iCol('#29e6d6'));
  for(let i=0;i<4;i++){iB(g,2,66+i*22,36,6,2,14,M.gun);iB(g,252,66+i*22,36,6,2,14,M.gun)}
- iMatExit(g,130,179);iSign(g,130,199.4,56,'GUNS','#29e6d6',Math.PI,60,15);iGlow(g,130,110,150,'rgba(41,230,214,.22)')}
+ iMatExit(g,130,179);iPl(g,130,199.4,50,150,12.5,ATL.m,Math.PI,atlas(960,80,(c,X,Y,w,h)=>{c.fillStyle='#0b0814';c.fillRect(X,Y,w,h);c.strokeStyle='#29e6d6';c.lineWidth=5;c.strokeRect(X+4,Y+4,w-8,h-8);c.font='58px Bungee, Impact, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillStyle='#29e6d6';c.shadowColor='#29e6d6';c.shadowBlur=14;c.fillText('PALMETTO ARMS',X+w/2,Y+h/2+3)}));iGlow(g,130,110,150,'rgba(41,230,214,.22)')}
 // safehouse: bed with blanket and lamp, sofa with cushions, kitchen run, fridge, heist board on the right wall, plant
 {const h=home,wood=lam('#5a3a22'),fab=lam('#7a3a5a'),paper=lam('#e8e0f0');
  iB(h,20,15,0,62,14,5,wood);iB(h,22,24,10,56,3,72,fab);
@@ -5536,12 +5542,14 @@ for(const r of INT){
  iB(c,309.5,199.5,57,1,15,1,lam('#c9a24a'));
  iSign(c,495,38,36,'CASHIER','#ffc94a',0,60,14);
  iMatExit(c,300,438);iSign(c,320,459.4,56,'LUCKY PALMS','#c08bff',Math.PI,60,15);iGlow(c,310,200,160,'rgba(255,216,120,.3)')}
-// gun shop: a rifle rack on the back wall above the shelf, a glass case on the counter
-{const g=gunInt,rifles=[];
- iB(g,16,10,46,228,1.2,24,lam('#3a3446'));
- for(const z of[50,62])for(let i=0;i<8;i++){const x=24+i*28;rifles.push([x-2,11.4,z,30,1.8,1.6,'#9aa2b0'],[x-8,11.4,z-2,10,4.2,2,'#8a5a30'])}
+// gun shop: a lit pegboard on the back wall above the shelf with two rows of rifles hung on it, a glass case on the counter,
+// and a second glass case on the left wall with pistols on its lid
+{const g=gunInt,rifles=[],peg=atlas(768,96,(c,X,Y,w,h)=>{const gr=c.createRadialGradient(X+w/2,Y+h/2,8,X+w/2,Y+h/2,w*.6);gr.addColorStop(0,'#33e0d6');gr.addColorStop(1,'#0c4a4e');c.fillStyle=gr;c.fillRect(X,Y,w,h);c.fillStyle='#052326';for(let x=X+8;x<X+w;x+=16)for(let y=Y+8;y<Y+h;y+=16){c.beginPath();c.arc(x,y,3,0,TAU);c.fill()}});
+ iPl(g,130,1,44,228,26,ATL.m,0,peg);
+ for(const z of[52,64])for(let i=0;i<8;i++){const x=24+i*28;rifles.push([x-2,2,z,30,2.2,1.4,'#9aa2b0'],[x-8,2,z-1.5,8,4.6,2.4,'#8a5a30'])}
  iBoxes(g,rifles);
- iOnly(g,iPl(g,130,58.4,14.5,180,8,iGlass,0));iOnly(g,iPl(g,40,49,14.5,18,8,iGlass,Math.PI/2));iOnly(g,iPl(g,220,49,14.5,18,8,iGlass,-Math.PI/2))}
+ iOnly(g,iPl(g,130,58.4,14.5,180,8,iGlass,0));iOnly(g,iPl(g,40,49,14.5,18,8,iGlass,Math.PI/2));iOnly(g,iPl(g,220,49,14.5,18,8,iGlass,-Math.PI/2));
+ iB(g,14,94,14,30,1,16,lam('#9fd8e8'));for(let i=0;i<3;i++)iB(g,17+i*9,98,15,6,2,4,M.gun);iOnly(g,iPl(g,29,110.4,14.5,30,8,iGlass,0))}
 // Snack & Go: gondola faces with three rows of product, a fridge row with glass doors on the right wall, a counter with a till
 // and a card reader, a street in the window, two posters and ceiling panels
 {const s=store,r=seeded(43),shelf=lam('#3c4a43'),pal=['#ff6b3d','#ffc94a','#4aa3ff','#3dd68c','#ff3ea5','#29e6d6','#f3ecff','#c0392b'],prod=[];
@@ -5705,6 +5713,17 @@ let roul=null,clubBall=null;
 {iMatExit(bankL,220,290);iSign(bankL,220,319.4,56,'UNION BANK','#ffc94a',Math.PI,90,15);iGlow(bankL,220,160,300,'rgba(255,201,74,.2)')}
 {iMatExit(bankS,190,230);iSign(bankS,190,259.4,56,'FLOOR 12','#29e6d6',Math.PI,70,15);iGlow(bankS,190,130,240,'rgba(41,230,214,.22)')}
 {iMatExit(bankV,210,300);iSign(bankV,210,329.4,56,'VAULT','#ffc94a',Math.PI,70,15);iGlow(bankV,210,170,260,'rgba(255,216,120,.3)')}
+// vault: 24 safe deposit boxes on the back wall (one merged mesh, lock plates included), a camera on a ceiling bracket, a lit cash cart by the front-left corner
+{const v=bankV,st=lam('#aeb7c6'),L=[],mx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+ for(let t=0;t<2;t++)for(let i=0;i<12;i++){const x=v.ox+290+i*10;L.push([box(9,12,8),mx(x+4.5,6+t*12,v.oy+4)],[box(3,3,1),mx(x+4.5,7.5+t*12,v.oy+8.5)])}
+ scene.add(new THREE.Mesh(mergeGeos(L),st));
+ iB(v,30,18,62,2,10,2,M.black);iB(v,26,14,56,10,6,8,M.black);iB(v,29,22,57,4,4,1.5,st);iB(v,34,22,58,1.2,1.2,.6,iCol('#ff3a3a'));
+ const cx=40,cy=262;
+ for(const[x,y]of[[cx+2,cy+2],[cx+28,cy+2],[cx+2,cy+16],[cx+28,cy+16]]){iCy(v,x,y,0,2.2,2,M.black,8);iB(v,x-.7,y-.7,2,1.4,14,1.4,st)}
+ iB(v,cx,cy,8,30,1.2,18,st);iB(v,cx,cy,16,30,1.2,18,st);
+ for(let i=0;i<3;i++)for(let j=0;j<2;j++)iB(v,cx+3+i*9,cy+3+j*7,17.2,7,2.6,5,iCol('#3dd68c'));
+ iGlow(v,cx+15,cy+9,70,'rgba(61,214,140,.35)')}
+if(DBG)Object.defineProperties(DBG,{testCam:{get:()=>({vault:()=>gotoFloor(bankV,210,300),turn:a=>{look.yaw=a}})}}); // debug only: stand in the vault, turn the camera
 // garage markers and for-sale signs on the street (one ring and one sign per house, a sign per unowned house)
 function houseMeshes(){for(const p of PROPS){const g=p.garage;
   const ring=new THREE.Mesh(new THREE.RingGeometry(9,12,28),new THREE.MeshBasicMaterial({color:'#4aa3ff',transparent:true,opacity:.85,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(g.x,1.6,g.y);scene.add(ring);
