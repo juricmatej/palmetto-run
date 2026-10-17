@@ -1723,6 +1723,7 @@ function bjHandEl(h,i,n){const b=document.createElement('div');b.className='bjHa
   if(h&&h.res){const net=h.win-h.bet;rs.textContent=h.res+(net>0?' +'+money(net):net<0?' -'+money(-net):'');if(net)rs.classList.add(net>0?'win':'lose')}
   if(h)b.append(hd);b.append(tot,sp,rs);return b}
 function bjRender(){
+  if(bjSh){tRender();return}if(tStrip)tStrip.hidden=true;if(tagSolo!==null){tagText().textContent=tagSolo;tagSolo=null}
   const ph=bj.ph,r=ph==='bet'?null:bj.r,hide=!bj.open&&(ph==='play'||ph==='ins'||ph==='reveal');
   if(!bj.counting)$('bjCash').textContent=money(me.cash);
   $('bjLim').textContent=`${money(BJMIN)} to ${money(BJMAX*tableK)}`;$('bjT').textContent=tableK>1?'High-limit blackjack':'Blackjack';
@@ -1786,11 +1787,163 @@ function bjFlights(r){const rk=$('bjRack').getBoundingClientRect(),sp=$('bj').qu
     if(h.win>h.bet){const p=chipStack(h.win-h.bet);p.style.cssText='position:fixed;z-index:9';p.style.left=rk.left+'px';p.style.top=rk.top+'px';document.body.append(p);fly(p,rk,st.getBoundingClientRect(),700,i*120).onfinish=()=>p.remove()}
     else if(h.win===0){fly(st,st.getBoundingClientRect(),rk,650,150);st.animate([{opacity:1},{opacity:0}],{duration:650,delay:150,fill:'forwards'})}})}
 // closing the table mid-hand stands every hand and pays out at once
-function bjLeave(){if(bj.ph!=='play'&&bj.ph!=='ins')return;const r=bj.r;for(const h of r.h)h.done=1;bj.open=1;bjDealer(r,bjDraw);me.cash+=bjPay(r);bj.ph='done';bj.busy=0;bj.counting=0;bj.bet=bj.last;saveArsenal()}
-function openBJ(k=1){tableK=k;try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';if(bj.ph==='bet')bj.bet=Math.min(bj.bet,BJMAX*k,me.cash);$('bj').hidden=false;bjRender()}
+function bjLeave(){if(bjSh)return tLeave();if(bj.ph!=='play'&&bj.ph!=='ins')return;const r=bj.r;for(const h of r.h)h.done=1;bj.open=1;bjDealer(r,bjDraw);me.cash+=bjPay(r);bj.ph='done';bj.busy=0;bj.counting=0;bj.bet=bj.last;saveArsenal()}
+function openBJ(k=1){tableK=k;try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';bjSh=k===1&&tOn();if(bjSh){bj.ph='bet';bj.busy=0;bj.counting=0;tSitDown(false)}if(bj.ph==='bet')bj.bet=Math.min(bj.bet,BJMAX*k,me.cash);$('bj').hidden=false;bjRender()}
 $('bjClose').addEventListener('click',()=>closeShop());
 $('bjHintT').addEventListener('click',()=>{bj.hint=bj.hint?0:1;bjRender()});
 if(DBG)Object.defineProperties(DBG,{bj:{get:()=>bj}});
+
+// ---------- shared blackjack table ----------
+// The casino blackjack table (not high-limit) seats 4 players in the room. A seated player publishes seat = "i|bet|act|seq":
+// act is w (ready to deal), h (hit), s (stand), d (double), or empty. seq counts requests, so a request is acted on once.
+// The table host is the lowest peer id among the seated. The host deals from its shoe and publishes tb, the round: the dealer
+// cards, and each seat's cards, bet, done flag and last seq it acted on. Each player pays its own hand from tb, so money
+// moves only on its owner's client. A seat is held for TGRACE seconds after its player stops showing it (leave, walk away, downed).
+// Shared play has no split, surrender or insurance, and the dealer does not peek. The solo table keeps all of them.
+const TSEATS=4,TGRACE=5,TCODE={'♠':'S','♥':'H','♦':'D','♣':'C'},TSUIT={S:'♠',H:'♥',D:'♦',C:'♣'};
+const tPeers=new Map(); // remote peer -> {j, bet, act, seq, t}
+let tableSeats=[null,null,null,null]; // the seats held by remote players: {peer, j, bet, act, seq}
+let tSit={j:-1,bet:0,act:'',seq:0,paid:0,rid:'',leaving:0}; // my seat. paid is what I have in the round now, rid its round id
+let tagSolo=null; // the table rules line, kept while the shared table shows its own rules
+const tagText=()=>document.querySelector('.bjtag').firstChild;
+let tSeq=0,tShoe=null,tRound=null,tRemote=null,tRemoteT=0,tTimer=0,tRT=0,bjSh=false,tStrip=null,seatBot=null;
+const tSeen=new Map(); // host: last seq dealt per peer, so a ready request deals once
+const tFakePub={};
+const tEnc=c=>(c.r==='10'?'T':c.r)+TCODE[c.su];
+const tDec=s=>{const m=typeof s==='string'&&/^([AT2-9JQK])([SHDC])$/.exec(s);return m?{r:m[1]==='T'?'10':m[1],su:TSUIT[m[2]]}:null};
+const tCards=(s,n)=>typeof s==='string'?s.split(',').slice(0,n).map(tDec).filter(Boolean):[];
+const tOn=()=>!!room&&myPeer!=null;
+const tMe=()=>String(myPeer);
+function tHostPeer(){let lo=tSit.j>=0?tMe():null;for(const p of tPeers.keys())if(lo===null||p<lo)lo=p;return lo}
+const tHostMe=()=>tSit.j>=0&&tHostPeer()===tMe();
+const tCur=()=>tHostMe()?tRound:(tRemote&&time-tRemoteT<=TGRACE?tRemote:null);
+const tMine=tb=>{const h=tb&&tSit.j>=0?tb.s[tSit.j]:null;return h&&h.o===tMe()?h:null};
+const tbPub=()=>({i:tRound.i,p:tRound.p,d:tRound.d.map(tEnc).join(','),s:tRound.s.map(h=>h&&{o:h.o,c:h.c.map(tEnc).join(','),b:h.b,x:h.x,q:h.q})});
+function tbParse(t){
+  if(!t||typeof t!=='object'||typeof t.i!=='string'||!Array.isArray(t.s)||t.s.length!==TSEATS)return null;
+  return{i:t.i.slice(0,24),p:t.p===1?1:0,t:0,d:tCards(t.d,12),s:t.s.map(h=>h&&typeof h==='object'&&typeof h.o==='string'?{o:h.o.slice(0,40),c:tCards(h.c,12),b:clamp(Math.floor(num(h.b)),0,BJMAX*2),x:h.x?1:0,q:Math.floor(num(h.q,-1))}:null)};
+}
+// presence in: a seat claim (a downed player stops refreshing, so the seat lapses after TGRACE) and the host's round
+function tIn(peer,seat,tb,downed){
+  peer=String(peer);
+  const q=typeof seat==='string'?seat.split('|'):[];
+  if(q.length===4&&!downed){const j=+q[0],bet=+q[1],seq=+q[3];
+    if(Number.isInteger(j)&&j>=0&&j<TSEATS&&Number.isFinite(bet)&&Number.isInteger(seq)&&seq>=0)tPeers.set(peer,{j,bet:clamp(Math.floor(bet),0,BJMAX),act:/^[whsd]$/.test(q[2])?q[2]:'',seq,t:time})}
+  if(tb&&tPeers.has(peer)&&peer===tHostPeer()){tRemote=tbParse(tb);tRemoteT=time}
+}
+function tSeatsNow(){const a=[null,null,null,null];for(const p of [...tPeers.keys()].sort()){const e=tPeers.get(p);if(!a[e.j])a[e.j]={peer:p,j:e.j,bet:e.bet,act:e.act,seq:e.seq}}return a}
+function tSitDown(quiet){
+  if(tSit.j>=0){tSit.leaving=0;return true}
+  const j=tSeatsNow().indexOf(null);
+  if(j<0){if(!quiet)feed('The table is full. You can watch, and sit when a seat frees');return false}
+  tSit={...tSit,j,leaving:0};return true}
+const tSitClear=()=>{tSit={...tSit,j:-1,bet:0,act:'',paid:0,rid:'',leaving:0}};
+// my requests. Each one gets a new seq; the host acts on it once.
+function tPlace(){if(tSit.j<0||tSit.act||tSit.paid||bj.bet<BJMIN||bj.bet>BJMAX||bj.bet>me.cash)return;
+  tSit.bet=bj.bet;tSit.act='w';tSit.seq=++tSeq;bj.msg='Waiting for the deal.';pubT=1;tRender()}
+function tAct(a){const tb=tCur(),h=tMine(tb);if(!h||!tb||tb.p!==0||h.x||tSit.act)return;
+  if(a==='d'&&(h.c.length!==2||me.cash<h.b))return;
+  tSit.act=a;tSit.seq=++tSeq;pubT=1;tRender()}
+// walking away: a bet not yet dealt comes back at once. A dealt hand stands, and the seat stays until the round pays.
+function tLeave(){bjSh=false;if(tSit.j<0)return;if(tSit.paid)tSit.leaving=1;else tSitClear()}
+function tTake(){if(!tShoe||!tShoe.c.length)tShoe=bjNewShoe();return bjTake(tShoe)}
+function tDeal(rd){
+  if(!tShoe||tShoe.used>=BJCUT)tShoe=bjNewShoe();
+  tRound={i:Math.random().toString(36).slice(2,10),p:0,t:0,d:[],s:[null,null,null,null]};
+  for(const e of rd)if(!tRound.s[e.j]){tRound.s[e.j]={o:e.peer,c:[],b:e.bet,x:0,q:e.seq};tSeen.set(e.peer,e.seq)}
+  for(let k=0;k<2;k++){for(const h of tRound.s)if(h)h.c.push(tTake());tRound.d.push(tTake())}
+  for(const h of tRound.s)if(h&&bjNat(h.c))h.x=1;
+}
+// host only: deal once every seat is ready (or after 10 s), act on requests, then the dealer plays and the round ends
+function tHostStep(dt){
+  const L=[];for(const[p,e]of tPeers)L.push({peer:p,j:e.j,bet:e.bet,act:e.act,seq:e.seq});
+  L.push({peer:tMe(),j:tSit.j,bet:tSit.bet,act:tSit.act,seq:tSit.seq});
+  if(!tRound){
+    const rd=L.filter(e=>e.act==='w'&&e.bet>=BJMIN&&e.seq>(tSeen.get(e.peer)??-1));
+    if(!rd.length){tTimer=0;return}
+    if((tTimer+=dt)<10&&rd.length<L.length)return;
+    tTimer=0;tDeal(rd);return;
+  }
+  if(tRound.p===1){if(time-tRound.t>4)tRound=null;return}
+  for(let j=0;j<TSEATS;j++){const h=tRound.s[j];if(!h||h.x)continue;
+    const e=L.find(v=>v.j===j&&v.peer===h.o);
+    if(!e){h.x=1;continue}
+    if(e.seq<=h.q||e.act===''||e.act==='w')continue;
+    h.q=e.seq;
+    if(e.act==='s')h.x=1;
+    else if(e.act==='h'){h.c.push(tTake());if(bjVal(h.c)>=21)h.x=1}
+    else if(e.act==='d'&&h.c.length===2){h.b*=2;h.c.push(tTake());h.x=1}
+  }
+  if(tRound.s.every(h=>!h||h.x)){bjDealer({h:tRound.s.filter(Boolean).map(h=>({c:h.c,surr:0})),d:tRound.d},tTake);tRound.p=1;tRound.t=time}
+}
+// every client: seat conflicts, the host step, my bet and payout from tb, and the seat lapse
+function tFrame(dt){
+  for(const[p,e]of tPeers)if(time-e.t>TGRACE)tPeers.delete(p);
+  if(tOn()){
+    if(tSit.j>=0&&!tSit.paid)for(const[p,e]of tPeers)if(e.j===tSit.j&&p<tMe()){tSit.j=-1;tSit.act='';break}
+    if(bjSh&&tSit.j<0&&!tSit.leaving)tSitDown(true);
+  }
+  tableSeats=tSeatsNow();
+  if(!tOn())return;
+  if(tHostMe())tHostStep(dt);
+  const tb=tCur(),h=tMine(tb);
+  if(tSit.act==='w'&&h&&h.q>=tSit.seq){tSit.act='';me.cash-=h.b;tSit.paid=h.b;tSit.rid=tb.i}
+  else if(tSit.act&&h&&h.q>=tSit.seq)tSit.act='';
+  if(tSit.paid){
+    if(!tb||tb.i!==tSit.rid||!h){me.cash+=tSit.paid;bj.msg='The round was cut short. Your bet came back.';feed(bj.msg);tSit.paid=0;tSit.rid='';if(tSit.leaving)tSitClear()}
+    else{
+      if(h.b>tSit.paid){me.cash-=h.b-tSit.paid;tSit.paid=h.b}
+      if(tSit.leaving&&!tSit.act&&!h.x&&tb.p===0){tSit.seq=++tSeq;tSit.act='s';pubT=1}
+      if(tb.p===1){
+        const r={h:[{c:h.c,bet:h.b,surr:0,win:0,res:''}],d:tb.d,ins:0},back=bjPay(r),net=back-tSit.paid;
+        me.cash+=back;bj.msg=r.h[0].res+(net>0?' +'+money(net):net<0?' -'+money(-net):'');
+        if(net>0)jingle('pass');else tone('triangle',180,.35,.1);
+        saveArsenal();tSit.paid=0;tSit.rid='';if(tSit.leaving)tSitClear();
+      }
+    }
+  }
+  if(tSit.leaving&&!tSit.paid)tSitClear();
+  if(bjSh&&!$('bj').hidden&&(tRT-=dt)<=0){tRT=.1;tRender()}
+}
+function tStripEl(){if(!tStrip){tStrip=document.createElement('div');tStrip.style.cssText='display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;font-size:13px;margin:4px 0';$('bjP').before(tStrip)}tStrip.hidden=false;return tStrip}
+// the shared table view: dealer, my hand, the seat strip, and the buttons for my turn
+function tRender(){
+  const tb=tCur(),h=tMine(tb),busy=!!tb&&tb.p===0,cash=me.cash;
+  if(tagSolo===null){tagSolo=tagText().textContent;tagText().textContent='Dealer stands on 17. Blackjack pays 3 to 2. No insurance, split or surrender at a shared table. Cash '}
+  $('bjCash').textContent=money(cash);$('bjLim').textContent=`${money(BJMIN)} to ${money(BJMAX)}`;
+  $('bjLeft').textContent=`${tableSeats.filter(Boolean).length+(tSit.j>=0?1:0)} of ${TSEATS} seated`;
+  const D=$('bjD');D.replaceChildren();if(tb)tb.d.forEach((c,i)=>D.appendChild(bjCard(c,busy&&i===1)));
+  $('bjDv').textContent=!tb?'':busy?String(bjVal([tb.d[0]])):String(bjVal(tb.d));
+  const P=$('bjP');P.replaceChildren();
+  if(h){const b=document.createElement('div');b.className='bjHand';const hd=document.createElement('div');hd.className='hand n'+Math.min(4,h.c.length);
+    h.c.forEach(c=>hd.appendChild(bjCard(c,false)));const t=document.createElement('b');t.className='bjTot';const v=bjVal(h.c);t.textContent=v>21?'Bust':v;
+    const sp=document.createElement('div');sp.className='bjSpot';sp.appendChild(chipStack(h.b));const rs=document.createElement('div');rs.className='bjRes';
+    if(tb.p===1){const r={h:[{c:h.c,bet:h.b,surr:0,win:0,res:''}],d:tb.d,ins:0};bjPay(r);rs.textContent=r.h[0].res}
+    b.append(hd,t,sp,rs);P.appendChild(b)}
+  else if(tSit.j>=0){const sp=document.createElement('div');sp.className='bjSpot';sp.dataset.t='Bet here';if(bj.bet)sp.appendChild(chipStack(bj.bet));P.appendChild(sp)}
+  const strip=tStripEl();strip.replaceChildren();
+  for(let j=0;j<TSEATS;j++){const e=j===tSit.j?{mine:1,bet:tSit.bet}:tableSeats[j],c=document.createElement('span');
+    const who=e?(e.mine?myName+' (you)':((remotes.get(e.peer)||{}).name||'Player')):'Empty seat';
+    const cs=tb&&tb.s[j]?tb.s[j].c.map(x=>x.r+x.su).join(' '):'';
+    c.textContent=`${j+1}: ${who}${e&&e.bet?' · '+money(e.bet):''}${cs?' · '+cs:''}`;strip.appendChild(c)}
+  const Bt=$('bjBtns');Bt.replaceChildren();
+  const btn=(t,fn,dis,cls)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=!!dis;if(cls)b.className=cls;b.onclick=()=>fn(b);Bt.appendChild(b)};
+  let msg=bj.msg;const can=!!h&&!h.x&&busy&&!tSit.act&&!tSit.leaving;
+  if(tSit.j<0)msg=tableSeats.every(Boolean)?'Every seat is taken. You can watch.':'Sitting down.';
+  else if(tSit.act==='w')msg='Waiting for the deal.';
+  else if(tSit.paid){msg=can?'Your move.':'Waiting for the other players.';
+    if(can){btn('Hit',()=>tAct('h'),false,'go');btn('Stand',()=>tAct('s'));btn('Double',()=>tAct('d'),h.c.length!==2||cash<h.b)}}
+  else if(!h){for(const v of[10,50,100,500])btn('+$'+v,b=>bjChip(v,b),bj.bet+v>Math.min(BJMAX,cash),'chip');
+    btn('Clear',()=>{bj.bet=0;tRender()},!bj.bet);btn(`Deal ${money(bj.bet)}`,tPlace,bj.bet<BJMIN||bj.bet>cash||busy,'go')}
+  $('bjMsg').textContent=msg;$('bjHint').textContent='';$('bjHintT').textContent=bj.hint?'Hints on':'Hints off';
+}
+// test hook (DBG): a fake remote player (default 'aaa') in seat 0 with a bet of 100, ready to deal. Its presence is seatBot.presence.
+// What this player publishes lands in fakePub.
+if(DBG)DBG.seatTest=(peer='aaa',seat='0|100|w|1')=>{
+  seatBot={peer,kind:'viewer',presence:{n:'Tester',c:'#3dd68c',pv:PV,v:0,x:0,y:0,seat:seat||null}};
+  room={presence:p=>{Object.assign(tFakePub,p);return Promise.resolve()},peers:()=>{seatBot.presence.x=me.x+20;seatBot.presence.y=me.y;return[{peer:'me',sameTab:true},seatBot]}};
+  syncRoom(0);tFrame(0);return seatBot};
+if(DBG)Object.defineProperties(DBG,{seats:{get:()=>tableSeats},tRound:{get:()=>tRound},tSit:{get:()=>tSit},seatBot:{get:()=>seatBot},fakePub:{get:()=>tFakePub}});
 
 // ---------- VIP booth ----------
 function startLap(){if(lap)return;if(me.cash<100){feed('A private dance costs $100');return}me.cash-=100;lap={t:0,dur:20};state='cut';me.vx=me.vy=0;me.x=club.ox+386;me.y=club.oy+305;me.a=-Math.PI/2;mouse.down=false;
@@ -4291,7 +4444,7 @@ function syncRoom(dt){
     if(p.sameTab){myPeer=p.peer;continue}
     if(p.kind!=='viewer')continue;
     const s=p.presence||{};if(!Number.isFinite(s.x)||!Number.isFinite(s.y))continue;
-    seen.add(p.peer);
+    seen.add(p.peer);tIn(p.peer,s.seat,s.tb,s.dn===1);
     const pv=num(s.pv)||0;if(pv!==PV&&!pvWarn.has(p.peer)){pvWarn.add(p.peer);feed('Someone is on a different game version. Ask them to reload the page')}
     let r=remotes.get(p.peer);
     if(!r){r={x:s.x,y:s.y,a:num(s.a),shot:Array.isArray(s.s)?s.s[0]:null,ex:Array.isArray(s.ex)?s.ex[0]:null,fl:s.fl,dmgSeen:null,kMe:null,chSeq:null,chatLine:'',chatT:-9,downed:false,rvSeen:null};remotes.set(p.peer,r);feed(`${str(s.n)||'A driver'} rolled into town`)}
@@ -4354,7 +4507,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,cw:crewPub(),w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,cw:crewPub(),seat:tSit.j>=0?tSit.j+'|'+tSit.bet+'|'+tSit.act+'|'+tSit.seq:null,tb:tHostMe()&&tRound?tbPub():null,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
@@ -4506,7 +4659,7 @@ function update(dt){
   time+=dt;wxTick(dt);
   lockTarget=(state==='play'&&weap==='homing'&&!me.inside)?findLock():null;
   A.x=me.inside&&me.door?me.door.x:me.x;A.y=me.inside&&me.door?me.door.y:me.y;
-  syncRoom(dt);crewFrame(dt);
+  syncRoom(dt);tFrame(dt);crewFrame(dt);
   downedStep(dt);
   if(state==='dead'){specPick();deadT-=dt;if(deadT<=0)respawn()}
   me.inv=Math.max(0,me.inv-dt);me.fireCd-=dt;shopCd-=dt;
