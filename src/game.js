@@ -958,7 +958,7 @@ function policeStep(dt){
   const st=heat>0?Math.ceil(heat-.001):0,want=[0,1,2,3,4,5][st];
   let pol=0;for(let i=cars.length-1;i>=0;i--){const c=cars[i],d=Math.hypot(c.x-A.x,c.y-A.y);
     if(c.kind==='police'){const on=c.mode!=='block';if(on)pol++;if((heat===0&&(d>650||c.mode==='block'))||d>1500){cars.splice(i,1);if(on)pol--}}
-    else if((c.kind==='parked'||c.kind==='dead'||c.kind==='traffic')&&d>1700&&!(c.type==='armored'&&c.kind!=='dead')&&!c.mark){cars.splice(i,1)}}
+    else if((c.kind==='parked'||c.kind==='dead'||c.kind==='traffic')&&d>1700&&!(c.type==='armored'&&c.kind!=='dead')&&!c.mark&&!c.personal){cars.splice(i,1)}}
   if(pol<want&&state==='play'&&rand()<dt*.3){const c=laneSpawn('police',650,1000);
     if(c&&st>=5&&rand()<.5){c.type='armored';c.color='#1d2433';c.hp=400}} // half the new 5 star cruisers are SWAT vans
   if(!copHeli&&st>=4&&state==='play'){copHeli=spawnCopHeli();policeBusy=true}
@@ -1360,6 +1360,7 @@ function toggleCar(){
   if(!me.car&&heli&&!heli.dead&&!heli.falling&&Math.hypot(heli.x-me.x,heli.y-me.y)<50&&Math.abs(heli.z-(me.z||0))<24){if(!unlocked('heli'))feed(`You need level ${UNLOCK.heli} to fly the attack helicopter`);else{me.heli=heli;me.roof=null;me.climb=null;return}}
   if(!me.car&&tryLadder())return;
   if(me.roof)return;
+  if(!me.car&&propAct())return;
   if(!me.car&&nearDealer()){buyPowder();return}
   if(me.car){leaveCar(false);return}
   const c=nearestCar();if(!c){talkPed();return}
@@ -1372,6 +1373,7 @@ function toggleCar(){
 function leaveCar(force){
   const c=me.car;if(!c)return;
   const sp=Math.hypot(c.vx,c.vy);if(!force&&sp>120)return;
+  if(c.slot)propWrite(c);
   c.kind='parked';c.air=false;me.car=null;
   for(const s of[-1,1]){const x=c.x+Math.cos(c.a+s*1.57)*24,y=c.y+Math.sin(c.a+s*1.57)*24;if(!inBuilding(x,y)){me.x=x;me.y=y;break}}me.z=groundZ(me.x,me.y);
   me.vx=me.vy=0;
@@ -2778,6 +2780,93 @@ const bait=()=>{ // test helper (?debug only): a sports car north of the bay, yo
   c.kind='mine';c.vx=0;c.vy=0;me.car=c;me.x=c.x;me.y=c.y;me.a=c.a;return 'ok'};
 if(DBG)Object.defineProperties(DBG,{modK:{get:()=>modK},openMods:{get:()=>openMods}});
 if(DBG)Object.defineProperties(DBG,{bait:{get:()=>bait}});
+// ---------- properties ----------
+// Houses you can buy, a garage at each one, and the personal cars kept there. Saves: pr3d-props (owned ids), pr3d-garage ({propId:[car|null,...]}).
+// A personal car is a normal car with c.personal and c.slot. While it is out, its slot keeps a copy and slot.live points at the one live car.
+function mkProp(id,name,tag,price,level,slots,bi,bj,w,h,col,k,dcol){
+  const int=mkRoom(id,name,w,h,col,k),door={...doorAt(bi,bj),int,label:name,col:dcol,prop:null},p={id,name,tag,price,level,slots,owned:false,int,door,garage:{x:door.x+60,y:door.y+6}};
+  door.prop=p;DOORS.push(door);return p}
+const homeDoor=DOORS.find(d=>d.int===home);
+const PROPS=[{id:'home',name:'Safehouse',tag:'SAFEHOUSE',price:0,level:1,slots:1,owned:true,int:home,door:homeDoor,garage:{x:homeDoor.x+60,y:homeDoor.y+6}},
+  mkProp('low','Low Palms apartment','LOW PALMS',15000,3,2,6,4,240,220,'#1a2a3a',20,'#7dd3fc'),
+  mkProp('mid','Midtown condo','MIDTOWN',40000,6,4,7,3,300,240,'#2a1a3a',21,'#c4b5fd'),
+  mkProp('beach','Sunset beach house','SUNSET BEACH',90000,10,4,8,8,320,260,'#3a2a1a',22,'#fdba74'),
+  mkProp('heights','Palm Heights villa','PALM HEIGHTS',180000,15,6,9,4,360,280,'#1e3a2e',23,'#86efac'),
+  mkProp('penth','Downtown penthouse','PENTHOUSE',350000,20,6,6,3,340,260,'#20203a',24,'#fde68a')];
+homeDoor.prop=PROPS[0];
+// furniture is solid props, sized to each room. Counters stay clear of the spawn point (exit.x, h-52)
+{const r=PROPS[1].int;prop(r,30,40,90,30,12,'#7a3a5a');prop(r,150,20,56,80,14,'#e8e0f0');prop(r,20,140,80,22,20,'#c9c3d6');prop(r,60,4,70,8,30,'#2a2440');spot(r,176,130,'sleep','Sleep (heal, save, lose the cops)')}
+{const r=PROPS[2].int;prop(r,30,40,110,34,12,'#5a2a6a');prop(r,190,30,70,90,14,'#e8e0f0');prop(r,30,150,110,22,20,'#c9c3d6');prop(r,90,4,120,8,34,'#2a2440');spot(r,240,140,'sleep','Sleep (heal, save, lose the cops)')}
+{const r=PROPS[3].int;prop(r,30,50,120,36,12,'#e8b06a');prop(r,200,40,80,90,14,'#f5efe0');prop(r,30,160,120,22,20,'#d9c7a8');prop(r,120,4,80,8,36,'#2a2440');spot(r,260,150,'sleep','Sleep (heal, save, lose the cops)')}
+{const r=PROPS[4].int;prop(r,30,40,140,40,12,'#2e5a4a');prop(r,240,40,90,100,14,'#e8e0f0');prop(r,30,200,120,24,20,'#c9c3d6');prop(r,140,4,100,8,36,'#2a2440');spot(r,300,160,'sleep','Sleep (heal, save, lose the cops)')}
+{const r=PROPS[5].int;prop(r,30,40,130,38,12,'#3a3a6a');prop(r,220,30,80,90,14,'#f1f5ff');prop(r,30,170,110,22,20,'#c9c3d6');prop(r,110,4,110,8,36,'#2a2440');spot(r,280,140,'sleep','Sleep (heal, save, lose the cops)')}
+// one slot list per property: {car, out, live, readyAt}; readyAt is the insurance wait (ms since epoch)
+const GAR={};for(const p of PROPS)GAR[p.id]=Array.from({length:p.slots},()=>({car:null,out:false,live:null,readyAt:0,prop:p}));
+const carSnap=c=>({type:c.type,color:c.color,mods:{...c.mods},hp:Math.round(c.hp)});
+function carLoad(v){if(!v||typeof v!=='object'||!hasCT(v.type)||!/^#[0-9a-fA-F]{6}$/.test(v.color)||!Number.isFinite(v.hp))return null;const m=v.mods===undefined?{}:v.mods;if(!m||typeof m!=='object'||Array.isArray(m))return null;return{type:v.type,color:v.color,mods:{...m},hp:clamp(v.hp,1,CT[v.type].hp)}}
+function propSave(){try{localStorage.setItem('pr3d-props',JSON.stringify(PROPS.filter(p=>p.owned).map(p=>p.id)));const g={};for(const p of PROPS)g[p.id]=GAR[p.id].map(s=>s.car);localStorage.setItem('pr3d-garage',JSON.stringify(g))}catch(_){}}
+function propLoad(){
+  try{const a=JSON.parse(localStorage.getItem('pr3d-props')||'null');if(Array.isArray(a))for(const p of PROPS)if(a.includes(p.id))p.owned=true}catch(_){}
+  let g=null;try{g=JSON.parse(localStorage.getItem('pr3d-garage')||'null')}catch(_){}
+  // first load of a save: the starter sedan waits in the safehouse garage
+  if(!g||typeof g!=='object'){GAR.home[0].car={type:'sedan',color:'#4aa3ff',mods:{},hp:CT.sedan.hp};propSave();return}
+  for(const p of PROPS){const a=Array.isArray(g[p.id])?g[p.id]:[];GAR[p.id].forEach((s,i)=>{s.car=carLoad(a[i])})}
+}
+propLoad();
+// the car is written back to its slot when you leave it or store it
+function propWrite(c){const s=c.slot;if(!s||s.live!==c||!(c.hp>0))return;s.car=carSnap(c);propSave()}
+// E on foot: buy at an unowned door, or open the garage of an owned house
+function propAct(){for(const p of PROPS){
+  if(!p.owned&&Math.hypot(p.door.x-me.x,p.door.y-me.y)<24){buyProp(p);return true}
+  if(p.owned&&Math.hypot(p.garage.x-me.x,p.garage.y-me.y)<30){garageOpen(p);return true}}
+  return false}
+function buyProp(p){
+  const price=p.price.toLocaleString('en-US');
+  feed(`Buy ${p.name} for $${price} (level ${p.level})`);
+  if(lv<p.level){feed(`${p.name} needs level ${p.level}`);return}
+  if(me.cash<p.price){feed(`You need $${price}`);return}
+  me.cash-=p.price;p.owned=true;if(p.sale)p.sale.visible=false;propSave();jingle('buy');feed(`Bought ${p.name}. Its garage is out front`)}
+function garageOpen(p){renderGarage(p);openModal('garage')}
+function renderGarage(p){
+  $('gTitle').textContent=p.name+' garage';const L=$('gList');L.replaceChildren();
+  GAR[p.id].forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='b';
+    if(!s.car){b.textContent='Empty slot '+(i+1);b.disabled=true}
+    else{const t=CT[s.car.type],wait=Math.ceil((s.readyAt-Date.now())/1000),sw=document.createElement('i');
+      sw.style.cssText='display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:middle;background:'+s.car.color;
+      b.append(sw,`${t.name}, ${Math.round(s.car.hp/t.hp*100)}% health${s.out?', out now':''}${wait>0?', insurance: ready in '+wait+' s':''}`);
+      b.disabled=wait>0;b.onclick=()=>garageTake(p,i)}
+    L.appendChild(b)})}
+// a free spot beside a door: 40 to 120 units out, not inside a wall
+function spotNear(x,y){for(let r=40;r<=120;r+=20)for(let k=0;k<8;k++){const a=k*Math.PI/4,px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;if(!inBuilding(px,py))return{x:px,y:py,a:a+Math.PI/2}}return{x,y,a:0}}
+// take a car out of its slot: the one live copy moves to the garage front, or a new one spawns there. You drive it.
+function garageTake(p,i){const s=GAR[p.id][i];if(!s.car||s.readyAt>Date.now())return;closeShop();
+  const at=spotNear(p.garage.x,p.garage.y);let c=s.live&&cars.includes(s.live)?s.live:null;
+  if(c){c.x=at.x;c.y=at.y;c.a=at.a;c.vx=c.vy=0}
+  else{c=mkCar(at.x,at.y,at.a,'parked',s.car.color,s.car.type);c.hp=s.car.hp;c.mods={...s.car.mods};c.personal=true;c.slot=s;s.live=c;s.out=true;cars.push(c)}
+  c.kind='mine';me.car=c;handsUp=false;feed(`Your ${CT[c.type].name} is out`)}
+// drive into an owned garage door (within 30, under 60): the car is stored and you walk out beside the door
+function propStore(){const c=me.car;if(c.kind==='police'||c.type==='armored'||c.kind==='dead'||c.garCd>time||Math.hypot(c.vx,c.vy)>=60)return;
+  const p=PROPS.find(q=>q.owned&&Math.hypot(q.garage.x-c.x,q.garage.y-c.y)<30);if(!p)return;
+  const own=c.slot&&c.slot.prop===p?c.slot:GAR[p.id].find(s=>!s.car);
+  if(!own){c.garCd=time+4;feed(`${p.name} garage is full`);return}
+  if(c.slot&&c.slot!==own){c.slot.car=null;c.slot.out=false;c.slot.live=null}
+  own.car=carSnap(c);own.out=false;own.live=null;
+  const i=cars.indexOf(c);if(i>=0)cars.splice(i,1);me.car=null;
+  for(const s of[-1,1]){const x=c.x+Math.cos(c.a+s*1.57)*24,y=c.y+Math.sin(c.a+s*1.57)*24;if(!inBuilding(x,y)){me.x=x;me.y=y;break}}
+  me.z=groundZ(me.x,me.y);me.vx=me.vy=0;propSave();feed(`Stored in ${p.name} garage`)}
+// a destroyed personal car: insurance pays up to $500 and the car is back in its slot after 60 s
+function propStep(){for(const p of PROPS)for(const s of GAR[p.id]){const c=s.live;if(!c||c.kind!=='dead')continue;
+  const i=cars.indexOf(c);if(i>=0)cars.splice(i,1);if(me.car===c)me.car=null;
+  const fee=Math.min(500,Math.max(0,Math.floor(me.cash)));me.cash-=fee;
+  s.car={...s.car,hp:CT[s.car.type].hp};s.out=false;s.live=null;s.readyAt=Date.now()+60000;
+  feed(`Your ${CT[s.car.type].name} was destroyed. Insurance: $${fee}, ready in your garage in 60 s`);propSave()}}
+// a personal car for the phone's Mechanic and for tests: it spawns on a road 80 to 160 units away and becomes the personal car
+function deliverCar(propId,slot){const s=GAR[propId]&&GAR[propId][slot];if(!s||!s.car)return null;
+  if(!s.live||!cars.includes(s.live)){let c=null;for(let i=0;i<20&&!c;i++)c=laneSpawn('parked',80,160);if(!c)return null;c.type=s.car.type;c.color=s.car.color;c.hp=s.car.hp;c.mods={...s.car.mods};s.live=c}
+  const c=s.live;c.personal=true;c.slot=s;s.out=true;return c}
+function ownedCars(){const L=[];for(const p of PROPS)GAR[p.id].forEach((s,i)=>{if(s.car)L.push({propId:p.id,slot:i,car:s.car,out:s.out,ready:Date.now()>=s.readyAt})});return L}
+if(DBG)Object.defineProperties(DBG,{props:{get:()=>PROPS.map(p=>({id:p.id,owned:!!p.owned}))},ownedCars:{get:()=>ownedCars},deliverCar:{get:()=>deliverCar},inBuilding:{get:()=>inBuilding},garage:{get:()=>id=>garageOpen(PROPS.find(p=>p.id===id))}});
+
 // ---------- jobs ----------
 function jobCol(){return!job?'#ffc94a':job.col||(job.phase==='pickup'?'#ffc94a':'#ff3ea5')}
 function endJob(){if(job&&job.car)job.car.mark=false}
@@ -3807,7 +3896,8 @@ function update(dt){
   me.inv=Math.max(0,me.inv-dt);me.fireCd-=dt;shopCd-=dt;
   if(state==='play'&&!me.downed&&!me.car&&!me.heli&&!me.jet&&!me.roof&&!me.climb&&shopCd<=0){
     if(me.inside){if(Math.hypot(me.inside.exit.x-me.x,me.inside.exit.y-me.y)<16)exitInt()}
-    else for(const d of DOORS)if(Math.hypot(d.x-me.x,d.y-me.y)<18){enterInt(d);break}}
+    else for(const d of DOORS)if(Math.hypot(d.x-me.x,d.y-me.y)<18&&(!d.prop||d.prop.owned)){enterInt(d);break}}
+  if(state==='play'){propStep();if(me.car&&!me.inside)propStore()}
   if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
   lakeFall();if(me.y<0)hillArrive();hillFog();
@@ -4490,7 +4580,8 @@ function iMatExit(r,x,y){iB(r,x-20,y-7,.5,40,.4,14,iMatt)}
 const IROOM={guns:{f:'conc',w:'metal',c:'beams'},club:{f:'carpet',w:'velvet',c:'haze'},store:{f:'lino',w:'plaster',c:'grid'},
   home:{f:'plank',w:'wood',c:'grid'},casino:{f:'carpet',w:'velvet',c:'grid'},bank1:{f:'marb',w:'plaster',c:'tile'},bank2:{f:'conc',w:'metal',c:'beams'},
   bank3:{f:'conc',w:'metal',c:'beams'},diner:{f:'chk',w:'pinkT',c:'grid'},ink:{f:'inkf',w:'brick',c:'grid'},gym:{f:'conc',w:'metal',c:'beams'},
-  pd:{f:'conc',w:'panelB',c:'grid'},hosp:{f:'lino',w:'whiteT',c:'tile'},arcade:{f:'arcf',w:'arcW',c:'neon'},anchor:{f:'plank',w:'wood',c:'beams'}};
+  pd:{f:'conc',w:'panelB',c:'grid'},hosp:{f:'lino',w:'whiteT',c:'tile'},arcade:{f:'arcf',w:'arcW',c:'neon'},anchor:{f:'plank',w:'wood',c:'beams'},
+  low:{f:'wood',w:'plaster',c:'beams'},mid:{f:'carpet',w:'wood',c:'grid'},beach:{f:'plank',w:'whiteT',c:'beams'},heights:{f:'marb',w:'plaster',c:'grid'},penth:{f:'carpet',w:'velvet',c:'grid'}};
 function iShell(r,L){const t=14,cx=r.ox+r.w/2,cz=r.oy+r.h/2,W=IDEF[L.w],wm=iMat(L.w);
   for(const[x,z,w,dd]of[[cx,r.oy-t/2,r.w+2*t,t],[cx,r.oy+r.h+t/2,r.w+2*t,t],[r.ox-t/2,cz,t,r.h],[r.ox+r.w+t/2,cz,t,r.h]]){const m=new THREE.Mesh(iBox(w,72,dd,W.t),wm);m.position.set(x,36,z);scene.add(m)}
   const ce=new THREE.Mesh(iPlane(r.w,r.h,IDEF[L.c].t),iMat(L.c));ce.rotation.x=Math.PI/2;ce.position.set(cx,72,cz);scene.add(ce);
@@ -4702,6 +4793,14 @@ let roul=null,clubBall=null;
 {iMatExit(bankL,220,290);iSign(bankL,220,319.4,56,'UNION BANK','#ffc94a',Math.PI,90,15);iGlow(bankL,220,160,300,'rgba(255,201,74,.2)')}
 {iMatExit(bankS,190,230);iSign(bankS,190,259.4,56,'FLOOR 12','#29e6d6',Math.PI,70,15);iGlow(bankS,190,130,240,'rgba(41,230,214,.22)')}
 {iMatExit(bankV,210,300);iSign(bankV,210,329.4,56,'VAULT','#ffc94a',Math.PI,70,15);iGlow(bankV,210,170,260,'rgba(255,216,120,.3)')}
+// garage markers and for-sale signs on the street (one ring and one sign per house, a sign per unowned house)
+function houseMeshes(){for(const p of PROPS){const g=p.garage;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(9,12,28),new THREE.MeshBasicMaterial({color:'#4aa3ff',transparent:true,opacity:.85,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.set(g.x,1.6,g.y);scene.add(ring);
+  const gs=new THREE.Mesh(new THREE.PlaneGeometry(56,14),new THREE.MeshBasicMaterial({map:signTex('GARAGE','#4aa3ff')}));gs.position.set(g.x,38,g.y+11.8);gs.rotation.y=Math.PI;scene.add(gs);
+  if(p.id!=='home'){const sale=new THREE.Mesh(new THREE.PlaneGeometry(56,14),new THREE.MeshBasicMaterial({map:signTex(`FOR SALE $${p.price/1000}K`,'#ffc94a')}));sale.position.set(p.door.x-64,30,p.door.y+11.8);sale.rotation.y=Math.PI;sale.visible=!p.owned;scene.add(sale);p.sale=sale}}}
+houseMeshes();
+// property interiors: a window band on the back wall, an exit mat and a lit sign (furniture is in the properties section)
+for(const p of PROPS.slice(1)){const r=p.int;iB(r,20,.5,36,r.w-40,14,.8,iCol('#fff1d6'));iMatExit(r,r.w/2,r.h-30);iSign(r,r.w/2,r.h-.6,56,p.tag,'#7dd3fc',Math.PI,80,15);iGlow(r,r.w/2,130,240,'rgba(41,230,214,.22)')}
 // rack LEDs: one 8x8 lit grid, its offset steps every quarter second in animInteriors (no redraw, no new material)
 const ledTex=rtex(128,128,(g)=>{g.fillStyle='#06100e';g.fillRect(0,0,128,128);const r=seeded(40),C=['#29e6d6','#3dd68c','#ffc94a','#ff3ea5'];for(let y=0;y<8;y++)for(let x=0;x<8;x++){g.fillStyle=r()<.6?C[Math.floor(r()*4)]:'#1a2a2a';g.beginPath();g.arc(x*16+8,y*16+8,4,0,TAU);g.fill()}});
 const bankFx={lasers:[],door:null,gold:null};
@@ -5011,7 +5110,7 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
 g.fillStyle='#6a5040';g.fillRect(t(2077),t(W+300),46/MS,520/MS);
  g.strokeStyle='rgba(255,201,74,.35)';g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();for(let k=0;k<=N;k++){g.moveTo(t(0),t(k*B+60));g.lineTo(t(W),t(k*B+60));g.moveTo(t(k*B+60),t(0));g.lineTo(t(k*B+60),t(W))}g.stroke();g.setLineDash([])}
 const hillMini=buildHillMini(MS,MO);
-const DOORICON={'Pink Flamingo':'D','Ink & Fade':'T','Iron Palms':'W','Palmetto PD':'P',"St. Palm's":'+','Pixel Palace':'A','Rusty Anchor':'R','Union Bank':'B','Gun shop':'G','Velvet Palms':'V','Snack & Go':'S','Safehouse':'H','Casino':'$'};
+const DOORICON={'Pink Flamingo':'D','Ink & Fade':'T','Iron Palms':'W','Palmetto PD':'P',"St. Palm's":'+','Pixel Palace':'A','Rusty Anchor':'R','Union Bank':'B','Gun shop':'G','Velvet Palms':'V','Snack & Go':'S','Safehouse':'H','Casino':'$','Low Palms apartment':'L','Midtown condo':'M','Sunset beach house':'E','Palm Heights villa':'Y','Downtown penthouse':'N'};
 let miniSc=.35;
 function drawMini(){
   const c=mctx,S=300,C=150,RIM=140;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,S,S);
@@ -5040,6 +5139,7 @@ function drawMini(){
   if(heat>0&&lastSeen){const[px,py]=Pt(lastSeen.x,lastSeen.y);c.fillStyle='rgba(74,163,255,.25)';c.beginPath();c.arc(px,py,(220+140*Math.ceil(heat-.001))*sc,0,TAU);c.fill()}
   // cops
   for(const v of cars)if(v.kind==='police'&&inView(v.x,v.y)){const[px,py]=Pt(v.x,v.y);c.fillStyle=Math.sin(time*12+v.siren)>0?'#ff2d55':'#2d6bff';c.beginPath();c.arc(px,py,6,0,TAU);c.fill()}
+  for(const v of cars)if(v.personal&&v.kind!=='dead'&&inView(v.x,v.y)){const[px,py]=Pt(v.x,v.y);c.fillStyle='#4aa3ff';c.fillRect(px-6,py-3.5,12,7)}
   for(const p of peds)if(p.gang&&!p.down&&inView(p.x,p.y)){const[px,py]=Pt(p.x,p.y);c.fillStyle=p.aggro?'#ff4b4b':p.gname==='Kings'?'#9a5ad8':'#3d9a4a';c.beginPath();c.arc(px,py,4.5,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=1.5;c.stroke()}
   // sticky bombs
   for(const b of stickies){if(!inView(b.x,b.y))continue;const[px,py]=Pt(b.x,b.y);c.fillStyle=Math.sin(time*10)>0?'#ff4b4b':'#5a1a1a';c.beginPath();c.arc(px,py,3.5,0,TAU);c.fill()}
