@@ -3879,8 +3879,8 @@ let curPR=Math.min(window.devicePixelRatio||1,isTouch?1:1.3);const maxPR=curPR;r
 function perfTick(raw){if(raw>.5||state==='menu')return;perf.t+=raw;perf.n++;if(perf.t>2.5){const fps=perf.n/perf.t;perf.t=perf.n=0;let np=curPR;
   if(fps<45&&curPR>.6)np=Math.max(.6,curPR-.15);else if(fps>58&&curPR<maxPR)np=Math.min(maxPR,curPR+.1);if(np!==curPR){curPR=np;renderer.setPixelRatio(curPR);resize3d()}}}
 const scene=new THREE.Scene();
-scene.background=new THREE.Color('#120d22');
-scene.fog=new THREE.FogExp2('#160f28',0.00105);
+scene.background=new THREE.Color('#1a0c2e');
+scene.fog=new THREE.FogExp2('#2e1442',0.00105);
 const camera=new THREE.PerspectiveCamera(62,1,1,7000);
 function resize3d(){renderer.setSize(VW,VH,false);camera.aspect=VW/Math.max(1,VH);camera.updateProjectionMatrix()}
 addEventListener('resize',resize3d);resize3d();
@@ -3895,7 +3895,7 @@ function mergeGeos(list){const hasUv=list.every(([g])=>g.attributes.uv);let tota
   for(const q of parts){pos.set(q.attributes.position.array,o*3);if(q.attributes.normal)nor.set(q.attributes.normal.array,o*3);if(uv)uv.set(q.attributes.uv.array,o*2);o+=q.attributes.position.count;q.dispose()}
   const out=new THREE.BufferGeometry();out.setAttribute('position',new THREE.BufferAttribute(pos,3));out.setAttribute('normal',new THREE.BufferAttribute(nor,3));if(uv)out.setAttribute('uv',new THREE.BufferAttribute(uv,2));out.computeBoundingSphere();return out}
 function staticBatch(){
-  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon].filter(Boolean)),groups=new Map(),gone=[];scene.updateMatrixWorld(true);
+  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome].filter(Boolean)),groups=new Map(),gone=[];scene.updateMatrixWorld(true);
   for(const o of scene.children){if(!o.isMesh||o.isInstancedMesh||skip.has(o)||Array.isArray(o.material)||o.material.transparent)continue;const g=o.geometry;if(!g.attributes.position||!g.attributes.normal)continue;
     const key=o.material.uuid+(g.attributes.uv?'u':'n');let L=groups.get(key);if(!L){L={mat:o.material,list:[]};groups.set(key,L)}L.list.push([g,o.matrixWorld.clone()]);gone.push(o)}
   for(const o of gone)scene.remove(o);
@@ -4558,8 +4558,40 @@ const pc={};const pcol=s=>pc[s]||(pc[s]=new THREE.Color(s));
 const flashes=[0,1,2].map(()=>{const l=new THREE.PointLight('#ffb86b',0,320,2);scene.add(l);return l});let flashI=0;
 const headSpot=new THREE.SpotLight('#fff1d0',0,520,.55,.6,1);scene.add(headSpot,headSpot.target);
 
+// sky dome: one sphere and one canvas texture, painted once. Canvas top is the zenith and the middle row is the horizon.
+// The moon and the city glow use the same directions as the moon light and the map centre, so they sit where the light comes from.
+const MOONDIR=new THREE.Vector3(-.6,1,.4).normalize(),DTC=3.5*(B+R)+B/2; // downtown hotspot: block 3.5,3.5 (see the tall-building density in mkCity)
+function skyPaint(g,w,h){
+  const r=seeded(4242),hz=h/2,rep=(x,f)=>{for(const d of[-w,0,w])f(x+d)},dot=(x,y,s)=>rep(x,X=>{g.beginPath();g.arc(X,y,s,0,TAU);g.fill()}),azX=(dx,dz)=>((Math.atan2(dz,-dx)/TAU+1)%1)*w;
+  const gr=g.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'#04020c');gr.addColorStop(.3,'#0e0727');gr.addColorStop(.44,'#27103f');gr.addColorStop(.5,'#431656');gr.addColorStop(.56,'#22102f');gr.addColorStop(1,'#0a0517');
+  g.fillStyle=gr;g.fillRect(0,0,w,h);
+  for(let i=0;i<600;i++){const e=90*Math.pow(r(),.85),y=hz*(1-e/90),b=r(),s=b>.92?1:.65;
+    g.fillStyle=r()<.12?'#ffd6f2':r()<.25?'#bfe6ff':'#ffffff';g.globalAlpha=(.55+.45*b)*Math.min(1,.4+e/40);dot(r()*w,y,s)}
+  g.globalAlpha=1;
+  for(const e of[10,22,34]){const y=hz*(1-e/90);for(let k=0;k<70;k++){const x=r()*w,rx=40+r()*130,ry=2+r()*4,yy=y+r()*6-3,a=.25+r()*.25;
+    rep(x,X=>{g.fillStyle=`rgba(8,4,20,${a})`;g.beginPath();g.ellipse(X,yy,rx,ry,0,0,TAU);g.fill()})}}
+  g.globalCompositeOperation='lighter';
+  const band=g.createLinearGradient(0,hz-70,0,hz+20);band.addColorStop(0,'rgba(200,50,160,0)');band.addColorStop(.78,'rgba(200,50,160,.14)');band.addColorStop(1,'rgba(200,50,160,0)');
+  g.fillStyle=band;g.fillRect(0,hz-70,w,90);
+  const dx=azX(DTC,DTC);
+  g.save();g.translate(0,hz);g.scale(1,.22);
+  rep(dx,X=>{const dg=g.createRadialGradient(X,0,0,X,0,340);dg.addColorStop(0,'rgba(255,110,70,.55)');dg.addColorStop(.3,'rgba(255,50,140,.3)');dg.addColorStop(1,'rgba(255,40,140,0)');g.fillStyle=dg;g.fillRect(X-340,-340,680,680)});
+  g.restore();
+  const mx=azX(MOONDIR.x,MOONDIR.z),my=Math.acos(MOONDIR.y)/Math.PI*h;
+  rep(mx,X=>{const mg=g.createRadialGradient(X,my,0,X,my,130);mg.addColorStop(0,'rgba(190,205,255,.5)');mg.addColorStop(.25,'rgba(140,160,255,.2)');mg.addColorStop(1,'rgba(120,140,255,0)');g.fillStyle=mg;g.fillRect(X-130,my-130,260,260)});
+  g.globalCompositeOperation='source-over';
+  rep(mx,X=>{const mg=g.createRadialGradient(X,my,0,X,my,9);mg.addColorStop(0,'#ffffff');mg.addColorStop(.8,'#eef2ff');mg.addColorStop(1,'rgba(220,228,255,.4)');g.fillStyle=mg;g.beginPath();g.arc(X,my,9,0,TAU);g.fill()});
+}
+const skyDome=new THREE.Mesh(new THREE.SphereGeometry(6500,48,24),new THREE.MeshBasicMaterial({map:canvasTex(1024,512,skyPaint),side:THREE.BackSide,fog:false,depthWrite:false}));
+skyDome.frustumCulled=false;skyDome.renderOrder=-1;scene.add(skyDome);
+// the outdoor fog colour is the horizon; indoors keeps the old colour so interiors look exactly as before
+let fogIn=false;function roomFog(){const on=!!me.inside;if(on===fogIn)return;fogIn=on;scene.fog.color.set(on?'#160f28':'#2e1442')}
+
 // camera state
 const camPos=new THREE.Vector3(me.x,40,me.y+60);
+if(DBG)Object.defineProperties(DBG,{view:{get:()=>view}});
+function view(x,y,yaw,pitch){me.x=x;me.y=y;me.z=groundZ(x,y);me.vx=me.vy=0;look.yaw=yaw;look.pitch=clamp(pitch,-.45,1.3);camPos.set(x,60,y)}
 const aimRay=new THREE.Raycaster(),ndcX=new THREE.Vector2(0,.08),ndc0=new THREE.Vector2(0,0);
 function render(dt){
   dt=dt||1/60;
@@ -4678,7 +4710,7 @@ function render(dt){
     if(!aimPt)aimPt=[o.x+dv.x*2600,o.z+dv.z*2600,o.y+dv.y*2600]}
   $('xh').style.borderColor=aimHit?'#ff4b4b':'';
   $('xh').hidden=!(state==='play'&&!inCar)||scoped;
-  const tg=performance.now();renderer.render(scene,camera);pf.gl=performance.now()-tg;
+  roomFog();skyDome.position.copy(camera.position);const tg=performance.now();renderer.render(scene,camera);pf.gl=performance.now()-tg;
 }
 
 // minimap
