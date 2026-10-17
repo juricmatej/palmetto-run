@@ -68,6 +68,11 @@ const cells=[],buildings=[],parks=[],lots=[],blockType=[],palms=[],umbrellas=[],
 const PASTEL=['#e8b4c8','#b4d8e8','#f1e3a8','#c8e8b4','#e8c8a8','#d0c4f0'];
 const CONT=['#b8432f','#2f6fb8','#d68a2f','#3d8a52','#7b6bff','#9d97ad'];
 function district(bi,bj){if(bj===N-1)return'beach';if(bi<=1)return'industrial';if(bi>=8&&bj<=5)return'airport';if(bi>=6&&bj<=3)return'suburb';if(bi>=6&&bj>=4)return'hood';if((bi===3||bi===4)&&bj<=1)return'park';if(bi>=2&&bi<=5&&bj>=2&&bj<=5)return'downtown';return'midtown'}
+// The airfield: blocks 8 and 9 by rows 0 to 5, behind a fence. Roads and lanes are the grid; a lane whose box touches the airfield is shut (afShut), so no traffic or parked car uses it.
+const AF={x0:8*B+R,x1:10*B,y0:R,y1:6*B},DX=[1,0,-1,0],DY=[0,1,0,-1];
+const inAF=(x,y)=>x>AF.x0&&x<AF.x1&&y>AF.y0&&y<AF.y1;
+// lane from crossing (ax,ay) to (bx,by); crossings sit at index*B+60
+function afShut(ax,ay,bx,by){const x1=ax*B+60,x2=bx*B+60,y1=ay*B+60,y2=by*B+60;return Math.max(x1,x2)>AF.x0&&Math.min(x1,x2)<AF.x1&&Math.max(y1,y2)>AF.y0&&Math.min(y1,y2)<AF.y1}
 const AREA={hills:['Palmetto Hills','Mountain roads, the observatory and the sign'],airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
 // blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
 const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
@@ -99,9 +104,7 @@ const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'mar
     continue}
   if(bi===3&&bj===4){blockType.push('city');mk(list,{x:x0+34,y:y0+40,w:s-68,h:s-74,H:760,kind:'bank',pal:['#3a3220','#ffc94a']});continue}
   if(dist==='airport'){blockType.push('airport');
-    if(bi===8&&bj===0)mk(list,{x:x0+30,y:y0+30,w:s-60,h:120,H:40,kind:'glass'});
-    if(bi===8&&(bj===1||bj===3))mk(list,{x:x0+30,y:y0+40,w:s-60,h:s-90,H:56,kind:'warehouse',pal:['#5a6070','#ffc94a']});
-    if(bi===8&&bj===5)mk(list,{x:x0+120,y:y0+120,w:60,h:60,H:170,kind:'tower'});
+    r();r(); // the old airport drew two random numbers here; keep them so the rest of the city does not move. Its buildings are placed after the loop
     continue}
   if(dist==='hood'){blockType.push('hood');
     if(bi===7&&bj===5){courts.push([x0,y0,s]);for(let i=0;i<5;i++)barrels.push([x0+24+r()*(s-48),y0+s-30-r()*30]);continue}
@@ -122,7 +125,19 @@ const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'mar
     const b=mk(list,{x,y,w,h,H,kind:tall?'glass':'tower',vent:r()<.7?[r()*.5+.1,r()*.5+.1]:null,sign:r()<.25});
     if(Math.abs(y+h-(y0+s-22))<1&&r()<(tall?.4:.55))b.ladder=1;
   }
- }}
+ }
+ // airfield: buildings, then the fence. A piece goes in the cell nearB reads for it (floor of its min x and y over B), so each piece is at most 400 long
+ const afMk=(x,y,w,h,H,kind,pal)=>mk(cells[Math.min(N-1,Math.floor(y/B))*N+Math.min(N-1,Math.floor(x/B))],{x,y,w,h,H,kind,pal});
+ const fenceRuns=(a,b)=>{const n=Math.ceil((b-a)/400),st=(b-a)/n;return Array.from({length:n},(_,i)=>[a+st*i,a+st*(i+1)])};
+ afMk(3780,1230,110,300,30,'glass',['#33405a','#ffc94a']); // terminal: door on the west face, onto the car park
+ afMk(3650,1090,40,40,150,'ctower',['#4a4f5c','#ff3ea5']); // control tower at the north end of the car park, drawn with the airfield
+ afMk(4100,2330,80,90,26,'warehouse',['#5a6070','#ffc94a']); // hangars: doors on the apron
+ afMk(4334,2330,56,90,26,'warehouse',['#5a6070','#ffc94a']);
+ const FP=['#5a6270','#5a6270'];
+ for(const[a,b]of[...fenceRuns(AF.y0,1320),...fenceRuns(1440,AF.y1)])afMk(AF.x0-3,a,6,b-a,12,'fence',FP); // west side, gate at 1320 to 1440 (road 3)
+ for(const[a,b]of fenceRuns(AF.y0,AF.y1))afMk(AF.x1-3,a,6,b-a,12,'fence',FP);
+ for(const[a,b]of fenceRuns(AF.x0,AF.x1)){afMk(a,AF.y0-3,b-a,6,12,'fence',FP);afMk(a,AF.y1-3,b-a,6,12,'fence',FP)}
+}
 const ladders=buildings.filter(b=>b.ladder).map(b=>{const x=b.x+Math.min(30,b.w*.3);b.ladder={x,base:b.y+b.h+8,top:b.y+b.h-8};return b});
 function nearB(x,y,fn){const bi=Math.floor(x/B),bj=Math.floor(y/B);for(let j=bj-1;j<=bj;j++)for(let i=bi-1;i<=bi;i++){if(i<0||j<0||i>=N||j>=N)continue;for(const b of cells[j*N+i])fn(b)}}
 function solidAt(x,y,z){if(x>W+300)return inBuilding(x,y);let hit=false;nearB(x,y,b=>{if(x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h&&z<(b.H||999))hit=true});if(y<0)for(const b of hillSolids)if(x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h&&z<b.H)hit=true;return hit}
@@ -164,6 +179,7 @@ function collide(body,px,py,r){
   return imp;
 }
 function sidewalkPoint(){const bi=Math.floor(rand()*N),bj=Math.floor(rand()*N),x0=bi*B+R+7,y0=bj*B+R+7,x1=(bi+1)*B-7,y1=(bj+1)*B-7,t=rand(),s=Math.floor(rand()*4);
+  if(blockType[bj*N+bi]==='airport')return sidewalkPoint(); // no sidewalk in the airfield
   return s===0?[x0+(x1-x0)*t,y0]:s===1?[x1,y0+(y1-y0)*t]:s===2?[x0+(x1-x0)*t,y1]:[x0,y0+(y1-y0)*t]}
 function pointAway(min,max){for(let i=0;i<40;i++){const p=sidewalkPoint(),d=Math.hypot(p[0]-A.x,p[1]-A.y);if(d>=min&&d<=max)return p}return sidewalkPoint()}
 
@@ -846,8 +862,10 @@ function setAlong(c,v){if(c.d%2===0){c.x=v;c.y=c.road*B+laneOff(c.d)}else{c.y=v;
 function decide(c,greedy){
   for(let guard=0;guard<12;guard++){
     const pos=POS(c.d),nc=c.cross+(pos?1:-1),opts=[];
-    if(nc>=0&&nc<=N)opts.push(c.d);
-    for(const nd of[(c.d+1)%4,(c.d+3)%4]){const nr=c.road+(POS(nd)?1:-1);if(nr>=0&&nr<=N)opts.push(nd)}
+    const ix=c.d%2===0?c.cross:c.road,iy=c.d%2===0?c.road:c.cross,shut=d=>afShut(ix,iy,ix+DX[d],iy+DY[d]); // the crossing ahead and the lane out of it
+    if(nc>=0&&nc<=N&&!shut(c.d))opts.push(c.d);
+    for(const nd of[(c.d+1)%4,(c.d+3)%4]){const nr=c.road+(POS(nd)?1:-1);if(nr>=0&&nr<=N&&!shut(nd))opts.push(nd)}
+    if(!opts.length)break;
     let pick;
     if(greedy){const px=c.d%2===0?c.cross*B+60:c.road*B+60,py=c.d%2===0?c.road*B+60:c.cross*B+60;
       // a rival standing on its target aims at the next one
@@ -858,11 +876,14 @@ function decide(c,greedy){
   }
   c.nd=(c.d+2)%4;c.tgt=along(c);
 }
+// is the lane this car is on (from its last crossing to the next one) shut?
+function laneShut(c){const ix=c.d%2===0?c.cross:c.road,iy=c.d%2===0?c.road:c.cross;return afShut(ix-DX[c.d],iy-DY[c.d],ix,iy)}
 function laneSpawn(kind,min,max){
   for(let i=0;i<30;i++){
     const d=Math.floor(rand()*4),road=Math.floor(rand()*(N+1)),k=Math.floor(rand()*N),al=k*B+R+rand()*(B-R-20)+10;
     const c=mkCar(0,0,d*Math.PI/2,kind,kind==='police'?'#e9e9f2':CARCOL[Math.floor(rand()*CARCOL.length)]);
     c.d=d;c.road=road;c.cross=POS(d)?k+1:k;setAlong(c,al);
+    if(laneShut(c))continue;
     const dist=Math.hypot(c.x-A.x,c.y-A.y);if(dist<min||dist>max)continue;
     c.cop=kind==='police';decide(c,kind==='police');c.spd=kind==='police'?200:rr(95,140);c.cur=c.spd*.6;cars.push(c);return c;
   }
@@ -940,6 +961,7 @@ function wreck(c,byMe){ // a traffic car leaves its lane; the driver bails
   const p=spawnPed(c.x+Math.cos(c.a+1.57)*20,c.y+Math.sin(c.a+1.57)*20);p.flee=4;p.fx=c.x;p.fy=c.y;
 }
 
+if(DBG)Object.defineProperties(DBG,{mkCar:{get:()=>mkCar},laneSpawn:{get:()=>laneSpawn}});
 // ---------- police ----------
 let lastSeen=null,unseenT=0,copHeli=null,blockCd=0,policeBusy=false;
 // The world anchor for police aim: while the player is indoors this is the door, never the
@@ -1179,6 +1201,7 @@ function pedsStep(dt){
 // Civilians. Returns true when the ped should be removed.
 function pedStep(p,dt){
   if(p.cop)return false;
+  if(inAF(p.x,p.y))return true; // civilians get in through the gate; they are removed, and the city spawns new ones outside
   if(p.bark&&(p.bark.t-=dt)<=0)p.bark=null;
   if(p.down){
     p.calling=0;p.down-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.02,dt);p.vy*=Math.pow(.02,dt);collide(p,p.x,p.y,6);
@@ -1540,7 +1563,7 @@ let heliRocketCd=0;
 if(DBG)Object.defineProperties(DBG,{heli:{get:()=>heli},PAD:{get:()=>PAD}});
 function spawnHeli(){heli={x:PAD.x,y:PAD.y,z:0,a:-Math.PI/2,vx:0,vy:0,vz:0,hp:BAL.heliHp,falling:false,dead:false,tilt:0,roll:0,spin:0}}
 function heliGround(x,y){let g=groundZ(x,y);nearB(x,y,b=>{if(b.kind!=='water'&&x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h)g=Math.max(g,(b.H||0)+(b.kind==='house'?16:1.6))});return g}
-function roofAt(x,y){let r=null;nearB(x,y,b=>{if(b.kind!=='water'&&b.kind!=='house'&&x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h)r=b});return r}
+function roofAt(x,y){let r=null;nearB(x,y,b=>{if(b.kind!=='water'&&b.kind!=='house'&&b.kind!=='fence'&&x>b.x&&x<b.x+b.w&&y>b.y&&y<b.y+b.h)r=b});return r}
 function heliStep(dt){
   flareCd=Math.max(0,flareCd-dt);heliRocketCd=Math.max(0,heliRocketCd-dt);
   if(!heli){spawnHeli();return}
@@ -3184,7 +3207,7 @@ function jobStep(dt){
 // ---------- missions ----------
 // Story missions: typed steps from three contacts, one at a time in `mission`. Random jobs pause while one runs.
 // Places used by the missions. MS_ROUTE is the grey sedan's drive along the road grid from downtown to the casino.
-const MS_REPO={x:2849,y:715},MS_BUY={x:4150,y:1400},MS_VAN={x:567,y:1560},MS_TRUCK={x:1380,y:2260},MS_HOME={x:2040,y:1889};
+const MS_REPO={x:2849,y:715},MS_BUY={x:3700,y:1380},MS_VAN={x:567,y:1560},MS_TRUCK={x:1380,y:2260},MS_HOME={x:2040,y:1889};
 const MS_ROUTE=[[1380,1820],[1380,1380],[940,1380],[940,2260],[1380,2260],[1380,3140],[1820,3140],[1820,2260],[2260,2260],[2260,1380],[2700,1380],[2700,940],[2040,940]];
 const MISSIONS=[
   {id:'repo',contact:'rosa',title:'Repo Man',level:2,reward:2500,xp:300,col:'#ff3ea5',intro:'Rosa has a car to take back in Palm Heights.',
@@ -3984,7 +4007,7 @@ const evRecruit=kind=>{
   let L=null;const r0=Math.floor(me.y/B); // the lane nearest the player's y is never more than 196 away
   for(let r=r0;r<=r0+1&&r<=N;r++)for(const d of[0,2]){const y=r*B+laneOff(d);if(!L||Math.abs(y-me.y)<Math.abs(L.y-me.y))L={d,road:r,y}}
   const k=Math.floor(me.x/B),c=mkCar(0,0,L.d*Math.PI/2,'traffic',CARCOL[Math.floor(rand()*CARCOL.length)]);
-  c.d=L.d;c.road=L.road;c.cross=POS(L.d)?k+1:k;setAlong(c,me.x);decide(c,false);c.spd=rr(95,140);c.cur=c.spd*.6;cars.push(c);
+  c.d=L.d;c.road=L.road;c.cross=POS(L.d)?k+1:k;setAlong(c,me.x);if(laneShut(c))return;decide(c,false);c.spd=rr(95,140);c.cur=c.spd*.6;cars.push(c);
 };
 function eventStart(kind){const k=EVK[kind];if(!k)return false;let e=k.start();if(!e){evRecruit(kind);e=k.start()}if(!e)return false;eventState=Object.assign({kind,t0:time,len:k.len,actors:[]},e);return true}
 let eventState=null,eventNext=8,eventCheck=0,eventWant=null;
@@ -4810,7 +4833,7 @@ function parkSpot(min,max){
     if(lots.length&&rand()<.5){const l=lots[Math.floor(rand()*lots.length)];const row=Math.floor(rand()*3),col=Math.floor(rand()*8);x=l.x+40+col*34;y=l.y+70+row*90;a=Math.PI/2}
     else{const road=Math.floor(rand()*(N+1)),k=Math.floor(rand()*N),al=k*B+R+30+rand()*(B-R-60),side=rand()<.5?12:108;
       if(rand()<.5){x=al;y=road*B+side;a=side<60?Math.PI:0}else{y=al;x=road*B+side;a=side<60?-Math.PI/2:Math.PI/2}}
-    const d=Math.hypot(x-A.x,y-A.y);if(d<min||d>max)continue;
+    const d=Math.hypot(x-A.x,y-A.y);if(d<min||d>max||inAF(x,y))continue;
     let free=true;for(const c of cars)if(Math.hypot(c.x-x,c.y-y)<40)free=false;if(!free)continue;
     return[[x,y,a]];
   }
@@ -5029,6 +5052,7 @@ const glassMat=new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissi
 const winMat=new THREE.MeshBasicMaterial({color:'#ffd28a'}),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
 for(const b of buildings){
   if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
+  if(b.kind==='fence'||b.kind==='ctower')continue; // airfield fence and control tower: drawn with the airfield
   const H=b.H,cx=b.x+b.w/2,cz=b.y+b.h/2;
   const put=(geo,mat,x,y,z,ry)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;scene.add(m);return m};
   if(b.kind==='water'){const w=new THREE.Mesh(new THREE.CircleGeometry(.5,40),new THREE.MeshLambertMaterial({color:'#12506a',emissive:'#0a3346'}));w.rotation.x=-Math.PI/2;w.scale.set(b.w+30,b.h+30,1);w.position.set(cx,1.5,cz);scene.add(w);continue}
@@ -5133,7 +5157,8 @@ const STREET_PROPS=[];
    for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]); // corner housing; index 4 = cycle phase group
    if(t!=='airport'){hy.push([x0+10,y0+80]);for(const o of[80,190])bl.push([x0+4,y0+o],[x0+s-4,y0+o])}
    if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry])}
- for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1]))lp.splice(i,1); // no lamp in a ramp's landing zone
+ for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1])||inAF(lp[i][0],lp[i][1]))lp.splice(i,1); // no lamp in a ramp's landing zone or in the airfield
+ for(let i=tl.length-1;i>=0;i--)if(inAF(tl[i][0],tl[i][1]))tl.splice(i,1); // no traffic light in the airfield
  for(let i=bl.length-1;i>=0;i--)if(rampZone(bl[i][0],bl[i][1])||DOORS.some(d=>Math.hypot(d.x-bl[i][0],d.y-bl[i][1])<30))bl.splice(i,1); // no bollard in a ramp zone or at a door
  for(const d of DOORS){const big=d.int===club||d.int===casino||d.int===bankL;for(const o of[-1,1])bch.push([d.x+o*(big?70:48),d.y-3,Math.PI]);bn.push([d.x+(big?92:72),d.y-3])}
  for(const p of parks)for(const o of[-1,1]){bch.push([p.x+p.s/2+o*45,p.y+24,0],[p.x+p.s/2+o*45,p.y+p.s-24,Math.PI]);bn.push([p.x+p.s/2+o*75,p.y+22],[p.x+p.s/2+o*75,p.y+p.s-22])}
@@ -5821,16 +5846,28 @@ function copHeliDraw(dt){
  const hm=new THREE.Mesh(new THREE.PlaneGeometry(100,100),new THREE.MeshBasicMaterial({map:hT,transparent:true}));hm.rotation.x=-Math.PI/2;hm.position.set(PAD.x,1.9,PAD.y);scene.add(hm);
  for(let i=0;i<12;i++){const a=i/12*TAU,l=new THREE.Mesh(box(3,2,3),new THREE.MeshBasicMaterial({color:'#3dff7a'}));l.position.set(PAD.x+Math.cos(a)*64,2.5,PAD.y+Math.sin(a)*64);scene.add(l)}}
 // airport, fighter jets, powder dealer
-{const x0=8*B,y1=6*B;
- const tar=new THREE.Mesh(new THREE.PlaneGeometry(W-x0,y1),lam('#262830'));tar.rotation.x=-Math.PI/2;tar.position.set((x0+W)/2,.35,y1/2);scene.add(tar);
- const rw=new THREE.Mesh(new THREE.PlaneGeometry(96,y1-120),lam('#15161a'));rw.rotation.x=-Math.PI/2;rw.position.set(RWX,.5,y1/2);scene.add(rw);
- const dmat=new THREE.MeshBasicMaterial({color:'#e8e4f0'}),dashes=new THREE.InstancedMesh(box(3,.2,30),dmat,Math.ceil(y1/70));let n=0;for(let y=110;y<y1-110;y+=70)inst(dashes,n++,RWX,.62,y,0);dashes.count=n;scene.add(dashes);
- for(const yy of[85,y1-85])for(let i=-4;i<=4;i++){const st=new THREE.Mesh(box(6,.2,24),dmat);st.position.set(RWX+i*10,.62,yy);scene.add(st)}
- const lights=[];for(let y=70;y<y1-60;y+=60)for(const sx of[-52,52])lights.push([RWX+sx,y]);
+// The airfield (AF, see the district code): the car park, terminal and control tower by the gate on the west side, the runway, taxiway and apron on the east.
+{const flat=(x0,y0,x1,y1,col,yy)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,y1-y0),lam(col));m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,yy,(y0+y1)/2);scene.add(m)};
+ const dmat=new THREE.MeshBasicMaterial({color:'#e8e4f0'}),fm=lam('#5a6270'),tankM=lam('#8a909c');
+ flat(AF.x0,AF.y0,AF.x1,AF.y1,'#262830',.35);
+ flat(RWX-48,300,RWX+48,2300,'#15161a',.5); // runway, 96 wide, from 300 to 2300
+ flat(RWX+60,300,RWX+86,2430,'#1f2129',.6); // taxiway east of the runway, down to the apron
+ flat(RWX+48,2290,RWX+86,2320,'#1f2129',.62); // link from the runway end to the taxiway
+ flat(RWX+71,300,RWX+73,2430,'#e0b020',.65); // taxiway centre line
+ flat(4096,2430,4392,2625,'#2a2d36',.6); // apron: the fighter jets are parked here (JET_SPOTS)
+ flat(3650,1140,3770,1510,'#2b2d36',.6); // car park in front of the terminal, across from the gate
+ const dashes=new THREE.InstancedMesh(box(3,.2,30),dmat,30);let n=0;for(let y=340;y<2260;y+=70)inst(dashes,n++,RWX,.67,y,0);dashes.count=n;scene.add(dashes);
+ for(const yy of[320,2280])for(let i=-4;i<=4;i++){const st=new THREE.Mesh(box(6,.2,24),dmat);st.position.set(RWX+i*10,.67,yy);scene.add(st)}
+ const bays=new THREE.InstancedMesh(box(120,.2,.8),new THREE.MeshBasicMaterial({color:'#6d7288'}),30);let k=0;for(let z=1150;z<1500;z+=12)inst(bays,k++,3710,.67,z,0);bays.count=k;scene.add(bays);
+ const lights=[];for(let y=320;y<2300;y+=60)for(const sx of[-52,52])lights.push([RWX+sx,y]);
  const lm=new THREE.InstancedMesh(box(2.4,1.4,2.4),new THREE.MeshBasicMaterial({color:'#7fe9ff'}),lights.length);lights.forEach(([x,y],i)=>inst(lm,i,x,1.2,y,0));scene.add(lm);
- const sig=new THREE.Mesh(new THREE.PlaneGeometry(150,34),new THREE.MeshBasicMaterial({map:signTex('Palmetto Intl','#7fe9ff')}));sig.position.set(8*B+R+160,52,R+150.8);scene.add(sig);
- const cab=new THREE.Mesh(box(80,22,80),glassMat);cab.position.set(8*B+R+150,182,5*B+R+150);scene.add(cab);
- const bcn=new THREE.Mesh(box(4,4,4),redLight);bcn.position.set(8*B+R+150,198,5*B+R+150);scene.add(bcn);
+ const tank=new THREE.CylinderGeometry(13,13,16,16);for(const x of[4118,4150]){const t=new THREE.Mesh(tank,tankM);t.position.set(x,groundZ(x,2285)+8,2285);scene.add(t)}
+ const sig=new THREE.Mesh(new THREE.PlaneGeometry(150,34),new THREE.MeshBasicMaterial({map:signTex('Palmetto Intl','#7fe9ff')}));sig.position.set(3779,20,1380);sig.rotation.y=-Math.PI/2;scene.add(sig);
+ const door=new THREE.Mesh(new THREE.PlaneGeometry(40,14),doorMat);door.position.set(3779.5,7,1380);door.rotation.y=-Math.PI/2;scene.add(door);
+ // control tower (building footprint 3650-3690, 1090-1130, height 150): base, shaft, glass cab, beacon
+ const tower=[[box(40,10,40),lam('#4a4f5c'),5],[new THREE.CylinderGeometry(7,9,150,12),lam('#c9c3d6'),75],[new THREE.CylinderGeometry(17,14,18,16),glassMat,141],[box(4,4,4),redLight,154]];
+ for(const[g,m,y]of tower){const t=new THREE.Mesh(g,m);t.position.set(3670,y,1110);scene.add(t)}
+ for(const b of buildings)if(b.kind==='fence'){const g=b.h>b.w?new THREE.BoxGeometry(1.2,b.H,b.h):new THREE.BoxGeometry(b.w,b.H,1.2),m=new THREE.Mesh(g,fm);m.position.set(b.x+b.w/2,b.H/2,b.y+b.h/2);scene.add(m)}
  const dl=personMesh('#26232e','#6b4630',false);dl.position.set(DEALER.x,0,DEALER.y);dl.rotation.y=-Math.PI/4;scene.add(dl);
  const dr=new THREE.Mesh(new THREE.RingGeometry(9,12,24),new THREE.MeshBasicMaterial({color:'#f3ecff',side:THREE.DoubleSide}));dr.rotation.x=-Math.PI/2;dr.position.set(DEALER.x+12,.8,DEALER.y+12);scene.add(dr);shopRings.push(dr)}
 function jetMesh(){const g=new THREE.Group(),ud=g.userData,body=new THREE.Group();g.add(body);ud.body=body;
@@ -6128,7 +6165,7 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
  g.fillStyle='#5a5372';g.fillRect(t(0),t(0),W/MS,W/MS);
  const BC={airport:'#30333c',hood:'#3a2e28',park:'#1d5a36',lot:'#2a2735',beach:'#9a8258',suburb:'#2a5a38',industrial:'#3a3a42',city:'#26222f'};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R;g.fillStyle='#3e3950';g.fillRect(t(x),t(y),sz/MS,sz/MS);g.fillStyle=BC[blockType[bj*N+bi]]||'#26222f';g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS)}
- g.fillStyle='#262830';g.fillRect(t(8*B),t(0),(W-8*B)/MS,6*B/MS);g.fillStyle='#111216';g.fillRect(t(RWX-48),t(60),96/MS,(6*B-120)/MS);
+ g.fillStyle='#262830';g.fillRect(t(AF.x0),t(AF.y0),(AF.x1-AF.x0)/MS,(AF.y1-AF.y0)/MS);g.fillStyle='#111216';g.fillRect(t(RWX-48),t(300),96/MS,2000/MS);
  for(const p of parks)for(const[x,y,r]of p.trees){g.fillStyle='#2f8a4e';g.beginPath();g.arc(t(x),t(y),r/MS,0,TAU);g.fill()}
  for(const b of buildings){if(b.kind==='water'){g.fillStyle='#1d6a8a';g.beginPath();g.ellipse(t(b.x+b.w/2),t(b.y+b.h/2),(b.w+30)/2/MS,(b.h+30)/2/MS,0,0,TAU);g.fill();continue}
    g.fillStyle=b.kind==='house'?b.trim:b.kind==='container'?b.roof:shade(b.roof,1.25);g.fillRect(t(b.x),t(b.y),b.w/MS,b.h/MS)}
