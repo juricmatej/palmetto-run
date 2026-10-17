@@ -318,7 +318,8 @@ if(DBG)DBG.seatTest=(peer='aaa',seat='0|100|w|1')=>{
   seatBot={peer,kind:'viewer',presence:{n:'Tester',c:'#3dd68c',pv:PV,v:0,x:0,y:0,seat:seat||null}};
   room={presence:p=>{Object.assign(tFakePub,p);return Promise.resolve()},peers:()=>{seatBot.presence.x=me.x+20;seatBot.presence.y=me.y;return[{peer:'me',sameTab:true},seatBot]}};
   syncRoom(0);tFrame(0);return seatBot};
-if(DBG)Object.defineProperties(DBG,{seats:{get:()=>tableSeats},tRound:{get:()=>tRound},tSit:{get:()=>tSit},seatBot:{get:()=>seatBot},fakePub:{get:()=>tFakePub}});
+if(DBG)Object.defineProperties(DBG,{seats:{get:()=>tableSeats},tRound:{get:()=>tRound},tSit:{get:()=>tSit},seatBot:{get:()=>seatBot},fakePub:{get:()=>tFakePub},
+  tDbg:{get:()=>({myPeer,host:tHostPeer(),hostMe:tHostMe(),timer:+tTimer.toFixed(2),peers:[...tPeers].map(([p,e])=>p+':'+e.j+':'+e.act+':'+e.bet+':'+e.seq),seen:[...tSeen]})}});
 
 // ---------- VIP booth ----------
 function startLap(){if(lap)return;if(me.cash<100){feed('A private dance costs $100');return}me.cash-=100;lap={t:0,dur:20};state='cut';me.vx=me.vy=0;me.x=club.ox+386;me.y=club.oy+305;me.a=-Math.PI/2;mouse.down=false;

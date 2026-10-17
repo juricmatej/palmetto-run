@@ -38,6 +38,7 @@ function staticBatch(){
   for(const{mats,list}of groups.values()){if(!list.length)continue;
     const one=[...mats][0],plain=mats.size===1&&one.color.getHex()===0xffffff&&!one.vertexColors; // a lone white material is used as it is, so runtime edits to it still apply
     const mat=plain?one:Object.assign(one.clone(),{vertexColors:true});if(!plain){mat.color.set(0xffffff);mat.needsUpdate=true}
+    fadeApply(mat); // a clone keeps its day/night registration (its colour is white; the tint moved into vertex colours)
     const parts=plain?list.map(([g,mx])=>[g,mx]):list.map(([g,mx,mt])=>{const k=g.uuid+mt.uuid;if(!tinted.has(k))tinted.set(k,tintGeo(g,mt));return[tinted.get(k),mx]});
     if(parts.length===1){const[g,mx]=parts[0];const m=new THREE.Mesh(g,mat);m.matrixAutoUpdate=false;m.matrix.copy(mx);scene.add(m);continue}
     const m=new THREE.Mesh(mergeGeos(parts),mat);m.matrixAutoUpdate=false;scene.add(m)}
@@ -117,7 +118,7 @@ function facMat(type,v){const key=type+v;if(facMats[key])return facMats[key];
   if(type==='glass'){g.fillStyle=edge;g.fillRect(X,Y,2,32);g.fillRect(X,Y,32,2)}
   if(type==='stucco'){g.fillStyle='rgba(255,255,255,.07)';g.fillRect(0,Y+30,256,2)}}
  const t=new THREE.CanvasTexture(cg),l=new THREE.CanvasTexture(ce);for(const q of[t,l]){q.wrapS=q.wrapT=THREE.RepeatWrapping;q.anisotropy=4}
- FACADES.push(key);return facMats[key]=new THREE.MeshLambertMaterial({map:t,emissive:new THREE.Color('#ffffff'),emissiveMap:l})}
+ FACADES.push(key);return facMats[key]=fade(new THREE.MeshLambertMaterial({map:t,emissive:new THREE.Color('#ffffff'),emissiveMap:l}),'emissiveIntensity',1,.25)}
 const facPick=b=>Math.floor(seeded((b.x*131+b.y*17)|0)()*4);
 // shopfronts: a sign, an awning, lit display panes and a door, one canvas per facade style. Repeats every 120 units along the face.
 const SHOPCOL=['#ff3ea5','#29e6d6','#ffc94a','#3dd68c'],shopMats=SHOPCOL.map(c=>new THREE.MeshBasicMaterial({map:rtex(256,64,(g)=>{g.fillStyle='#17131f';g.fillRect(0,0,256,64);
@@ -125,7 +126,7 @@ const SHOPCOL=['#ff3ea5','#29e6d6','#ffc94a','#3dd68c'],shopMats=SHOPCOL.map(c=>
  for(let x=0;x<256;x+=16){g.fillStyle=c;g.globalAlpha=x%32?.55:.2;g.fillRect(x,17,16,7)}g.globalAlpha=1;
  for(const x of[8,96]){g.fillStyle=WTONE[x%6];g.globalAlpha=.55;g.fillRect(x,26,80,30);g.globalAlpha=1;g.fillStyle='#17131f';g.fillRect(x+38,26,3,30)}
  g.fillStyle='#0d0b14';g.fillRect(198,24,32,40);g.fillStyle='#ffcf86';g.globalAlpha=.5;g.fillRect(204,29,20,12);g.globalAlpha=1;
- g.fillStyle='#2b2636';g.fillRect(0,58,256,6)})}));
+ g.fillStyle='#2b2636';g.fillRect(0,58,256,6)})}));for(const m of shopMats)fadeC(m,'color','#ffffff','#8a8a92');
 const ledgeMat=new THREE.MeshLambertMaterial({color:'#4a4362'});
 // window grid per building: tile size in units, so neighbours do not share one grid
 const tileOf=b=>{const r=seeded((b.x*29+b.y*13+b.H)|0);return[96+r()*60,96+r()*60]};
@@ -206,8 +207,8 @@ const graffMats=['KINGS','LOW PALMS','LPK 4 LIFE'].map((t,i)=>new THREE.MeshBasi
   g.font='bold 86px Impact, "Arial Black", sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineWidth=14;g.strokeStyle='#101010';g.strokeText(t,256,64);g.fillStyle=cols[0];g.fillText(t,256,64);
   g.lineWidth=4;g.strokeStyle=cols[1];g.strokeText(t,256,64);g.fillStyle=cols[0];for(let k=0;k<9;k++){const x=60+Math.random()*390;g.fillRect(x,92,4,14+Math.random()*30)}})}));
 const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{})));
-const glassMat=new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex});
-const winMat=new THREE.MeshBasicMaterial({color:'#ffd28a'}),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
+const glassMat=fade(new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3);
+const winMat=fadeC(new THREE.MeshBasicMaterial({color:'#ffd28a'}),'color','#ffd28a','#6b5f45'),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
 for(const b of buildings){
   if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
   if(b.kind==='fence'||b.kind==='ctower')continue; // airfield fence and control tower: drawn with the airfield
@@ -227,7 +228,7 @@ for(const b of buildings){
     for(let y=14;y<H-6;y+=14)put(new THREE.BoxGeometry(Math.min(30,b.w*.4),.8,6),capMat,b.x+b.w*.72,y,b.y+b.h+3);
     if(b.graffiti>=0){const gp=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(64,b.w*.8),17),graffMats[b.graffiti]);gp.position.set(cx-b.w*.1,9,b.y+b.h+.35);scene.add(gp)}
     continue}
-  if(b.kind==='bank'){const gm=new THREE.MeshLambertMaterial({color:'#d4aa4c',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),gold=new THREE.MeshBasicMaterial({color:'#ffc94a'});
+  if(b.kind==='bank'){const gm=fade(new THREE.MeshLambertMaterial({color:'#d4aa4c',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3),gold=new THREE.MeshBasicMaterial({color:'#ffc94a'});
     const tiers=[[1,0,.62],[.78,.62,.26],[.5,.88,.12]];
     for(const[sc,y0,hh]of tiers){const w=b.w*sc,dd=b.h*sc,hgt=H*hh,g=new THREE.BoxGeometry(w,hgt,dd);boxUV(g,w,hgt,dd);put(g,gm,cx,H*y0+hgt/2,cz);put(new THREE.BoxGeometry(w+3,3,dd+3),gold,cx,H*(y0+hh),cz)}
     put(new THREE.CylinderGeometry(1.5,3.5,140,6),capMat,cx,H+70,cz);put(new THREE.BoxGeometry(5,5,5),redLight,cx,H+142,cz);
@@ -281,11 +282,11 @@ let ferris=null;
  for(const[x,y,c]of umbrellas){const u=new THREE.Mesh(new THREE.ConeGeometry(14,5,8),new THREE.MeshLambertMaterial({color:c}));u.position.set(x,20,y);scene.add(u);const p=new THREE.Mesh(new THREE.CylinderGeometry(.6,.6,20,4),M0());p.position.set(x,10,y);scene.add(p);const t=new THREE.Mesh(new THREE.BoxGeometry(10,1,20),new THREE.MeshLambertMaterial({color:'#f3ecff'}));t.position.set(x+12,1.6,y+4);scene.add(t)}
  function M0(){return new THREE.MeshLambertMaterial({color:'#d9d4e6'})}
  // pools
- const poolMat=new THREE.MeshBasicMaterial({color:'#2bb8e6'});for(const p of pools){const m=new THREE.Mesh(new THREE.PlaneGeometry(p.w,p.h),poolMat);m.rotation.x=-Math.PI/2;m.position.set(p.x+p.w/2,1.5,p.y+p.h/2);scene.add(m);const gl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(43,184,230,.45)')));gl.rotation.x=-Math.PI/2;gl.scale.set(90,70,1);gl.position.set(p.x+p.w/2,1.6,p.y+p.h/2);scene.add(gl)}
+ const poolMat=new THREE.MeshBasicMaterial({color:'#2bb8e6'});for(const p of pools){const m=new THREE.Mesh(new THREE.PlaneGeometry(p.w,p.h),poolMat);m.rotation.x=-Math.PI/2;m.position.set(p.x+p.w/2,1.5,p.y+p.h/2);scene.add(m);const gl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(43,184,230,.45)')),'opacity',1,.4));gl.rotation.x=-Math.PI/2;gl.scale.set(90,70,1);gl.position.set(p.x+p.w/2,1.6,p.y+p.h/2);scene.add(gl)}
  // cranes
  const yel=new THREE.MeshLambertMaterial({color:'#e0a92a'});for(const[x,y]of cranes){const t=new THREE.Mesh(new THREE.BoxGeometry(7,150,7),yel);t.position.set(x,75,y);scene.add(t);const arm=new THREE.Mesh(new THREE.BoxGeometry(6,5,150),yel);arm.position.set(x,148,y-40);scene.add(arm);const l=new THREE.Mesh(new THREE.BoxGeometry(4,4,4),redLight);l.position.set(x,154,y);scene.add(l);const cb=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,60,4),capMat);cb.position.set(x,118,y-100);scene.add(cb)}
  // mountains across the bay to the north and west: flat-shaded cones, dark base, lighter peak and a random tint per cone (vertex colours)
- const mtn=new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true,fog:false}),mr=seeded(77);
+ const mtn=fadeC(new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true,fog:false}),'color','#ffffff','#9aa0b8'),mr=seeded(77);
  const mtnCone=(r0,h,k)=>{const g=new THREE.ConeGeometry(r0,h,9),p=g.attributes.position,a=new Float32Array(p.count*3),s=.85+.3*k;
    for(let i=0;i<p.count;i++){const q=Math.pow((p.getY(i)+h/2)/h,2),tn=.3*q*q;// peaks lean 30% toward a pale sky lavender so the top of the frame stays lit
      a[i*3]=((.082+q*.27)*(1-tn)+.6*tn)*s;a[i*3+1]=((.055+q*.18)*(1-tn)+.42*tn)*s;a[i*3+2]=((.149+q*.39)*(1-tn)+.74*tn)*s*(1+(k-.5)*.2)}
@@ -296,7 +297,7 @@ let ferris=null;
  // shared material, so the whole ring is one draw. No fog on it: at 1300 to 1800 units the fog hid about 90 percent of the ring. The top faces catch a faint pink rim.
  const skyWin=rtex(96,96,(g,w,h)=>{g.fillStyle='#000';g.fillRect(0,0,w,h);const q=w/6,wr=seeded(31);
    for(let j=0;j<6;j++)for(let i=0;i<6;i++)if(wr()<.16){g.fillStyle=WTONE[Math.floor(wr()*6)];g.fillRect(i*q+3,j*q+3,q-6,q-6)}}),
-  skyMat=new THREE.MeshLambertMaterial({vertexColors:true,emissive:'#ffffff',emissiveMap:skyWin,fog:false}),sr=seeded(908),skyParts=[];
+  skyMat=fade(new THREE.MeshLambertMaterial({vertexColors:true,emissive:'#ffffff',emissiveMap:skyWin,fog:false}),'emissiveIntensity',1,.35),sr=seeded(908),skyParts=[];
  const skyBlock=(w,d,h,s)=>{const g=new THREE.BoxGeometry(w,h,d).translate(0,h/2,0),p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv,a=new Float32Array(p.count*3);
    for(let i=0;i<p.count;i++){const top=n.getY(i)>.5,u=Math.abs(n.getX(i))>.5?p.getZ(i):p.getX(i),f=top?[1.8,1.35,1.8]:[1,1,1];
      uv.setXY(i,top?.002:u/24,p.getY(i)/24);for(let c=0;c<3;c++)a[i*3+c]=Math.min(1,[.16,.1,.25][c]*s*f[c])}
@@ -326,8 +327,8 @@ const STREET_PROPS=[];
  const lam=c=>new THREE.MeshLambertMaterial({color:c}),IM=(g,m,n)=>new THREE.InstancedMesh(g,m,Math.max(1,n));
  // lamps: slim pole with an arm, small tapered shade facing down and a warm bulb under it
  const post=IM(mergeGeos([[new THREE.CylinderGeometry(.9,1.3,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#2c2938'),lp.length),
-  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,6,4),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),lp.length),
-  pool=IM(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,176,90,.55)'),.4),lp.length);
+  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,6,4),fadeC(new THREE.MeshBasicMaterial({color:'#ffdf9e'}),'color','#ffdf9e','#8f8776'),lp.length),
+  pool=IM(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(255,176,90,.55)'),.4),'opacity',.4,.06),lp.length);
  lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.4,hz);inst(hb,i,hx,38.35,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
  // traffic lights: pole, housing and two lamp cubes per corner; colours cycle green/yellow/red in trafficStep via one instanceColor pass per phase change
  const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),post.material,tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),
@@ -382,7 +383,7 @@ if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,pro
   const tex=canvasTex(1024,288,(g,w,h)=>{g.fillStyle='#0b0814';g.fillRect(0,0,w,h);g.strokeStyle=c;g.shadowColor=c;g.shadowBlur=22;g.lineWidth=10;g.strokeRect(14,14,w-28,h-28);
    let fs=150;g.font=fs+'px Bungee, Impact, sans-serif';while(g.measureText(t.toUpperCase()).width>w-110&&fs>30){fs-=6;g.font=fs+'px Bungee, Impact, sans-serif'}
    g.textAlign='center';g.textBaseline='middle';g.fillStyle=c;g.shadowBlur=28;g.fillText(t.toUpperCase(),w/2,h/2+6)});
-  const pm=new THREE.InstancedMesh(new THREE.PlaneGeometry(55,15.5),new THREE.MeshBasicMaterial({map:tex}),mine.length*2);
+  const pm=new THREE.InstancedMesh(new THREE.PlaneGeometry(55,15.5),fadeC(new THREE.MeshBasicMaterial({map:tex}),'color','#ffffff','#8f8f96'),mine.length*2);
   mine.forEach((b,i)=>{inst(pm,i*2,b.x+b.w/2,b.H+16.6,b.y+b.h-4.4,0);inst(pm,i*2+1,b.x+b.w/2,b.H+16.6,b.y+b.h-5.6,Math.PI)});scene.add(pm)})}
 
 const shopRings=[];

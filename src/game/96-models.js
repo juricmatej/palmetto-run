@@ -168,5 +168,5 @@ function signTex(text,col){return canvasTex(512,128,(g)=>{g.fillStyle='#0b0814';
    const booth=new THREE.Mesh(box(big?90:44,big?44:30,8),capMat);booth.position.set(d.x,big?22:15,d.y+16);scene.add(booth);
    const door=new THREE.Mesh(new THREE.PlaneGeometry(18,24),new THREE.MeshBasicMaterial({color:d.col,transparent:true,opacity:.4}));door.position.set(d.x,12,d.y+11.9);door.rotation.y=Math.PI;scene.add(door);
    const sg=new THREE.Mesh(new THREE.PlaneGeometry(big?96:56,big?24:14),new THREE.MeshBasicMaterial({map:tex}));sg.position.set(d.x,big?54:38,d.y+11.8);sg.rotation.y=Math.PI;scene.add(sg);
-   const pl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),additive(glowTex(rgbaOf(d.col,.5))));pl.rotation.x=-Math.PI/2;pl.scale.set(big?170:110,big?170:110,1);pl.position.set(d.x,1.7,d.y);scene.add(pl);
+   const pl=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fade(additive(glowTex(rgbaOf(d.col,.5))),'opacity',1,.12));pl.rotation.x=-Math.PI/2;pl.scale.set(big?170:110,big?170:110,1);pl.position.set(d.x,1.7,d.y);scene.add(pl);
  }}

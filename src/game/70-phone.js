@@ -430,12 +430,21 @@ let clock=.9,wx='clear',wxLeft=rr(90,270),wxAcc=0,wxGrip=1;
 const WXS=['clear','overcast','rain'],C=h=>new THREE.Color(h),V=(x,y,z)=>new THREE.Vector3(x,y,z);
 // sky keys at clock 0 (midnight), .25 (dawn), .5 (day), .75 (dusk), 1 (midnight). Night keys are the old look.
 const SKYK=[
- {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1},
- {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(-1,.5,.2),sky:.5},
- {bg:C('#79b8ee'),fog:C('#b7d8f0'),sun:C('#fff4e0'),si:1.2,hi:1.3,pos:V(-.3,1,.3),sky:0},
- {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(1,.5,-.2),sky:.5},
- {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1}];
+ {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1,day:0},
+ {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(-1,.5,.2),sky:.5,day:.35},
+ {bg:C('#79b8ee'),fog:C('#b7d8f0'),sun:C('#fff4e0'),si:1.2,hi:1.3,pos:V(-.3,1,.3),sky:0,day:1},
+ {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(1,.5,-.2),sky:.5,day:.35},
+ {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1,day:0}];
 const WXK={clear:{si:1,fog:1,dim:1,grip:1,road:C('#ffffff')},overcast:{si:.6,fog:1.15,dim:.82,grip:1,road:C('#ffffff')},rain:{si:.4,fog:1.6,dim:.6,grip:.85,road:C('#8c97ad')}},INSIDE_FOG=C('#160f28');
+// Day/night material pass. A material registered here follows the clock in skyLook(): [material, property, night, day].
+// Colours are kept as hex strings in userData because staticBatch() deep-copies userData when it clones a material;
+// fadeApply() re-registers those clones, whose colour staticBatch has whitened (the tint moved into vertex colours).
+const FADE=[],FADEC=[],CWN=new THREE.Color('#ffffff');
+function fade(m,p,n,d){m.userData.fade=(m.userData.fade||[]).concat([[p,n,d]]);FADE.push([m,p,n,d]);return m}
+function fadeC(m,p,n,d){m.userData.fadeC=(m.userData.fadeC||[]).concat([[p,n,d]]);FADEC.push([m,p,new THREE.Color(n),new THREE.Color(d)]);return m}
+function fadeApply(m){const u=m.userData;if(!u||(!u.fade&&!u.fadeC))return;
+  for(const e of u.fade||[])FADE.push([m,...e]);
+  for(const[p,n,d]of u.fadeC||[])FADEC.push([m,p,CWN,new THREE.Color(d)])}
 const RAIN_N=300,rainPos=new Float32Array(RAIN_N*6),rainGeo=new THREE.BufferGeometry();
 rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
 const rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:'#b9c8ff',transparent:true,opacity:.6,depthWrite:false}));
@@ -445,6 +454,8 @@ function rainStep(dt){if(!rain.visible)return;rain.position.copy(camera.position
   for(let o=0;o<P.length;o+=6){let y=P[o+1]-d;if(y<-60){y+=100;P[o]=rr(-80,80);P[o+2]=rr(-80,80)}P[o+1]=y;P[o+3]=P[o]+1.5;P[o+4]=y+14;P[o+5]=P[o+2]}
   rainGeo.attributes.position.needsUpdate=true}
 // sets sky, fog, sun and road colours from the clock and weather. Interiors use the night look with clear weather.
+// The day amount (0 night, 1 noon) also drives the registered day/night materials.
+let dAlast=-1;
 function skyLook(){
   const inside=!!me.inside,W=WXK[inside?'clear':wx],f=(settings.time==='night'||inside?0:clock)*4,i=Math.min(3,f|0),t=f-i,A=SKYK[i],B=SKYK[i+1];
   scene.background.lerpColors(A.bg,B.bg,t).multiplyScalar(W.dim);
@@ -455,6 +466,8 @@ function skyLook(){
   moon.intensity=(A.si+(B.si-A.si)*t)*W.si;hemi.intensity=A.hi+(B.hi-A.hi)*t;
   skyDome.visible=A.sky+(B.sky-A.sky)*t>.5;
   asphMat.color.copy(W.road);wxGrip=W.grip;rain.visible=wx==='rain'&&!inside;
+  const dA=inside?0:A.day+(B.day-A.day)*t;
+  if(dA!==dAlast){dAlast=dA;for(const e of FADE)e[0][e[1]]=e[2]+(e[3]-e[2])*dA;for(const e of FADEC)e[0][e[1]].copy(e[2]).lerp(e[3],dA)}
 }
 function wxTick(dt){rainStep(dt);wxAcc+=dt;if(wxAcc<.25)return;const s=wxAcc;wxAcc=0;
   clock=(clock+s/1200)%1;wxLeft-=s;
