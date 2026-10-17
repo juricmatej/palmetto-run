@@ -32,7 +32,9 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 | X | Flares (break missile locks) |
 | N | Use white powder (super strength) |
 | M | Sound on/off |
-| P | Settings: look sensitivity, invert Y, aim assist strength |
+| P | Settings: rebind keys, look sensitivity, vehicle and scope look, invert Y, aim assist, sprint mode |
+
+Every key in this table can be rebound in the settings panel (P): click a key chip and press the new key.
 
 Phones get an on-screen joystick and buttons.
 
