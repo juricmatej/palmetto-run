@@ -6,6 +6,7 @@
 // The page loads with ?debug, so --pre (runs right after the start screen) and --eval (runs at the end) can use window.__pr.
 // Exits 1 if anything was logged as an error. Needs Node 22+ and Google Chrome. Uses the GPU (about 60 fps);
 // SMOKE_SW=1 forces software rendering, which runs near 6 fps, so game time then moves at about a fifth of real time.
+// SMOKE_UNCAPPED=1 lifts the 60 fps cap so the frame cost shows (use it with the perf numbers in __pr.perf).
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -36,7 +37,13 @@ const chromeBin = process.env.CHROME || ['/Applications/Google Chrome.app/Conten
 const profile = await mkdtemp(join(tmpdir(), 'pr-smoke-'));
 const [w, h] = o.size.split('x').map(Number);
 const chrome = spawn(chromeBin, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, `--window-size=${w},${h}`,
-  ...(process.env.SMOKE_SW ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']), '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+  ...(process.env.SMOKE_SW ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist']),
+  ...(process.env.SMOKE_UNCAPPED ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []), '--no-first-run', '--no-default-browser-check', '--autoplay-policy=no-user-gesture-required', 'about:blank'], { stdio: 'ignore' });
+// A killed or timed-out run must not leave Chrome burning CPU in the background.
+const bye = () => { try { chrome.kill('SIGKILL'); } catch {} };
+process.on('exit', bye);
+for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => process.exit(130));
+setTimeout(() => { console.error('smoke: hard timeout'); process.exit(1); }, (Number(o.secs) || 8) * 1000 + 120000).unref();
 let port;
 for (let i = 0; i < 100 && !port; i++) { await sleep(0.1); try { port = readFileSync(join(profile, 'DevToolsActivePort'), 'utf8').split('\n')[0]; } catch {} }
 const page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === 'page');
