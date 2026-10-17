@@ -598,10 +598,10 @@ const WEAPONS=[
   {id:'smg',name:'SMG',price:250,cd:.085,dmg:BAL.wdmg.smg,spread:.09,pellets:1,ammoAmt:150,ammoPrice:60,desc:'Fast and light. Good for drive-bys.'},
   {id:'shotgun',name:'Shotgun',price:400,cd:.75,dmg:BAL.wdmg.shotgun,spread:.3,pellets:BAL.shotPellets,ammoAmt:24,ammoPrice:50,desc:'Six pellets per shot. Brutal up close.'},
   {id:'mg',name:'Machine gun',price:700,cd:.055,dmg:BAL.wdmg.mg,spread:.07,pellets:1,ammoAmt:300,ammoPrice:120,desc:'Huge fire rate. Shreds cars.'},
-  {id:'sniper',name:'Sniper rifle',price:1800,cd:1.1,dmg:BAL.wdmg.sniper,spread:0,pellets:1,speed:1900,life:1,ammoAmt:20,ammoPrice:150,desc:'One shot, one KO. Hold right-click (or press Z) to scope.'},
+  {id:'sniper',name:'Sniper rifle',price:1800,cd:1.1,dmg:BAL.wdmg.sniper,spread:0,pellets:1,speed:1900,life:1,ammoAmt:20,ammoPrice:150,get desc(){return 'One shot, one KO. Hold right-click (or press '+kb('scope')+') to scope.'}},
   {id:'rpg',name:'RPG',price:1200,cd:1.1,dmg:0,spread:.01,pellets:1,rocket:true,ammoAmt:5,ammoPrice:300,desc:'Rockets that explode on impact. Mind the blast.'},
   {id:'homing',name:'Homing launcher',price:2500,cd:1.6,dmg:0,spread:0,pellets:1,rocket:true,homing:true,ammoAmt:4,ammoPrice:500,desc:'Locks onto players in cars (or any vehicle ahead of you). Hard to shake off.'},
-  {id:'sticky',name:'Sticky bombs',price:1500,cd:.45,dmg:0,spread:0,pellets:1,throw:true,ammoAmt:5,ammoPrice:400,desc:'Throw them. They stick to cars, walls and the ground. Press G to detonate.'},
+  {id:'sticky',name:'Sticky bombs',price:1500,cd:.45,dmg:0,spread:0,pellets:1,throw:true,ammoAmt:5,ammoPrice:400,get desc(){return 'Throw them. They stick to cars, walls and the ground. Press '+kb('detonate')+' to detonate.'}},
 ];
 const WI={};WEAPONS.forEach((w,i)=>WI[w.id]=i);
 let owned={pistol:true},ammo={},weap='pistol',shopCd=0,heatShotT=0;
@@ -1053,7 +1053,7 @@ function soundStep(dt){if(!AC)return;sndInit();if(!SND.ready)return;const t=AC.c
   // sirens
   {let best=1e9;if(!me.inside)for(const v of cars)if(v.kind==='police'&&heat>0){const d=Math.hypot(v.x-me.x,v.y-me.y);if(d<best)best=d}
    S(SND.siren.sg.gain,best<900?.05*(1-best/900):0,.1);S(SND.siren.so.frequency,Math.floor(time*1.6)%2?980:720,.03);S(SND.rg.gain,best<900?.02:.05,.2)}
-  const shift=keys.ShiftLeft||keys.ShiftRight,onFoot=state==='play'&&!me.car&&!me.heli&&!me.jet;
+  const shift=held('sprint'),onFoot=state==='play'&&!me.car&&!me.heli&&!me.jet;
   // tyres: sliding sideways, or handbrake at speed
   {const c=me.car,lat=c?Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy):0;
    S(SND.screech.gain,c&&state==='play'&&(lat>120||shift&&Math.hypot(c.vx,c.vy)>150)?.05:0,.05)}
@@ -1196,7 +1196,7 @@ function leaveCar(force){
 
 // ---------- gun shop ----------
 function openShop(){try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}mouse.down=false;state='shop';$('shop').hidden=false;renderShop();setTimeout(()=>$('shopClose').focus(),0)}
-function closeShop(){if(state!=='shop')return;bjLeave();tableK=1;state='play';$('shop').hidden=true;$('bj').hidden=true;document.querySelectorAll('.gm').forEach(e=>e.hidden=true);cv.focus&&cv.focus()}
+function closeShop(){if(state!=='shop')return;capAct=null;capMsg='';bjLeave();tableK=1;state='play';$('shop').hidden=true;$('bj').hidden=true;document.querySelectorAll('.gm').forEach(e=>e.hidden=true);cv.focus&&cv.focus()}
 function equip(id){if(owned[id]){weap=id;if(state==='shop')renderShop()}}
 function cycleWeapon(){const list=WEAPONS.filter(w=>owned[w.id]);const i=list.findIndex(w=>w.id===weap);equip(list[(i+1)%list.length].id)}
 function prevWeapon(){const list=WEAPONS.filter(w=>owned[w.id]);const i=list.findIndex(w=>w.id===weap);equip(list[(i-1+list.length)%list.length].id)}
@@ -1247,8 +1247,8 @@ function heliStep(dt){
   if(h.falling){h.vz-=320*dt;h.a+=dt*5;h.x+=h.vx*dt;h.y+=h.vy*dt;h.z+=h.vz*dt;h.spin=20;if(h.z<=g0){h.z=g0;h.dead=true;explode(h.x,h.y,mine,false,g0);explode(h.x+20,h.y,mine,false,g0);if(mine){me.heli=null;me.z=0;me.roof=null;die('WASTED')}}return}
   if(h.hp<=0){h.falling=true;if(mine)feed('Mayday! The helicopter is going down');return}
   let f=0,rt=0,up=0;
-  if(mine&&state==='play'){f=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);rt=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
-    if(stick.id!==null){f=-stick.y;rt=stick.x}up=(keys.Space||heliUpT?1:0)-(keys.ShiftLeft||keys.ShiftRight||heliDnT?1:0);
+  if(mine&&state==='play'){f=(held('up')?1:0)-(held('down')?1:0);rt=(held('right')?1:0)-(held('left')?1:0);
+    if(stick.id!==null){f=-stick.y;rt=stick.x}up=(held('shoot')||heliUpT?1:0)-(held('sprint')||heliDnT?1:0);
     h.a+=wrap(look.yaw-h.a)*Math.min(1,dt*3)}
   const fx=Math.cos(h.a),fy=Math.sin(h.a),airborne=h.z>g0+1;
   if(airborne||up>0){h.vx+=(fx*f-fy*rt)*540*dt;h.vy+=(fy*f+fx*rt)*540*dt}
@@ -1285,7 +1285,7 @@ function jetStep(dt){
       if(j.z<=heliGround(j.x,j.y)){j.dead=true;explode(j.x,j.y,mine,false,j.z);explode(j.x+25,j.y,mine,false,j.z);if(mine){me.jet=null;me.z=0;die('WASTED')}}continue}
     if(j.hp<=0){j.falling=true;j.vz=Math.min(j.vz,-40);if(mine)feed('Mayday! Your jet is going down');continue}
     const g=heliGround(j.x,j.y),air=j.z>g+1;let thr=0,climb=0;
-    if(mine&&state==='play'){thr=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0);if(stick.id!==null)thr=-stick.y;climb=(keys.Space||heliUpT?1:0)-(keys.ShiftLeft||keys.ShiftRight||heliDnT?1:0);
+    if(mine&&state==='play'){thr=(held('up')?1:0)-(held('down')?1:0);if(stick.id!==null)thr=-stick.y;climb=(held('shoot')||heliUpT?1:0)-(held('sprint')||heliDnT?1:0);
       const rate=air?1.15:(j.speed<80?1.4:.8),diff=wrap(look.yaw-j.a);j.a+=clamp(diff,-rate*dt,rate*dt);j.roll+=((air?clamp(diff*1.4,-1.1,1.1):0)-j.roll)*Math.min(1,dt*3)}
     else j.roll*=Math.pow(.1,dt);
     j.speed+=thr*(air?280:200)*dt;j.speed-=j.speed*(air?.04:.12)*dt;if(!air&&thr<=0)j.speed=Math.max(0,j.speed-90*dt);if(!mine&&!air)j.speed=Math.max(0,j.speed-150*dt);j.speed=clamp(j.speed,0,980);
@@ -1308,7 +1308,7 @@ function jetFire(){const j=me.jet;if(!j||j.falling)return;me.fireCd=.2;jetSide=-
 // ---------- white powder ----------
 const DEALER={x:6*B+R+10,y:5*B+R+10};let powder=0,power=0,crashT=0;
 const nearDealer=()=>!me.car&&!me.heli&&!me.jet&&!me.inside&&!me.roof&&Math.hypot(DEALER.x-me.x,DEALER.y-me.y)<30;
-function buyPowder(){if(me.cash<200){feed('A bag costs $200');return}me.cash-=200;powder++;feed(`Bought a bag of white powder (${powder}). Press N to use it`);noise(.1,5000,.12);saveArsenal()}
+function buyPowder(){if(me.cash<200){feed('A bag costs $200');return}me.cash-=200;powder++;feed(`Bought a bag of white powder (${powder}). Press ${kb('drug')} to use it`);noise(.1,5000,.12);saveArsenal()}
 function usePowder(){if(!powder||state!=='play'||power>0)return;powder--;power=25;crashT=0;noise(.5,5000,.18);showBig('SUPER STRENGTH','#f3ecff','25 seconds',1.4);feed('Your heart is racing. Run into cars and people');saveArsenal()}
 function powerStep(dt){
   if(power>0){power-=dt;if(power<=0){power=0;crashT=10;feed('You are crashing...')}
@@ -1328,7 +1328,7 @@ function robStep(dt){if(!rob)return;
 
 // ---------- sticky bombs ----------
 const stickies=[];let exSeq=0,lastEx=null;
-function throwSticky(){if(stickies.length>=5){feed('Five bombs are out. Press G to detonate');return false}
+function throwSticky(){if(stickies.length>=5){feed(`Five bombs are out. Press ${kb('detonate')} to detonate`);return false}
   const c=me.car,a=c?c.a:look.yaw,sx=c?c.x:me.x,sy=c?c.y:me.y,sz=c?(c.z||0)+16:(me.z||0)+16,sp=c?240:330;
   stickies.push({x:sx+Math.cos(a)*14,y:sy+Math.sin(a)*14,z:sz,vx:Math.cos(a)*sp+(c?c.vx:0),vy:Math.sin(a)*sp+(c?c.vy:0),vz:150,stuck:null,t:0});gunSnd('sticky',sx,sy);return true}
 function stickTo(o,s,nx,ny,a){const dx=nx-o.x,dy=ny-o.y,ca=Math.cos(-a),sa=Math.sin(-a);return{ox:dx*ca-dy*sa,oy:dx*sa+dy*ca}}
@@ -2522,10 +2522,10 @@ function modK(c,k){const m=c&&c.mods;if(!m)return 1;
   if(k==='brk')return[1,1.15,1.3][m.brk|0]||1;
   if(k==='arm')return[1,.8,.65,.5][m.arm|0]||1;
   return 1}
-// nitro: hold V in a car with nitro fitted for up to 3 s of boost. It refills in 10 s, in or out of the car. Sets c.boost for drive().
+// nitro: hold the nitro action in a car with nitro fitted for up to 3 s of boost. It refills in 10 s, in or out of the car. Sets c.boost for drive().
 const nitBar=$('nitBar'),nitFill=$('nit');
 function modNitroStep(dt){
-  const c=me.car,fitted=!!c&&!!c.mods&&!!c.mods.nitro&&!c.burn,on=fitted&&state==='play'&&!!keys.KeyV;
+  const c=me.car,fitted=!!c&&!!c.mods&&!!c.mods.nitro&&!c.burn,on=fitted&&state==='play'&&held('nitro');
   if(on&&nitroT>0)nitroT=Math.max(0,nitroT-dt);else nitroT=Math.min(nitroMax,nitroT+dt*nitroMax/10);
   const show=fitted&&nitroT<nitroMax;nitBar.hidden=!show;if(show)nitFill.style.width=nitroT/nitroMax*100+'%';
   if(!c)return;
@@ -2577,8 +2577,8 @@ function renderMods(){
     modsBtnRow(L,'Brakes & handling '+t,own,`${money(p)} · grip \u00d7${[0,1.12,1.25][t]}, braking \u00d7${[0,1.15,1.3][t]}`,lab(own,ready,p,l),ready&&!own&&me.cash>=p,()=>modBuy(p,()=>m.brk=t))});
   if(modCat===3)[[1,2000,2],[2,5000,6],[3,10000,10]].forEach(([t,p,l])=>{const own=(m.arm|0)>=t,ready=lv>=l;
     modsBtnRow(L,'Armor '+t,own,`${money(p)} · damage taken \u00d7${[0,.8,.65,.5][t]}`,lab(own,ready,p,l),ready&&!own&&me.cash>=p,()=>modBuy(p,()=>m.arm=t))});
-  if(modCat===4){const own=!!m.nitro,ready=lv>=6;
-    modsBtnRow(L,'Nitro',own,own?'Hold V for 3 s of boost, refills in 10 s':'$6,000 · hold V for 3 s of boost, refills in 10 s',lab(own,ready,6000,6),ready&&!own&&me.cash>=6000,()=>modBuy(6000,()=>{m.nitro=1;nitroT=nitroMax}))}
+  if(modCat===4){const own=!!m.nitro,ready=lv>=6,ks=kb('nitro');
+    modsBtnRow(L,'Nitro',own,own?`Hold ${ks} for 3 s of boost, refills in 10 s`:`$6,000 · hold ${ks} for 3 s of boost, refills in 10 s`,lab(own,ready,6000,6),ready&&!own&&me.cash>=6000,()=>modBuy(6000,()=>{m.nitro=1;nitroT=nitroMax}))}
   if(modCat===5)MODS_NEON.forEach((col,i)=>{const own=!!m.neon,cur=m.neon===col;
     modsBtnRow(L,MODS_NEON_NAMES[i]+' underglow',cur,cur?'Lit up':own?'Change for free':'$2,500 · a glow and a light under your car',cur?'On':own?'Change':'Install $2,500',own||me.cash>=2500,()=>modBuy(own?0:2500,()=>m.neon=col))});
   if(modCat===6)MODS_RIM.forEach((col,i)=>{const cur=m.rim===col;
@@ -2709,7 +2709,7 @@ function phHomeShow(){phApp=null;phAppEl.hidden=true;phHome.hidden=false;phFocus
 function phPaint(a,force){const t=phBody.cloneNode(false);a.render(t);if(!force&&t.innerHTML===phBody.innerHTML)return;const was=phNavEls().indexOf(document.activeElement);phBody.replaceChildren(...t.childNodes);if(!force&&was>=0)phFocus(was)}
 function phoneOpenNow(toMsg){
   if(phoneOpen||state!=='play')return;
-  phoneOpen=true;for(const k in keys)if(!/^Key[WASD]$/.test(k))keys[k]=false;$('phone').classList.add('open');phBan.classList.remove('show');
+  phoneOpen=true;for(const k in keys)if(!WALKC[k])keys[k]=false;$('phone').classList.add('open');phBan.classList.remove('show');
   try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
   mouse.down=false;touchFire=false;
   phEyes=me.car&&Math.hypot(me.car.vx,me.car.vy)>200?2.5:0;
@@ -2814,7 +2814,7 @@ phoneApp('settings','Settings',IC.gear,el=>{const b=mk('button','ph-btn','Open s
 function phoneKey(e){
   const c=e.code,rep=e.repeat;
   if(phCam){if(c==='Enter'&&!rep)phSnap();else if(c==='Escape')phCamOff();return}
-  if(c==='Escape'||(c==='KeyT'&&!rep)){phoneClose();return}
+  if(c==='Escape'||(codeToAction(c)==='phone'&&!rep)){phoneClose();return}
   if(/^Arrow/.test(c)){e.preventDefault();const dx=c==='ArrowLeft'?-1:c==='ArrowRight'?1:0,dy=c==='ArrowUp'?-1:c==='ArrowDown'?1:0;
     if(phApp==='map'&&mapCur){mapCur.x=clamp(mapCur.x+dx*70,-MO,W+400);mapCur.y=clamp(mapCur.y+dy*70,-MO,W+400)}else phMove(dx,dy);return}
   if(c==='Enter'){e.preventDefault();if(rep)return;if(phApp==='map'&&mapCur)mapPick(mapCur);else{const el=document.activeElement;if(el&&el.matches&&el.matches('[data-nav]'))el.click()}return}
@@ -2863,40 +2863,162 @@ if(DBG)Object.defineProperties(DBG,{perf:{get:()=>pf.avg}});
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
 const typing=()=>document.activeElement&&document.activeElement.tagName==='INPUT';
-addEventListener('keydown',e=>{if(e.code==='Escape'&&state==='shop')closeShop();if(typing())return;
-  if(phoneOpen&&!/^Key[WASD]$/.test(e.code)){phoneKey(e);return}keys[e.code]=true;
+// One action map for every bindable key. ACTIONS is the source of truth, BINDS holds the live codes of each
+// action, DEF the defaults. held(id) says if one of its codes is down, codeToAction(code) is the reverse.
+// Digits 1-8, the mouse, the wheel steering and the touch buttons stay hard coded and are not in the map.
+const ACTIONS=[
+  {id:'up',label:'Forward',group:'Move',def:['KeyW','ArrowUp']},
+  {id:'down',label:'Back',group:'Move',def:['KeyS','ArrowDown']},
+  {id:'left',label:'Left',group:'Move',def:['KeyA','ArrowLeft']},
+  {id:'right',label:'Right',group:'Move',def:['KeyD','ArrowRight']},
+  {id:'sprint',label:'Sprint / handbrake',group:'Move',def:['ShiftLeft','ShiftRight']},
+  {id:'jump',label:'Jump',group:'Move',def:['KeyC']},
+  {id:'interact',label:'Enter / interact',group:'Move',def:['KeyE','KeyF']},
+  {id:'shoot',label:'Shoot',group:'Move',def:['Space']},
+  {id:'lockOn',label:'Lock-on',group:'Move',def:['KeyQ']},
+  {id:'scope',label:'Sniper scope',group:'Move',def:['KeyZ']},
+  {id:'wheel',label:'Weapon wheel',group:'Move',def:['Tab']},
+  {id:'nextWeapon',label:'Next weapon',group:'Move',def:['KeyR']},
+  {id:'prevWeapon',label:'Previous weapon',group:'Move',def:[]},
+  {id:'handsUp',label:'Hands up / horn',group:'Move',def:['KeyH']},
+  {id:'nitro',label:'Nitro',group:'Move',def:['KeyV']},
+  {id:'phone',label:'Phone',group:'Interface',def:['KeyT']},
+  {id:'radio',label:'Radio',group:'Interface',def:['KeyK']},
+  {id:'drug',label:'Use drug',group:'Interface',def:['KeyN']},
+  {id:'detonate',label:'Detonate',group:'Interface',def:['KeyG']},
+  {id:'flares',label:'Flares',group:'Interface',def:['KeyX']},
+  {id:'mute',label:'Mute',group:'Interface',def:['KeyM']},
+  {id:'settings',label:'Settings',group:'Interface',def:['KeyP']},
+];
+const DEF={},BINDS={},GRP={};for(const a of ACTIONS){DEF[a.id]=a.def.slice();BINDS[a.id]=a.def.slice();GRP[a.id]=a.group}
+let BINDREF=Object.create(null),WALKC=Object.create(null),sprintOn=false,sprintUsed=false;
+function rebuildBinds(){
+  BINDREF=Object.create(null);WALKC=Object.create(null);
+  for(const id in BINDS)for(const c of BINDS[id])if(!BINDREF[c])BINDREF[c]=id;
+  // with the phone open the walk letters still move the player; the arrows stay on phone duty
+  for(const a of['up','down','left','right'])for(const c of BINDS[a])if(!/^Arrow/.test(c))WALKC[c]=1;
+}
+rebuildBinds();
+const codeToAction=c=>BINDREF[c]||null;
+function held(id){const l=BINDS[id];if(l)for(let i=0;i<l.length;i++)if(keys[l[i]])return true;return false}
+// rebinding capture: the next keydown belongs to the capture and the game ignores the key
+let capAct=null,capMsg='';
+addEventListener('keydown',e=>{
+  if(capAct){capKey(e);return}
+  if(e.code==='Escape'&&state==='shop')closeShop();
+  if(typing())return;
+  if(phoneOpen&&!WALKC[e.code]){phoneKey(e);return}
+  keys[e.code]=true;
   if(state==='menu'||state==='shop')return;
   if(phoneOpen){phoneKey(e);return}
-  if(e.code==='KeyT'&&!e.repeat&&state==='play'){phoneOpenNow(false);return}
+  const act=codeToAction(e.code);
+  if(act==='phone'){if(!e.repeat&&state==='play')phoneOpenNow(false);return}
   if(e.code==='Escape'&&lap){endLap();return}
   if(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
-  if(e.code==='KeyE'||e.code==='KeyF'){if(!e.repeat)toggleCar()}
-  if(e.code==='KeyC'&&!e.repeat)jump();
-  if(e.code==='KeyH'&&!e.repeat)honk();
-  if(e.code==='KeyV'&&!e.repeat)nitroTap();
-  if(e.code==='KeyM'&&!e.repeat)muted=!muted;
-  if(e.code==='KeyK'&&!e.repeat)cycleRadio();
+  switch(act){
+    case'interact':if(!e.repeat)toggleCar();break;
+    case'jump':if(!e.repeat)jump();break;
+    case'handsUp':if(!e.repeat)honk();break;
+    case'nitro':if(!e.repeat)nitroTap();break;
+    case'mute':if(!e.repeat)muted=!muted;break;
+    case'radio':if(!e.repeat)cycleRadio();break;
+    case'nextWeapon':if(!e.repeat)cycleWeapon();break;
+    case'settings':if(!e.repeat&&state==='play')openSettings();break;
+    case'wheel':if(!e.repeat)openWheel();break;
+    case'detonate':if(!e.repeat)detonate();break;
+    case'flares':if(!e.repeat)dropFlares();break;
+    case'drug':if(!e.repeat)usePowder();break;
+    case'scope':if(!e.repeat&&weap==='sniper'&&!me.car)scoped=!scoped;break;
+    case'sprint':if(!e.repeat&&settings.sprintMode==='toggle'){sprintOn=!sprintOn;sprintUsed=false}break;
+  }
   if(/^Digit[1-8]$/.test(e.code))equip(WEAPONS[+e.code.slice(5)-1].id);
-  if(e.code==='KeyR'&&!e.repeat)cycleWeapon();
-  if(e.code==='KeyP'&&!e.repeat&&state==='play')openSettings();
-  if(e.code==='Tab'&&!e.repeat)openWheel();
-  if(e.code==='KeyG'&&!e.repeat)detonate();
-  if(e.code==='KeyX'&&!e.repeat)dropFlares();
-  if(e.code==='KeyN'&&!e.repeat)usePowder();
-  if(e.code==='KeyZ'&&!e.repeat&&weap==='sniper'&&!me.car)scoped=!scoped;
 });
-addEventListener('keyup',e=>{keys[e.code]=false;if(e.code==='Tab')closeWheel(true)});
-addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouse.down=false;touchFire=false;closeWheel(false)});
+addEventListener('keyup',e=>{keys[e.code]=false;if(codeToAction(e.code)==='wheel')closeWheel(true)});
+addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouse.down=false;touchFire=false;sprintOn=sprintUsed=false;if(capAct){capAct=null;capMsg='';paintKeys()}closeWheel(false)});
 const look={yaw:-Math.PI/2,pitch:.2,id:null,lx:0,ly:0,off:0,offT:-9};let lastFireT=-9;
-let settings={sens:1,inv:false,assist:8},qLock=null;
+let settings={sens:1,inv:false,assist:8,veh:1,scope:.3,sprintMode:'hold'},qLock=null;
 function saveSettings(){try{localStorage.setItem('pr-settings',JSON.stringify(settings))}catch(_){}}
-function openSettings(){$('setSens').value=settings.sens;$('setInv').checked=settings.inv;$('setAssist').value=String(settings.assist);openModal('settings')}
+function openSettings(){capAct=null;capMsg='';
+  $('setSens').value=settings.sens;$('setInv').checked=settings.inv;$('setAssist').value=String(settings.assist);
+  $('setVeh').value=String(settings.veh);$('setScope').value=String(settings.scope);$('setSprintMode').value=settings.sprintMode;
+  paintKeys();openModal('settings')}
 $('setSens').addEventListener('input',e=>{settings.sens=+e.target.value;saveSettings()});
 $('setInv').addEventListener('change',e=>{settings.inv=e.target.checked;saveSettings()});
 $('setAssist').addEventListener('change',e=>{settings.assist=+e.target.value;saveSettings()});
+$('setVeh').addEventListener('input',e=>{settings.veh=clamp(+e.target.value,.3,2);saveSettings()});
+$('setScope').addEventListener('input',e=>{settings.scope=clamp(+e.target.value,.2,1);saveSettings()});
+$('setSprintMode').addEventListener('change',e=>{settings.sprintMode=e.target.value==='toggle'?'toggle':'hold';if(settings.sprintMode!=='toggle')sprintOn=sprintUsed=false;saveSettings()});
+// ---- binds: display names, saving, loading, the settings key list and the capture
+const KEYNAME={ArrowUp:'Up',ArrowDown:'Down',ArrowLeft:'Left',ArrowRight:'Right',Space:'Space',ShiftLeft:'Shift',ShiftRight:'Shift',ControlLeft:'Ctrl',ControlRight:'Ctrl',AltLeft:'Alt',AltRight:'Alt',Backquote:'`',Minus:'-',Equal:'=',BracketLeft:'[',BracketRight:']',Semicolon:';',Quote:"'",Comma:',',Period:'.',Slash:'/',Backslash:'\\',Tab:'Tab',Enter:'Enter'};
+const codeName=c=>KEYNAME[c]||(/^Key/.test(c)?c.slice(3):/^Digit/.test(c)?c.slice(5):c);
+const kb=id=>[...new Set((BINDS[id]||[]).map(codeName))].join(' or ');
+const BINDRE=/^(Key[A-Z]|Digit[0-9]|F([1-9]|1[0-2])|Arrow(Up|Down|Left|Right)|Space|Shift(Left|Right)|Control(Left|Right)|Alt(Left|Right)|Tab|Enter|Backquote|Minus|Equal|Bracket(Left|Right)|Semicolon|Quote|Comma|Period|Slash|Backslash)$/;
+const validCode=c=>typeof c==='string'&&BINDRE.test(c);
+function bindsOut(){const o={};for(const id in BINDS)o[id]=BINDS[id].slice();return o}
+function saveBinds(){try{localStorage.setItem('pr-keys',JSON.stringify(bindsOut()))}catch(_){}}
+// pr-keys: known action ids only, codes on the allowlist only. Saved codes win, then the defaults fill any
+// action left empty, and a duplicate is dropped first-wins so no two actions ever share one code.
+function loadBinds(d){
+  if(!d||typeof d!=='object'||Array.isArray(d))return;
+  const seen=Object.create(null),next={};
+  for(const a of ACTIONS){
+    const list=next[a.id]=[],src=Array.isArray(d[a.id])?d[a.id]:null;
+    if(src)for(const c of src)if(validCode(c)&&!seen[c]){seen[c]=1;list.push(c)}
+  }
+  for(const a of ACTIONS)if(!next[a.id].length)for(const c of DEF[a.id])if(!seen[c]){seen[c]=1;next[a.id].push(c)}
+  for(const a of ACTIONS)BINDS[a.id]=next[a.id];
+  rebuildBinds();
+}
+// A code another action of the same group already holds is refused with "Used by X". A code from the other
+// group moves over, so the map never holds two actions on one key and codeToAction stays unambiguous.
+function bindErr(id,code){
+  if(!BINDS[id]||!validCode(code))return 'That key is not supported';
+  for(const a of ACTIONS)if(a.id!==id&&a.group===GRP[id]&&BINDS[a.id].includes(code))return 'Used by '+a.label;
+  return null
+}
+function setBind(id,code){
+  if(bindErr(id,code))return false;
+  for(const a of ACTIONS)if(a.id!==id){const i=BINDS[a.id].indexOf(code);if(i>=0)BINDS[a.id].splice(i,1)}
+  BINDS[id]=[code];rebuildBinds();return true;
+}
+function startCap(id){capAct=id;capMsg='';paintKeys()}
+function focusChip(id){const b=$('keyList').querySelector(`button[data-k="${id}"]`);if(b){b.focus({preventScroll:true});b.scrollIntoView({block:'nearest'})}}
+function capKey(e){
+  e.preventDefault();
+  const id=capAct;
+  if(e.code==='Escape'){capAct=null;capMsg='';paintKeys();if(id)focusChip(id);return}
+  if(!id||e.repeat)return;
+  const err=bindErr(id,e.code);
+  if(err){capMsg=err;paintKeys();return}
+  setBind(id,e.code);capAct=null;capMsg='';saveBinds();paintKeys();focusChip(id);
+}
+function paintKeys(){
+  const L=$('keyList');L.replaceChildren();let g='';
+  for(const a of ACTIONS){
+    if(a.group!==g){g=a.group;const h=document.createElement('div');h.className='kgh';h.textContent=g;L.appendChild(h)}
+    const row=document.createElement('div');row.className='krow';
+    const lb=document.createElement('span');lb.className='klb';lb.textContent=a.label;row.appendChild(lb);
+    const cw=document.createElement('span');cw.className='kc';row.appendChild(cw);
+    if(capAct===a.id){const s=document.createElement('span');s.className=capMsg?'kmsg':'kcap';s.textContent=capMsg||'Press a key';cw.appendChild(s)}
+    else if(!BINDS[a.id].length){const s=document.createElement('span');s.className='knone';s.textContent=DEF[a.id].length?'Not bound':'Scroll up';cw.appendChild(s)}
+    else for(const c of BINDS[a.id]){const b=document.createElement('button');b.type='button';b.className='kchip';b.dataset.k=a.id;b.textContent=codeName(c);b.onclick=e=>{if(e.detail&&!capAct)startCap(a.id)};cw.appendChild(b)}
+    L.appendChild(row);
+  }
+}
+$('keyList').addEventListener('keydown',e=>{
+  if(capAct)return;
+  const chips=[...$('keyList').querySelectorAll('.kchip')];if(!chips.length)return;
+  if(e.code==='Enter'){const b=document.activeElement;if(b.classList&&b.classList.contains('kchip')){e.preventDefault();e.stopPropagation();startCap(b.dataset.k)}return}
+  const d=e.code==='ArrowLeft'||e.code==='ArrowUp'?-1:e.code==='ArrowRight'||e.code==='ArrowDown'?1:0;
+  if(!d)return;e.preventDefault();e.stopPropagation();
+  const step=e.code==='ArrowUp'||e.code==='ArrowDown'?2:1;
+  let i=chips.indexOf(document.activeElement);i=i<0?0:clamp(i+d*step,0,chips.length-1);
+  chips[i].focus({preventScroll:true});chips[i].scrollIntoView({block:'nearest'});
+});
+$('setReset').addEventListener('click',()=>{capAct=null;capMsg='';for(const a of ACTIONS)BINDS[a.id]=DEF[a.id].slice();rebuildBinds();saveBinds();paintKeys()});
 // lock-on aim assist: hold Q on foot. Turns look.yaw toward one target; the lock holds while the target lives and stays within 700 units.
 function aimAssist(dt){
-  if(!(keys.KeyQ&&settings.assist>0&&state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside)){qLock=null;return}
+  if(!(held('lockOn')&&settings.assist>0&&state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside)){qLock=null;return}
   const groups=[peds.filter(p=>p.gang&&!p.down),[...remotes.values()].filter(r=>!r.dead&&!r.inCar&&!r.inHeli&&!r.inJet),cars.filter(c=>c.kind==='police'&&heat>0),peds.filter(p=>!p.gang&&!p.down)];
   const dist=o=>Math.hypot(o.x-me.x,o.y-me.y);
   let t=null;
@@ -2905,7 +3027,7 @@ function aimAssist(dt){
   qLock=t;
   if(t)look.yaw+=clamp(wrap(Math.atan2(t.y-me.y,t.x-me.x)-look.yaw),-settings.assist*dt,settings.assist*dt);
 }
-function turn(dx,dy){dx*=settings.sens;dy*=settings.sens;if(settings.inv)dy=-dy;if(wheelOpen){wheelVec.x+=dx;wheelVec.y+=dy;const l=Math.hypot(wheelVec.x,wheelVec.y);if(l>120){wheelVec.x*=120/l;wheelVec.y*=120/l}if(l>25){const n=WEAPONS.length,i=((Math.round((Math.atan2(wheelVec.y,wheelVec.x)+Math.PI/2)/(TAU/n))%n)+n)%n;if(WEAPONS[i].id!==wheelSel){wheelSel=WEAPONS[i].id;paintWheel()}}return}if(me.car){look.off=clamp(look.off+dx*.0026,-2.6,2.6);look.offT=time}else look.yaw+=dx*.0026*(scoped?.3:1);look.pitch=clamp(look.pitch+dy*.0022*(scoped?.3:1),-.45,1.3)}
+function turn(dx,dy){dx*=settings.sens;dy*=settings.sens;if(settings.inv)dy=-dy;if(wheelOpen){wheelVec.x+=dx;wheelVec.y+=dy;const l=Math.hypot(wheelVec.x,wheelVec.y);if(l>120){wheelVec.x*=120/l;wheelVec.y*=120/l}if(l>25){const n=WEAPONS.length,i=((Math.round((Math.atan2(wheelVec.y,wheelVec.x)+Math.PI/2)/(TAU/n))%n)+n)%n;if(WEAPONS[i].id!==wheelSel){wheelSel=WEAPONS[i].id;paintWheel()}}return}const k=me.car?settings.veh:scoped?settings.scope:1;if(me.car){look.off=clamp(look.off+dx*.0026*k,-2.6,2.6);look.offT=time}else look.yaw+=dx*.0026*k;look.pitch=clamp(look.pitch+dy*.0022*k,-.45,1.3)}
 function lockMouse(){if(isTouch||phoneOpen||document.pointerLockElement===cv)return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(_){}}
 cv.addEventListener('pointerdown',e=>{
   if(state==='menu')return;audioInit();
@@ -2936,7 +3058,7 @@ $('bFlare').addEventListener('pointerdown',e=>{e.preventDefault();dropFlares()})
 $('bBoom').addEventListener('pointerdown',e=>{e.preventDefault();detonate()});
 $('bAim').addEventListener('pointerdown',e=>{e.preventDefault();if(weap==='sniper'&&!me.car)scoped=!scoped});
 $('bGun').addEventListener('pointerup',()=>{clearTimeout(gunHold);if(!gunHeld)cycleWeapon()});
-if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>settings}});
+if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>settings},binds:{get:()=>bindsOut()},setBind:{get:()=>setBind}});
 
 // ---------- multiplayer (room presence) ----------
 let room=null,myPeer=null,netState='connecting',netWhy='';
@@ -3049,7 +3171,7 @@ function ui(dt){phoneStep(dt);
   if((saveT+=.1)>3){saveT=0;saveArsenal()}
   {const lk=$('lock');lk.hidden=!lockTarget;if(lockTarget)lk.textContent='Locked: '+lockTarget.name;let inc=false;if(myPeer&&state==='play')for(const b of bullets)if(b.owner==='remote'&&b.home&&b.home.peer===myPeer){inc=true;break}$('warn').hidden=!inc}
   {const dk=$('drunk');dk.hidden=drunk<=0;if(drunk>0)dk.textContent='Drunk '+'●'.repeat(Math.max(1,Math.ceil(drunk/12)));cv.style.filter=((drunk>3?`blur(${Math.min(2.2,drunk/20).toFixed(2)}px) saturate(${(1+Math.min(.8,drunk/40)).toFixed(2)})`:'')+(power>0?' contrast(1.2) saturate(1.6) brightness(1.08)':crashT>0?' grayscale(.6) blur(1px)':'')).trim()}
-  {const pw=$('power');pw.hidden=!(power>0||crashT>0||powder>0);pw.textContent=power>0?`Super strength ${Math.ceil(power)}s`:crashT>0?`Crashing ${Math.ceil(crashT)}s`:`White powder x${powder} (${isTouch?'BUMP':'N'})`;if(isTouch)$('bNose').hidden=!(powder>0&&!power)}
+  {const pw=$('power');pw.hidden=!(power>0||crashT>0||powder>0);pw.textContent=power>0?`Super strength ${Math.ceil(power)}s`:crashT>0?`Crashing ${Math.ceil(crashT)}s`:`White powder x${powder} (${isTouch?'BUMP':kb('drug')})`;if(isTouch)$('bNose').hidden=!(powder>0&&!power)}
   if(isTouch){$('bBoom').hidden=!stickies.length;$('bAim').hidden=!(weap==='sniper'&&!me.car)}
   $('scope').hidden=!scoped;
   {const lm=$('lockMark');if(!qLock)lm.hidden=true;else{const v=new THREE.Vector3(qLock.x,(qLock.z||0)+14,qLock.y).project(camera);lm.hidden=v.z>1||Math.abs(v.x)>1||Math.abs(v.y)>1;lm.style.left=(v.x+1)*50+'%';lm.style.top=(1-v.y)*50+'%'}}
@@ -3072,22 +3194,22 @@ function ui(dt){phoneStep(dt);
   }else pl.hidden=true;
   // hint
   const h=$('hint');let t='';
-  if(state==='play'){if(me.car){const sp=Math.hypot(me.car.vx,me.car.vy);if(me.car.burn)t=isTouch?'Tap CAR to bail out':'E — bail out!';else if(sp<60)t=isTouch?'Tap CAR to get out':'E — get out'}
-    else if(me.inside){const p=nearSpot();t=p?(isTouch?'Tap CAR: ':'E: ')+p.label:''}
-    else if(nearLadder()){t=(isTouch?'Tap CAR: ':'E: ')+(nearLadder().up?'Climb the ladder':'Climb down')}
+  if(state==='play'){if(me.car){const sp=Math.hypot(me.car.vx,me.car.vy);if(me.car.burn)t=isTouch?'Tap CAR to bail out':kb('interact')+' — bail out!';else if(sp<60)t=isTouch?'Tap CAR to get out':kb('interact')+' — get out'}
+    else if(me.inside){const p=nearSpot();t=p?(isTouch?'Tap CAR: ':kb('interact')+': ')+p.label:''}
+    else if(nearLadder()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+(nearLadder().up?'Climb the ladder':'Climb down')}
     else if(me.roof){t=''}
-    else if(nearDealer()){t=(isTouch?'Tap CAR: ':'E: ')+'Buy a bag of white powder ($200)'}
-    else{const c=nearestCar();if(c)t=(isTouch?'Tap CAR — ':'E — ')+(c.kind==='traffic'?'jack this car':c.kind==='police'?'steal the cruiser':'take this car');else{const q=talkTarget();if(q)t=(isTouch?'Tap CAR: ':'E: ')+(robbing(q)?'rob':'talk')}}}
+    else if(nearDealer()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+'Buy a bag of white powder ($200)'}
+    else{const c=nearestCar();if(c)t=(isTouch?'Tap CAR — ':kb('interact')+' — ')+(c.kind==='traffic'?'jack this car':c.kind==='police'?'steal the cruiser':'take this car');else{const q=talkTarget();if(q)t=(isTouch?'Tap CAR: ':kb('interact')+': ')+(robbing(q)?'rob':'talk')}}}
   if(!t&&state==='play'&&!me.car&&!isTouch&&document.pointerLockElement!==cv)t='Click the game to aim with your mouse';
   if(lap)t=`Private dance... ${Math.ceil(lap.dur-lap.t)}s left (${isTouch?'CAR':'Esc'} to leave)`;
   else if(heist.drilling)t=`Drilling the vault... ${Math.floor(heist.drill)}%${crew().length?' (crew helping)':''}`;
   else if(rob)t=`${rob.dur>8?'Cracking the cage':'Emptying the register'}... ${Math.round(rob.t/rob.dur*100)}%. Stay close`;
-  else if(state==='play'&&me.jet)t=me.jet.falling?'Going down!':me.jet.z-heliGround(me.jet.x,me.jet.y)>5?(isTouch?'Stick steers, UP / DOWN climb or dive, FIRE for missiles':'Mouse steers, W/S throttle, Space climb, Shift dive, click missiles, X flares'):me.jet.speed<40?(isTouch?'Push the stick up to taxi. Tap CAR to get out':'W to throttle up, then hold Space to take off. E to get out'):'Keep speeding up, then hold Space to take off';
-  else if(state==='play'&&me.heli)t=me.heli.falling?'Going down!':(me.heli.z-heliGround(me.heli.x,me.heli.y)>14?(isTouch?'UP / DOWN to fly, FIRE for rockets':(flareCd>0?'Space up, Shift down, click for rockets (flares reloading)':'Space up, Shift down, click for rockets, X flares')):(isTouch?'Tap CAR: get out':'E: get out, or Space to take off'));
-  else if(state==='play'&&!me.car&&!me.inside&&heli&&!heli.dead&&!heli.falling&&Math.hypot(heli.x-me.x,heli.y-me.y)<50)t=(isTouch?'Tap CAR: ':'E: ')+'Fly the attack helicopter';
-  else if(state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside&&nearJet())t=(isTouch?'Tap CAR: ':'E: ')+'Fly the fighter jet';
+  else if(state==='play'&&me.jet)t=me.jet.falling?'Going down!':me.jet.z-heliGround(me.jet.x,me.jet.y)>5?(isTouch?'Stick steers, UP / DOWN climb or dive, FIRE for missiles':'Mouse steers, '+kb('up')+'/'+kb('down')+' throttle, '+kb('shoot')+' climb, '+kb('sprint')+' dive, click missiles, '+kb('flares')+' flares'):me.jet.speed<40?(isTouch?'Push the stick up to taxi. Tap CAR to get out':kb('up')+' to throttle up, then hold '+kb('shoot')+' to take off. '+kb('interact')+' to get out'):'Keep speeding up, then hold '+kb('shoot')+' to take off';
+  else if(state==='play'&&me.heli)t=me.heli.falling?'Going down!':(me.heli.z-heliGround(me.heli.x,me.heli.y)>14?(isTouch?'UP / DOWN to fly, FIRE for rockets':(flareCd>0?kb('shoot')+' up, '+kb('sprint')+' down, click for rockets (flares reloading)':kb('shoot')+' up, '+kb('sprint')+' down, click for rockets, '+kb('flares')+' flares')):(isTouch?'Tap CAR: get out':kb('interact')+': get out, or '+kb('shoot')+' to take off'));
+  else if(state==='play'&&!me.car&&!me.inside&&heli&&!heli.dead&&!heli.falling&&Math.hypot(heli.x-me.x,heli.y-me.y)<50)t=(isTouch?'Tap CAR: ':kb('interact')+': ')+'Fly the attack helicopter';
+  else if(state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside&&nearJet())t=(isTouch?'Tap CAR: ':kb('interact')+': ')+'Fly the fighter jet';
   if(isTouch){$('bUp').hidden=$('bDn').hidden=$('bFlare').hidden=!(me.heli||me.jet)}
-  if(!t&&stickies.length&&state==='play')t=(isTouch?'BOOM':'G')+`: detonate ${stickies.length} sticky bomb${stickies.length>1?'s':''}`;
+  if(!t&&stickies.length&&state==='play')t=(isTouch?'BOOM':kb('detonate'))+`: detonate ${stickies.length} sticky bomb${stickies.length>1?'s':''}`;
   h.hidden=!t;h.textContent=t;
   // net text on menu
   if(state==='menu'){$('net').textContent=netState==='online'?`Live: ${Math.max(1,remotes.size+1)} in the city. Share this page's link so friends can join.`:netState==='solo'?(window.claude?'Solo mode: you are not connected. Friends need a Claude account, must be signed in, and must be invited to this page by email.':'Solo mode: the multiplayer server is not reachable.'):'Connecting to the city…'}
@@ -3108,11 +3230,12 @@ function update(dt){
   const play=state==='play';
   lakeFall();if(me.y<0)hillArrive();hillFog();
   // input vector
-  let ix=(keys.KeyD||(!phoneOpen&&keys.ArrowRight)?1:0)-(keys.KeyA||(!phoneOpen&&keys.ArrowLeft)?1:0),iy=(keys.KeyS||(!phoneOpen&&keys.ArrowDown)?1:0)-(keys.KeyW||(!phoneOpen&&keys.ArrowUp)?1:0);
-  const shift=keys.ShiftLeft||keys.ShiftRight,hu=handsUp;
-  if(hu&&(ix||iy||keys.Space||mouse.down||touchFire||stick.id!==null&&(stick.x||stick.y)))handsUp=false;
+  let ix=(held('right')?1:0)-(held('left')?1:0),iy=(held('down')?1:0)-(held('up')?1:0);
+  const shift=held('sprint'),hu=handsUp;
+  if(sprintOn&&(!play||me.car||me.heli||me.jet||me.climb))sprintOn=sprintUsed=false;
+  if(hu&&(ix||iy||held('shoot')||mouse.down||touchFire||stick.id!==null&&(stick.x||stick.y)))handsUp=false;
   aimAssist(dt);
-  if(play&&!hu&&((keys.Space&&!me.heli&&!me.jet)||mouse.down||touchFire))myShoot();
+  if(play&&!hu&&((held('shoot')&&!me.heli&&!me.jet)||mouse.down||touchFire))myShoot();
   heliStep(dt);jetStep(dt);
   if(me.climb){const c=me.climb,L=c.b.ladder,top=c.b.H+1.6;c.t+=dt;const k=Math.min(1,c.t/c.dur);me.x=L.x;me.y=L.base-4;me.z=c.up?top*k:top*(1-k);me.a=-Math.PI/2;me.vx=me.vy=0;
     if(k>=1){if(c.up){me.roof=c.b;me.y=L.top;me.z=top}else{me.roof=null;me.y=L.base;me.z=0}me.climb=null}}
@@ -3120,7 +3243,10 @@ function update(dt){
     let f=-iy,rt=ix;if(stick.id!==null){f=-stick.y;rt=stick.x}
     if(hu){f=0;rt=0}
     const cf=Math.cos(look.yaw),sf=Math.sin(look.yaw);let mx=cf*f-sf*rt,my=sf*f+cf*rt;if(drunk>0&&(f||rt)){const k=Math.min(1,drunk/25);mx+=Math.sin(time*1.9)*.6*k;my+=Math.cos(time*1.4)*.6*k}
-    const l=Math.hypot(mx,my),mv=l>.15,spr=shift&&mv&&!stamOut;
+    const l=Math.hypot(mx,my),mv=l>.15;
+    // toggle: clear the latched sprint once the player has been moving and then stops
+    if(sprintOn){if(mv)sprintUsed=true;else if(sprintUsed)sprintOn=sprintUsed=false}
+    const spr=(settings.sprintMode==='toggle'?sprintOn:shift)&&mv&&!stamOut;
     const sp=(spr?205:135)*Math.min(1,l)*(power>0?1.6:crashT>0?.7:1),k=Math.min(1,dt*(mv?14:30));
     me.vx+=((mv?mx/l*sp:0)-me.vx)*k;me.vy+=((mv?my/l*sp:0)-me.vy)*k;stamStep(spr,dt);
     me.x+=me.vx*dt;me.y+=me.vy*dt;if(me.roof&&roofAt(me.x,me.y)!==me.roof)me.roof=null;if(!me.roof)collide(me,me.x,me.y,8);footStep(dt);
@@ -3209,7 +3335,7 @@ function update(dt){
   stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);trafficStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
   if(scoped&&(weap!=='sniper'||me.car||me.heli||me.jet||state!=='play'||me.climb))scoped=false;
   // pickups
-  for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t-=dt;if(play&&Math.hypot(p.x-me.x,p.y-me.y)<22){if(p.powder){powder++;feed('Picked up a bag of white powder. Press N to use it')}me.cash+=p.amt;noise(.08,7000,.12);pickups.splice(i,1);continue}if(p.t<=0)pickups.splice(i,1)}
+  for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t-=dt;if(play&&Math.hypot(p.x-me.x,p.y-me.y)<22){if(p.powder){powder++;feed(`Picked up a bag of white powder. Press ${kb('drug')} to use it`)}me.cash+=p.amt;noise(.08,7000,.12);pickups.splice(i,1);continue}if(p.t<=0)pickups.splice(i,1)}
   // particles
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy*=Math.pow(.15,dt);if(p.life<=0)parts.splice(i,1)}
   if(parts.length>700)parts.splice(0,parts.length-700);
@@ -4167,7 +4293,8 @@ for(const[x,y]of VENDORS){const p=spawnPed(x,y);p.kind='vendor';p.vendor=true;p.
 const SWATCH=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d','#4aa3ff','#f3ecff'];
 function start(data){
   try{const n=localStorage.getItem('pr-name'),c=localStorage.getItem('pr-color');if(n)myName=n;if(c&&SWATCH.includes(c))myColor=c}catch(e){}
-  try{const s=JSON.parse(localStorage.getItem('pr-settings')||'null');if(s&&typeof s==='object'){if(Number.isFinite(s.sens))settings.sens=clamp(s.sens,.3,3);if(typeof s.inv==='boolean')settings.inv=s.inv;if([0,4,8].includes(s.assist))settings.assist=s.assist}}catch(e){}
+  try{const s=JSON.parse(localStorage.getItem('pr-settings')||'null');if(s&&typeof s==='object'){if(Number.isFinite(s.sens))settings.sens=clamp(s.sens,.3,3);if(typeof s.inv==='boolean')settings.inv=s.inv;if([0,4,8].includes(s.assist))settings.assist=s.assist;if(Number.isFinite(s.veh))settings.veh=clamp(s.veh,.3,2);if(Number.isFinite(s.scope))settings.scope=clamp(s.scope,.2,1);if(s.sprintMode==='toggle'||s.sprintMode==='hold')settings.sprintMode=s.sprintMode}}catch(e){}
+  try{loadBinds(JSON.parse(localStorage.getItem('pr-keys')||'null'))}catch(e){}
   try{loadArsenal(JSON.parse(localStorage.getItem('pr3d-arsenal')||'null'))}catch(e){}
   if(data&&typeof data.name==='string'){myName=data.name;myColor=hex(data.color,myColor);loadArsenal(data)}
   $('name').value=myName;

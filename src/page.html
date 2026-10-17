@@ -84,6 +84,24 @@
       <option value="8">Strong (8 rad/s)</option>
     </select>
   </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setVeh">Vehicle look speed (in a car)</label>
+    <input id="setVeh" type="range" min="0.3" max="2" step="0.1" value="1">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setScope">Scoped look speed (sniper)</label>
+    <input id="setScope" type="range" min="0.2" max="1" step="0.1" value="0.3">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setSprintMode">Sprint key</label>
+    <select id="setSprintMode">
+      <option value="hold">Hold to sprint</option>
+      <option value="toggle">Toggle sprint</option>
+    </select>
+  </div>
+  <h3 class="kh">Keys</h3>
+  <div id="keyList" aria-label="Key bindings"></div>
+  <div class="row"><button class="b" id="setReset" type="button">Reset keys</button><span class="knone">Click a key to rebind it. Escape cancels.</span></div>
   <div class="keys">
     <kbd>Mouse / trackpad</kbd><span>Look and aim</span>
     <kbd>WASD / arrows</kbd><span>Walk, drive or fly</span>

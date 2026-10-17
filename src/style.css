@@ -194,6 +194,18 @@ button:focus-visible,#name:focus-visible{outline:2px solid var(--cyan);outline-o
 .gm button.b.on{outline:3px solid var(--cyan);outline-offset:1px}
 .gm button:disabled{opacity:.4;cursor:not-allowed}
 .gm .msg{font:17px var(--display);min-height:22px}
+#keyList{max-height:224px;overflow:auto;background:#0a0814;border:1px solid #2a2340;padding:8px;display:flex;flex-direction:column;gap:2px;flex:none}
+.kgh{font:700 11px var(--body);color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:6px}
+.kgh:first-child{margin-top:0}
+.krow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0}
+.klb{font-size:13px;color:var(--ink);min-width:0}
+.kc{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.kchip{font:600 12px var(--body);color:var(--ink);background:#1d1830;border:1px solid #3a3157;padding:2px 8px;border-radius:3px;cursor:pointer;white-space:nowrap}
+.kchip:hover,.kchip:focus{border-color:var(--cyan);color:var(--cyan);outline:none}
+.kcap{font:600 12px var(--body);color:var(--gold);white-space:nowrap}
+.kmsg{font:600 12px var(--body);color:var(--danger);white-space:nowrap}
+.knone{font:600 12px var(--body);color:var(--dim)}
+.kh{font-family:var(--display);font-size:16px;margin:4px 0 0}
 #roul .rcard{width:min(700px,100%);background:radial-gradient(ellipse at 50% 10%,#1b6e46,#0a2a1c 80%);border-color:rgba(255,201,74,.45)}
 .rtop{display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center}
 #rwheelWrap{position:relative;width:230px;height:230px;flex:none}
