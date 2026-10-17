@@ -4660,13 +4660,33 @@ function mergeGeos(list){const hasUv=list.every(([g])=>g.attributes.uv),hasCol=l
   const pos=new Float32Array(total*3),nor=new Float32Array(total*3),uv=hasUv?new Float32Array(total*2):null,col=hasCol?new Float32Array(total*3):null;let o=0;
   for(const q of parts){pos.set(q.attributes.position.array,o*3);if(q.attributes.normal)nor.set(q.attributes.normal.array,o*3);if(uv)uv.set(q.attributes.uv.array,o*2);if(col)col.set(q.attributes.color.array,o*3);o+=q.attributes.position.count;q.dispose()}
   const out=new THREE.BufferGeometry();out.setAttribute('position',new THREE.BufferAttribute(pos,3));out.setAttribute('normal',new THREE.BufferAttribute(nor,3));if(uv)out.setAttribute('uv',new THREE.BufferAttribute(uv,2));if(col)out.setAttribute('color',new THREE.BufferAttribute(col,3));out.computeBoundingSphere();return out}
+// Static world meshes merge into one draw per look (same map, emissive, side, blend and flags). Colour goes into vertex colours,
+// so meshes with the same look but different material objects still share a draw. Animated or toggled objects stay apart.
 function staticBatch(){
-  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome].filter(Boolean)),groups=new Map(),gone=[];scene.updateMatrixWorld(true);
-  for(const o of scene.children){if(!o.isMesh||o.isInstancedMesh||skip.has(o)||Array.isArray(o.material)||o.material.transparent)continue;const g=o.geometry;if(!g.attributes.position||!g.attributes.normal)continue;
-    const key=o.material.uuid+(g.attributes.uv?'u':'n');let L=groups.get(key);if(!L){L={mat:o.material,list:[]};groups.set(key,L)}L.list.push([g,o.matrixWorld.clone()]);gone.push(o)}
+  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
+  const look=m=>[m.type,m.map?m.map.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',m.emissive?m.emissive.getHex():'',m.side,+!!m.flatShading,+!!m.transparent,m.opacity,m.blending,+!!m.depthWrite,+!!m.depthTest,+!!m.fog,+!!m.vertexColors,m.specular?m.specular.getHex():'',m.shininess||''].join('|');
+  for(const o of scene.children){
+    if(!o.isMesh&&!o.isInstancedMesh||!o.visible||Array.isArray(o.material)||skip.has(o))continue;const m=o.material,g=o.geometry;
+    if(m.transparent&&!(m.blending===THREE.AdditiveBlending&&!m.depthWrite))continue; // additive glows can join a batch: additive blending does not depend on draw order
+    if(!g.attributes.position||!g.attributes.normal)continue;
+    if(o.isInstancedMesh&&o.instanceColor)continue; // coloured per instance at runtime (traffic lights)
+    const key=look(m)+(g.attributes.uv?'u':'n')+(g.attributes.color?'c':'-');let L=groups.get(key);if(!L){L={mats:new Set(),list:[]};groups.set(key,L)}
+    L.mats.add(m);gone.push(o);
+    if(o.isInstancedMesh){for(let i=0;i<Math.min(o.count,o.instanceMatrix.count);i++){const im=new THREE.Matrix4();o.getMatrixAt(i,im);if(!im.determinant())continue; // unwritten slot, zero matrix
+      L.list.push([g,new THREE.Matrix4().multiplyMatrices(o.matrixWorld,im),m])}}
+    else L.list.push([g,o.matrixWorld.clone(),m])}
   for(const o of gone)scene.remove(o);
-  for(const{mat,list}of groups.values()){if(list.length===1){const[g,mx]=list[0];const m=new THREE.Mesh(g,mat);m.matrixAutoUpdate=false;m.matrix.copy(mx);scene.add(m);continue}const m=new THREE.Mesh(mergeGeos(list),mat);m.matrixAutoUpdate=false;scene.add(m)}
+  for(const{mats,list}of groups.values()){if(!list.length)continue;
+    const one=[...mats][0],plain=mats.size===1&&one.color.getHex()===0xffffff&&!one.vertexColors; // a lone white material is used as it is, so runtime edits to it still apply
+    const mat=plain?one:Object.assign(one.clone(),{vertexColors:true});if(!plain){mat.color.set(0xffffff);mat.needsUpdate=true}
+    const parts=plain?list.map(([g,mx])=>[g,mx]):list.map(([g,mx,mt])=>{const k=g.uuid+mt.uuid;if(!tinted.has(k))tinted.set(k,tintGeo(g,mt));return[tinted.get(k),mx]});
+    if(parts.length===1){const[g,mx]=parts[0];const m=new THREE.Mesh(g,mat);m.matrixAutoUpdate=false;m.matrix.copy(mx);scene.add(m);continue}
+    const m=new THREE.Mesh(mergeGeos(parts),mat);m.matrixAutoUpdate=false;scene.add(m)}
 }
+// a copy of g with every vertex coloured by the material colour (times its own vertex colour, when the material uses those)
+function tintGeo(g,mt){const n=g.attributes.position.count,a=new Float32Array(n*3),c=mt.color,vc=mt.vertexColors&&g.attributes.color;
+  for(let i=0;i<n;i++){a[i*3]=c.r*(vc?vc.getX(i):1);a[i*3+1]=c.g*(vc?vc.getY(i):1);a[i*3+2]=c.b*(vc?vc.getZ(i):1)}
+  const q=g.clone();q.setAttribute('color',new THREE.BufferAttribute(a,3));return q}
 function inst(mesh,i,x,y,z,ry,sx,sy,sz,rx){dummy.position.set(x,y,z);dummy.rotation.set(rx||0,ry||0,0);dummy.scale.set(sx||1,sy||1,sz||1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix)}
 function canvasTex(w,h,draw){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);return new THREE.CanvasTexture(c)}
 const texCache={};
