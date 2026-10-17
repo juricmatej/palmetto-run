@@ -5,7 +5,7 @@ Thanks for helping build Palmetto Run.
 ## Workflow
 
 1. Collaborators: clone the repo. Everyone else: fork it. Then create a branch: `git checkout -b feature/my-thing`
-2. Make your change in `src/` (or `legacy/` for the 2D version).
+2. Make your change in `src/` (the game is in `src/game/*.js`, joined in name order into one script; or `legacy/` for the 2D version).
 3. Run `npm run check` and `npm run dev`, then play-test in the browser. Check the browser console for errors.
 4. Open a pull request describing what you changed and how you tested it. A screenshot or short clip helps.
 
@@ -16,7 +16,7 @@ Collaborators' pull requests merge themselves and go live about a minute after `
 - **Keep it one page.** The artifact must stay a single HTML file under 16 MB. Inline new assets (canvas-generated textures, data URIs) instead of loading files.
 - **Only allowed CDNs.** Claude Artifacts only load scripts from cdnjs.cloudflare.com, cdn.jsdelivr.net/npm, unpkg.com, cdn.tailwindcss.com and code.jquery.com, pinned to an exact version. Other network requests are blocked.
 - **No new dependencies or build tools** unless there is a strong reason. `npm run build` should keep working with plain Node.
-- **Match the existing style.** The code is compact and organized into `// ---------- section ----------` blocks. Put new systems in their own section.
+- **Match the existing style.** The code is compact, split across `src/game/*.js` by system and organized into `// ---------- section ----------` blocks inside each file. Put new systems in their own section, in the file that matches the system (or a new numbered file if it is a whole new system).
 - **Multiplayer.** If you add something other players should see, add a small field to the presence object in `publish()` and read it defensively in `syncRoom()`. Everything received from other players is untrusted: validate numbers with `num()`, colours with `hex()`, and strings with `str()`.
 - **Performance.** Watch draw calls (`renderer.info.render.calls`). Static meshes added to the scene before `staticBatch()` runs are merged automatically. Share geometries and materials, and use `InstancedMesh` for repeated objects.
 - **Test on a phone** if you touch input or the HUD.
