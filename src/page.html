@@ -50,7 +50,7 @@
 <div id="phBan" role="status"></div>
 <div id="phone" role="dialog" aria-label="Phone">
   <div id="phFrame">
-    <div id="phBar"><b id="phClock">09:00</b><i id="phDnd" hidden>Do not disturb: police</i><span id="phSt"><svg viewBox="0 0 16 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.4" y="5" width="3" height="6" rx="1"/><rect x="8.8" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.2" y="0" width="2.8" height="11" rx="1"/></svg><span id="phBat"><i id="phBatF"></i></span></span></div>
+    <div id="phBar"><b id="phClock">09:00</b><i id="phDnd" hidden>Do not disturb: police</i><span id="phSt"><svg viewBox="0 0 16 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.4" y="5" width="3" height="6" rx="1"/><rect x="8.8" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.2" y="0" width="2.8" height="11" rx="1"/></svg><span id="phBat"><i id="phBatF"></i></span></span><button id="phClose" type="button" aria-label="Close the phone">&#10005;</button></div>
     <div id="phScr">
       <div id="phHome"></div>
       <div id="phApp" hidden>
@@ -63,6 +63,7 @@
   </div>
 </div>
 <div id="phFade"></div>
+<div id="phCamBar" hidden><button id="phSnapBtn" type="button">Take photo</button><button id="phCamBack" type="button">Back</button></div>
 <div id="shop" hidden>
   <div class="card" role="dialog" aria-label="Gun shop">
     <h2>Gun shop</h2>
@@ -168,7 +169,7 @@
     <div class="rside">
       <div class="msg" id="rMsg"></div>
       <div id="rCash"></div>
-      <div class="rlim">Table: $10 to $10,000 a spin</div>
+      <div class="rlim" id="rLim">Table: $10 to $10,000 a spin</div>
       <div class="row" id="rHist"></div>
       <div class="rhot" id="rHot"></div>
     </div>
@@ -253,8 +254,9 @@
   <button class="b" type="button" data-close>Disconnect</button></div></div>
 <div id="minigame" class="gm" hidden><div class="card" role="dialog" aria-label="Minigame">
   <h2 id="miniTitle"></h2>
-  <div id="miniDial" style="position:relative;width:200px;height:200px;margin:14px auto;border-radius:50%;border:2px solid #3dd68c"><div id="miniHand" style="position:absolute;left:50%;top:0;width:3px;height:50%;margin-left:-1.5px;transform-origin:50% 100%;background:#fff"></div></div>
-  <p id="miniInfo" class="msg"></p></div></div>
+  <div id="miniDial"><div id="miniHand"></div><div id="miniKey">E</div></div>
+  <p id="miniInfo" class="msg"></p>
+  <button class="b" type="button" id="miniCancel">Cancel</button></div></div>
 <div id="start">
   <form class="card" id="startForm">
     <h1 class="logo">Palmetto<br>Run 3D</h1>

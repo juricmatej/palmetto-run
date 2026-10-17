@@ -49,6 +49,7 @@ npm run dev     # build, then serve dist/ on http://localhost:8080
 npm run check   # syntax-check the game code
 npm run build   # write dist/artifact.html, dist/index.html and dist/2d.html
 npm run smoke   # play the build in headless Chrome, print console errors (see the top of scripts/smoke.mjs)
+npm run tour    # map tour: 12 screenshots from fixed spots plus draw calls (scripts/tour.mjs)
 ```
 
 Edit files in `src/`, then run `npm run dev` again and reload the page.
@@ -59,21 +60,42 @@ Edit files in `src/`, then run `npm run dev` again and reload the page.
 src/
   page.html     HTML markup: HUD, menus, start screen. Contains /*@@STYLE@@*/ and /*@@SCRIPT@@*/ placeholders
   style.css     All CSS
-  game.js       The whole game (one IIFE)
+  game/         The game, split into ordered files that build.mjs joins into one script:
+    00-core.js      Preamble, world grid, terrain, hills, landmarks
+    10-people.js    Player state, cars, police, pedestrians, gangs, effects
+    20-audio.js     Sound, combat, enter/exit a vehicle, gun shop
+    30-air.js       Attack helicopter, fighter jets, drugs, robberies, sticky bombs
+    40-casino.js    Blackjack (solo and shared), roulette, slots, rocket, poker, horses, wheel
+    50-heist.js     The Union Job, weapon wheel, progression, places, mod shop, properties
+    60-jobs.js      Jobs, story missions, movement, traffic lights
+    70-phone.js     Phone, perf overlay, career, drugs, minigames, Pit, weather, events, races, crews
+    80-input.js     Keyboard, mouse, pointer lock, touch, gamepad
+    85-multiplayer.js  Claude room / Cloudflare lobby presence
+    90-ui.js        HUD, hints, menus
+    92-update.js    Main simulation step
+    95-scene.js     Three.js scene setup
+    96-models.js    Procedural meshes
+    97-interior.js  Interior look
+    98-instanced.js Instanced civilians and ambient cars
+    98-landmarks.js Landmark meshes
+    99-boot.js      Boot and the main loop
 legacy/
   palmetto-run-2d.html   The original top-down 2D version (separate artifact)
 worker/
   index.js      Cloudflare Worker: serves dist/ and runs the multiplayer lobby
 scripts/
-  build.mjs     Inlines style.css and game.js into page.html
+  build.mjs     Joins src/game/*.js in name order and inlines the result with style.css into page.html
   check.mjs     Syntax check
   serve.mjs     Local static server
 dist/           Build output (not committed)
 ```
 
-### How `game.js` is organized
+### How the game is organized
 
-The file is split into sections marked `// ---------- name ----------`. Search for these to find your way around:
+`src/game/` is one big IIFE split across the files above, concatenated in name order, so every file
+shares one scope: functions declared in one file are visible everywhere, exactly as before the split.
+Each file is further split into sections marked `// ---------- name ----------`. Search for these to
+find your way around:
 
 | Section | What it does |
 |---|---|
