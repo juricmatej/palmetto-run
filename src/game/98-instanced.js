@@ -209,12 +209,20 @@ function render(dt){
 // minimap
 const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig.height=Math.ceil((W+500)/MS);
 {const g=miniBig.getContext('2d'),t=v=>(v+MO)/MS;
- g.fillStyle='#0b2a3d';g.fillRect(0,0,miniBig.width,miniBig.height);
- g.fillStyle='#9a8258';g.fillRect(t(-30),t(W-10),(W+60)/MS,310/MS);
- g.fillStyle='#5a5372';g.fillRect(t(0),t(0),W/MS,W/MS);
- const BC={airport:'#30333c',hood:'#3a2e28',park:'#1d5a36',lot:'#2a2735',beach:'#9a8258',suburb:'#2a5a38',industrial:'#3a3a42',city:'#26222f'};
- for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R;g.fillStyle='#3e3950';g.fillRect(t(x),t(y),sz/MS,sz/MS);g.fillStyle=BC[blockType[bj*N+bi]]||'#26222f';g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS)}
- g.fillStyle='#262830';g.fillRect(t(AF.x0),t(AF.y0),(AF.x1-AF.x0)/MS,(AF.y1-AF.y0)/MS);g.fillStyle='#111216';g.fillRect(t(RWX-48),t(300),96/MS,2000/MS);
+ g.fillStyle=MAPC.water;g.fillRect(0,0,miniBig.width,miniBig.height);
+ g.fillStyle=MAPC.sand;g.fillRect(t(-30),t(W-10),(W+60)/MS,310/MS);
+ g.fillStyle=MAPC.road;g.fillRect(t(0),t(0),W/MS,W/MS);
+ // district tints, the two avenues, landmark blocks ringed in gold
+ const BC={airport:MAPC.airport,hood:MAPC.hood,park:MAPC.park,lot:MAPC.lot,beach:MAPC.sand,suburb:MAPC.suburb,industrial:MAPC.industrial,city:MAPC.midtown};
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R,tp=blockType[bj*N+bi];
+   g.fillStyle=MAPC.roadEdge;g.fillRect(t(x),t(y),sz/MS,sz/MS);
+   g.fillStyle=tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'?MAPC.gold:district(bi,bj)==='downtown'?MAPC.downtown:(BC[tp]||MAPC.midtown);
+   g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
+   if(tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
+ g.fillStyle=MAPC.ave;for(const k of AVENUE){g.fillRect(t(k*B+40),t(0),40/MS,W/MS);g.fillRect(t(0),t(k*B+40),W/MS,40/MS)}
+ g.fillStyle=MAPC.airport;g.fillRect(t(AF.x0),t(AF.y0),(AF.x1-AF.x0)/MS,(AF.y1-AF.y0)/MS);
+ g.fillStyle=MAPC.runway;g.fillRect(t(RWX-48),t(300),96/MS,2000/MS);
+ g.fillStyle=MAPC.roadEdge;g.fillRect(t(RWX+60),t(300),26/MS,2130/MS);g.fillRect(t(4096),t(2430),296/MS,195/MS);
  for(const p of parks)for(const[x,y,r]of p.trees){g.fillStyle='#2f8a4e';g.beginPath();g.arc(t(x),t(y),r/MS,0,TAU);g.fill()}
  for(const b of buildings){if(b.kind==='water'){g.fillStyle='#1d6a8a';g.beginPath();g.ellipse(t(b.x+b.w/2),t(b.y+b.h/2),(b.w+30)/2/MS,(b.h+30)/2/MS,0,0,TAU);g.fill();continue}
    g.fillStyle=b.kind==='house'?b.trim:b.kind==='container'?b.roof:shade(b.roof,1.25);g.fillRect(t(b.x),t(b.y),b.w/MS,b.h/MS)}
@@ -245,7 +253,9 @@ function drawMini(){
   c.font='700 11px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
   for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);mapIcon(c,px,py,6,false,'#ffc94a',l.ic)}
   for(const s of HILL_SPOTS){if(!inView(s.x,s.y))continue;const[px,py]=Pt(s.x,s.y);mapIcon(c,px,py,6,false,'#ffc94a',s.icon)}
-  for(const d of DOORS){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);mapIcon(c,px,py,6.5,true,d.col,DOORICON[d.label]||'?')}
+   {const near=[];for(const d of DOORS){const dd=Math.hypot(d.x-cx,d.y-cy);if(dd<430)near.push([dd,d])}
+   near.sort((a,b)=>a[0]-b[0]);
+   for(const[,d]of near.slice(0,6)){if(!inView(d.x,d.y))continue;const[px,py]=Pt(d.x,d.y);mapIcon(c,px,py,6.5,true,d.col,DOORICON[d.label]||'?')}}
   {const[px,py]=edge(GARAGE.x,GARAGE.y);mapIcon(c,px,py,6,false,'#ffc94a','C')}
   for(const b of ladders){if(!inView(b.ladder.x,b.ladder.base))continue;const[px,py]=Pt(b.ladder.x,b.ladder.base);c.fillStyle='#a7a1ba';c.fillRect(px-2,py-2,4,4)}
   // armored truck

@@ -600,6 +600,10 @@ function hikerStep(dt){if(!HIKE.mesh)return;
   HIKE.mesh.instanceMatrix.needsUpdate=true}
 if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='hill').length},hikers:{get:()=>HIKERS.length}});
 
+// shared map palette: the minimap and the phone map draw from these colours
+const MAPC={water:'#12384f',waterLight:'#1d6a8a',surf:'#bfeaf5',sand:'#b09064',park:'#1f5c36',parkLight:'#2f8a4e',
+ road:'#23212c',roadEdge:'#4a4658',ave:'#57536a',downtown:'#3b3448',midtown:'#3e3950',hood:'#4a3c34',suburb:'#3c5340',
+ industrial:'#3a4250',airport:'#33363f',runway:'#191b22',gold:'#ffc94a',wood:'#6a5040',lot:'#2a2735',front:'#4c3f4e'};
 // minimap layer for the hills, drawn once: terrain colour, roads and the lake. buildMapBase adds the relief on top.
 function buildHillMini(MS,MO){
   const X0=-MO,Y0=HILL.edge-MO,cv=document.createElement('canvas');cv.width=Math.ceil((W+2*MO)/MS);cv.height=Math.ceil(-Y0/MS);cv.ox=X0;cv.oy=Y0;
@@ -607,13 +611,18 @@ function buildHillMini(MS,MO){
     j0=Math.max(0,Math.round((Y0-HM.y0)/HM.cell)),j1=Math.min(HM.gh-1,Math.round((0-HM.y0)/HM.cell)-1),ni=i1-i0+1,nj=j1-j0+1,hh=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)];
   g.fillStyle='#0b2a3d';g.fillRect(0,0,cv.width,cv.height);
   const img=new ImageData(ni,nj),d=img.data;
-  for(let j=0;j<nj;j++)for(let i=0;i<ni;i++){const h=hh(i0+i,j0+j),f=clamp(h/300,0,1),c=h<1?[74,74,54]:[63+(122-63)*f,90+(112-90)*f,46+(74-46)*f],k=(j*ni+i)*4;
+  for(let j=0;j<nj;j++)for(let i=0;i<ni;i++){const h=hh(i0+i,j0+j),f=clamp(h/300,0,1),k=(j*ni+i)*4;
+    // grass, dry gold and stone across the height, so the hills read as land, not a flat wash
+    let c=h<1?[74,74,54]:f<.25?[70,102,52]:f<.6?[86,112,58]:[118,110,84];
+    if(h>320)c=[132,126,116];
     d[k]=c[0];d[k+1]=c[1];d[k+2]=c[2];d[k+3]=255}
   const tmp=document.createElement('canvas');tmp.width=ni;tmp.height=nj;tmp.getContext('2d').putImageData(img,0,0);
   g.imageSmoothingEnabled=true;const[px,py]=t(HM.x0+i0*HM.cell,HM.y0+j0*HM.cell);g.drawImage(tmp,px,py,ni*HM.cell/MS,nj*HM.cell/MS);
   for(const r of HILL_ROADS){const S=roadSamples(r,6);g.beginPath();S.forEach(([x,y],k)=>{const[qx,qy]=t(x,y);k?g.lineTo(qx,qy):g.moveTo(qx,qy)});
-    g.strokeStyle=r.dirt?'#8a6a44':'#3a3848';g.lineWidth=Math.max(1.2,r.w/MS);g.lineJoin='round';g.stroke()}
-  const[lx,ly]=t(LAKE.x,LAKE.y);g.fillStyle='#1d6a8a';g.beginPath();g.arc(lx,ly,LAKE.r/MS,0,TAU);g.fill();
+    g.lineJoin='round';g.strokeStyle=r.dirt?'#6a5236':'#2a2833';g.lineWidth=Math.max(2.2,r.w/MS);g.stroke();
+    g.strokeStyle=r.dirt?'#9a8258':'#6a6480';g.lineWidth=Math.max(1.1,r.w/MS-2);g.stroke()}
+  const[lx,ly]=t(LAKE.x,LAKE.y);g.fillStyle=MAPC.waterLight;g.beginPath();g.arc(lx,ly,LAKE.r/MS,0,TAU);g.fill();
+  g.strokeStyle='#0e2b3a';g.lineWidth=1.5;g.stroke();
   return cv}
 // shade and contour lines for the whole heightmap, one pixel per 10 unit cell. Light from the north-west at 45 degrees.
 // A line every 40 units, darker every 200. The lake stays clear.
@@ -633,7 +642,7 @@ function buildRelief(){
 function buildMapBase(){
   const cv=document.createElement('canvas');cv.width=Math.ceil((MAPB.x1-MAPB.x0)/MS);cv.height=Math.ceil((MAPB.y1-MAPB.y0)/MS);
   const g=cv.getContext('2d'),rel=buildRelief();
-  g.fillStyle='#0b2a3d';g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle=MAPC.water;g.fillRect(0,0,cv.width,cv.height);
   g.drawImage(miniBig,(-MO-MAPB.x0)/MS,(-MO-MAPB.y0)/MS);
   g.drawImage(hillMini,(hillMini.ox-MAPB.x0)/MS,(hillMini.oy-MAPB.y0)/MS);
   g.drawImage(rel,(HM.x0-MAPB.x0)/MS,(HM.y0-MAPB.y0)/MS,rel.width*HM.cell/MS,rel.height*HM.cell/MS);
