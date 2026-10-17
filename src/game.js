@@ -1296,14 +1296,23 @@ const cone=(()=>{const c=document.createElement('canvas');c.width=180;c.height=1
 let AC=null;
 function audioInit(){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch(e){AC=null}}
 function noise(dur,freq,vol){if(!AC||muted||vol<.01)return;try{const n=Math.floor(AC.sampleRate*dur),buf=AC.createBuffer(1,n,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(rand()*2-1)*Math.pow(1-i/n,3);
-  const s=AC.createBufferSource();s.buffer=buf;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=freq;const g=AC.createGain();g.gain.value=vol;s.connect(f);f.connect(g);g.connect(AC.destination);s.start()}catch(e){}}
+  const s=AC.createBufferSource();s.buffer=buf;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=freq;const g=AC.createGain();g.gain.value=vol;s.connect(f);f.connect(g);g.connect(SND.master||AC.destination);s.start()}catch(e){}}
 const vol=(x,y)=>clamp(1-Math.hypot(x-me.x,y-me.y)/900,0,1);
 // [pitch factor, cylinders, redline rpm, gear top speeds]
 const ENG={sedan:[1,4,6500,[0,50,100,160,225,300,360]],taxi:[1,4,6200,[0,50,100,160,225,300,360]],sports:[1.25,6,8400,[0,62,125,190,262,340,460]],muscle:[.7,8,6200,[0,58,120,185,260,340,420]],
   suv:[.85,6,5800,[0,42,88,145,205,280,320]],van:[.8,4,5200,[0,36,78,128,185,250,280]],pickup:[.78,8,5600,[0,42,88,145,205,280,330]],police:[.9,8,6800,[0,52,108,170,235,310,360]],armored:[.6,8,4800,[0,32,72,122,180,240,300]]};
 const SND={ready:false};
 function sndInit(){if(SND.ready||!AC)return;try{
-  const m=AC.createGain();m.connect(AC.destination);SND.master=m;
+  const m=AC.createGain();SND.master=m;
+  // master chain: compressor, then a soft clip that never exceeds 0.95. The analyser taps the master before both.
+  const comp=AC.createDynamicsCompressor();comp.threshold.value=-10;comp.knee.value=6;comp.ratio.value=12;comp.attack.value=.003;comp.release.value=.25;
+  const clip=AC.createWaveShaper(),cv=new Float32Array(1025);for(let i=0;i<cv.length;i++){const x=i/512-1,a=Math.abs(x);cv[i]=Math.sign(x)*(a<.7?a:.7+.25*Math.tanh((a-.7)/.25))}clip.curve=cv;
+  m.connect(comp);comp.connect(clip);clip.connect(AC.destination);
+  SND.an=AC.createAnalyser();SND.an.fftSize=32768;m.connect(SND.an);
+  // room: a generated 1.2 s impulse with exponential decay. SND.room feeds the master dry and a send into the reverb.
+  const rn=Math.floor(AC.sampleRate*1.2),rb=AC.createBuffer(2,rn,AC.sampleRate);for(let c=0;c<2;c++){const d=rb.getChannelData(c);for(let i=0;i<rn;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*.3))}
+  const verb=AC.createConvolver();verb.buffer=rb;verb.connect(m);
+  SND.room=AC.createGain();SND.room.connect(m);const send=AC.createGain();send.gain.value=.35;SND.room.connect(send);send.connect(verb);
   const nb=AC.createBuffer(1,AC.sampleRate*2,AC.sampleRate),nd=nb.getChannelData(0);for(let i=0;i<nd.length;i++)nd[i]=Math.random()*2-1;
   const nsrc=()=>{const s=AC.createBufferSource();s.buffer=nb;s.loop=true;s.start();return s};
   const gain=(v,to)=>{const g=AC.createGain();g.gain.value=v;if(to)g.connect(to);return g};
@@ -1314,9 +1323,13 @@ function sndInit(){if(SND.ready||!AC)return;try{
   const sg=gain(0,m),so=osc('sawtooth',700,filt('lowpass',2200,0,sg));SND.siren={so,sg};
   const tgg=gain(0,m),to=osc('sawtooth',40,filt('lowpass',240,0,tgg));SND.traffic={to,tgg};
   nsrc().connect(filt('lowpass',180,0,gain(.015,m)));
-  const be=gain(0,m),bw=gain(.025,be);nsrc().connect(filt('lowpass',500,0,bw));osc('sine',.12,gain(.025,bw.gain));SND.beach=be;
+  const be=gain(0,m),bw=gain(.025,be),bf=filt('lowpass',500,0,bw);nsrc().connect(bf);const wl=osc('sine',.12,gain(.025,bw.gain));wl.connect(gain(200,bf.frequency));SND.beach=be;
   const wn=gain(0,m);nsrc().connect(filt('bandpass',600,1,wn));SND.wind=wn;
   const sc=gain(0,m);osc('sawtooth',900,filt('bandpass',900,2,sc));SND.screech=sc;
+  // engine: two detuned sawtooths through a lowpass, a tremolo at the firing rate, and intake noise
+  const eg=gain(0,m),ef=filt('lowpass',600,1,eg),e1=osc('sawtooth',60,ef),e2=osc('sawtooth',61,ef),dp=gain(0,eg.gain),pl=osc('sine',30,dp);
+  const ig=gain(0,m),intake=filt('bandpass',900,1.5,ig);nsrc().connect(intake);
+  SND.engine={eg,ef,e1,e2,dp,pl,ig,intake};
   SND.rg=gain(.05,m);
   SND.ready=true}catch(e){SND.ready=false}}
 function soundStep(dt){if(!AC)return;sndInit();if(!SND.ready)return;const t=AC.currentTime,S=(p,v,k)=>p.setTargetAtTime(v,t,k||.05);
@@ -1331,8 +1344,14 @@ function soundStep(dt){if(!AC)return;sndInit();if(!SND.ready)return;const t=AC.c
   // tyres: sliding sideways, or handbrake at speed
   {const c=me.car,lat=c?Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy):0;
    S(SND.screech.gain,c&&state==='play'&&(lat>120||shift&&Math.hypot(c.vx,c.vy)>150)?.05:0,.05)}
+  // engine: the player's car. Speed picks the gear and rpm; rpm x cylinders / 2 is the firing rate that sets pitch and tremolo
+  {const c=me.car,E=SND.engine,on=c&&state==='play'&&!me.inside?1:0,T=ENG[c?c.type:'sedan']||ENG.sedan,sp=c?Math.hypot(c.vx,c.vy):0,G=T[3];
+   let k=1;while(k<G.length-1&&sp>G[k])k++;
+   const fr=clamp((sp-G[k-1])/(G[k]-G[k-1]),0,1),rpm=900+(T[2]-900)*(sp>3?.25+.75*fr:0),F=T[0]*rpm/60*T[1]/2,lv=on*(.035+.05*fr);
+   S(E.e1.frequency,2*F,.05);S(E.e2.frequency,2*F*1.013,.05);S(E.pl.frequency,F,.05);S(E.ef.frequency,400+1200*fr,.1);
+   S(E.eg.gain,lv,.08);S(E.dp.gain,lv*.6,.08);S(E.ig.gain,on*(.01+.03*fr),.1);S(E.intake.frequency,300+rpm*.4,.1)}
   // footsteps
-  if(onFoot&&Math.hypot(me.vx,me.vy)>40){stepT-=dt;if(stepT<=0){stepT=shift?.25:.34;const dn=district(clamp(Math.floor(me.x/B),0,N-1),clamp(Math.floor(me.y/B),0,N-1));sfx(.04,'lowpass',dn==='beach'||dn==='park'?400:700,.06)}}else stepT=0;
+  if(onFoot&&Math.hypot(me.vx,me.vy)>40){stepT-=dt;if(stepT<=0){stepT=shift?.25:.34;const dn=district(clamp(Math.floor(me.x/B),0,N-1),clamp(Math.floor(me.y/B),0,N-1));footSnd(dn==='beach'||dn==='park'?400:700)}}else stepT=0;
   // ambience: beach waves, wind, club bass
   const bd=Math.max(0,(N-1)*B-me.y),dr=doorAt(3,3),kd=Math.hypot(dr.x-me.x,dr.y-me.y);
   S(SND.beach.gain,clamp(1-bd/600,0,1),.3);
@@ -1349,18 +1368,21 @@ function tone(type,f,dur,v,at,to,f2){if(!AC||muted)return;try{const t=at||AC.cur
 function sfx(dur,type,f,v,at,f2,to){if(!AC||muted||v<.01)return;try{const t=at||AC.currentTime,n=Math.floor(AC.sampleRate*dur),buf=AC.createBuffer(1,n,AC.sampleRate),d=buf.getChannelData(0);for(let i=0;i<n;i++)d[i]=(rand()*2-1)*Math.pow(1-i/n,3);
   const s=AC.createBufferSource(),fl=AC.createBiquadFilter(),g=AC.createGain();s.buffer=buf;fl.type=type;fl.frequency.setValueAtTime(f,t);if(f2)fl.frequency.linearRampToValueAtTime(f2,t+dur);g.gain.value=v;s.connect(fl);fl.connect(g);g.connect(to||SND.master);s.start(t);return s}catch(e){}}
 let stepT=0,clubT=0,thudT=0;
-// shot sound for a WEAPONS id. fire() calls it for the player and remote players, throwSticky() for bombs
-function gunSnd(id,x,y){if(!AC||muted)return;const v=vol(x,y);
-  switch(id){
-    case'pistol':case'smg':{const k=id==='smg'?.7:1;sfx(id==='smg'?.06:.12,'bandpass',2500,.22*k*v);tone('square',180,.05,.08*k*v);break}
-    case'shotgun':sfx(.35,'lowpass',900,.5*v);break;
-    case'mg':sfx(.07,'bandpass',1600,.22*v);break;
-    case'sniper':sfx(.5,'lowpass',3000,.4*v);sfx(.5,'lowpass',800,.2*v,AC.currentTime+.18);break;
-    case'rpg':case'homing':sfx(.6,'lowpass',400,.4*v,0,2000);break;
-    case'sticky':sfx(.08,'lowpass',3000,.12*v);break;
-  }}
-// car impact; at most one per 0.15 s
-function thud(s){if(time<thudT)return;thudT=time+.15;sfx(.18,'lowpass',300,clamp(s/400,0,.4))}
+// footstep: a short click, then a low body. The pitch moves a little each step so repeats differ
+function footSnd(f){const r=rr(.85,1.15);sfx(.012,'highpass',2000*r,.05);sfx(.05,'lowpass',f*r,.07)}
+// per weapon: tr = transient [dur, highpass Hz, amp], body = noise [dur, lowpass Hz, amp, sweep-to Hz], th = sine thump [start Hz, end Hz, dur, amp]
+const GUN={pistol:{tr:[.01,3000,.2],body:[.09,1800,.3],th:[170,55,.1,.2]},smg:{tr:[.008,3600,.16],body:[.065,2200,.26],th:[210,70,.07,.14]},
+  shotgun:{tr:[.015,2000,.25],body:[.16,900,.32],th:[110,35,.22,.3]},mg:{tr:[.008,3200,.14],body:[.06,1600,.26],th:[190,80,.06,.1]},
+  sniper:{tr:[.012,4000,.25],body:[.16,2500,.3,700],th:[90,30,.3,.3]},rpg:{tr:[.02,1500,.3],body:[.5,700,.35,2000],th:[60,30,.4,.25]},
+  homing:{tr:[.02,1800,.25],body:[.45,900,.3,2400],th:[70,35,.35,.25]},sticky:{tr:[.01,3000,.12],body:[.06,2000,.12],th:[120,60,.05,.08]}};
+// shot sound for a WEAPONS id. fire() calls it for the player, remote players and NPCs, throwSticky() for bombs
+function gunSnd(id,x,y){if(!AC||muted)return;const v=vol(x,y),G=GUN[id]||GUN.pistol,r=rr(.95,1.05),to=SND.room;
+  sfx(G.tr[0],'highpass',G.tr[1]*r,G.tr[2]*v,0,0,to);
+  sfx(G.body[0],'lowpass',G.body[1]*r,G.body[2]*v,0,G.body[3]||0,to);
+  tone('sine',G.th[0]*r,G.th[2],G.th[3]*v,0,to,G.th[1]);
+}
+// car impact; at most one per 0.15 s: a click, a low body and a falling sine thump, into the room send
+function thud(s){if(time<thudT)return;thudT=time+.15;const v=clamp(s/400,0,.4),to=SND.room;sfx(.012,'highpass',rr(2000,3000),v*.5,0,0,to);sfx(.2,'lowpass',rr(250,350),v*.8,0,0,to);tone('sine',rr(90,130),.2,v*.6,0,to,40)}
 function hornSnd(){const h=MODS_HORN.find(h=>h[0]===(me.car&&me.car.mods&&me.car.mods.horn))||MODS_HORN[0];tone('square',h[0],.4,.08);tone('square',h[1],.4,.08)}
 const mf=m=>440*Math.pow(2,(m-69)/12);
 const JINGLE={pass:[[60,.08],[64,.08],[67,.08],[72,.08]],fail:[[64,.15],[60,.2]],buy:[[84,.05],[88,.05]],level:[[60,.15],[64,.15],[67,.15],[72,.15],[76,.15],[79,.3]]};
@@ -1376,12 +1398,14 @@ function radSched(n,t){const c=CHORDS[(n>>4)&3];
   else{if(n%8===0)rtrack(tone('sine',120,.2,.9,t,SND.rg,50));if(n%8===4)rtrack(sfx(.15,'bandpass',1800,.6,t,0,SND.rg));if(n%4===2)radNote('sawtooth',c[0]-24,t,.1,.4)}}
 function radStop(){for(const o of radOsc)try{o.stop()}catch(e){}radOsc.clear();radNext=0}
 function cycleRadio(){radio=(radio+1)%RADIO.length;radStop();feed('Radio: '+RADIO[radio])}
-if(DBG)Object.defineProperties(DBG,{audio:{get:()=>AC&&AC.state},radio:{get:()=>radio}});
+if(DBG)Object.defineProperties(DBG,{audio:{get:()=>AC&&AC.state},radio:{get:()=>radio},
+  // peak of the master over the last 0.5 s, in dBFS, read before the limiter
+  sndPeak:{get:()=>{if(!SND.an)return null;const b=new Float32Array(SND.an.fftSize),n=Math.round(AC.sampleRate*.5);SND.an.getFloatTimeDomainData(b);let p=0;for(let i=b.length-n;i<b.length;i++)p=Math.max(p,Math.abs(b[i]));return p?+(20*Math.log10(p)).toFixed(1):-120}}});
 
 // ---------- combat ----------
 function fire(x,y,a,owner,dmg,rocket,quiet,home,snd){const sp=home?470:rocket?(fireSpd||560):(fireSpd||950);bullets.push({x,y,px:x,py:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:home?4.5:rocket?(fireLife||1.6):(fireLife||.7),z:fireZ+(owner==='me'||owner==='remote'?0:groundZ(x,y)),vz:fireSlope*sp,owner,dmg,rocket:!!rocket,home:home||null});
   if(quiet)return;
-  parts.push({x:x+Math.cos(a)*6,y:y+Math.sin(a)*6,vx:0,vy:0,life:.06,max:.06,col:'#ffe9a8',k:'flash',sz:rocket?30:16});if(snd)gunSnd(snd,x,y);else noise(rocket?.45:.12,rocket?900:2600,(rocket?.4:.22)*vol(x,y));scare(x,y,320);}
+  parts.push({x:x+Math.cos(a)*6,y:y+Math.sin(a)*6,vx:0,vy:0,life:.06,max:.06,col:'#ffe9a8',k:'flash',sz:rocket?30:16});if(snd)gunSnd(snd,x,y);else gunSnd(rocket?'rpg':'pistol',x,y);scare(x,y,320);}
 function segDist(px,py,ax,ay,bx,by){const dx=bx-ax,dy=by-ay,l=dx*dx+dy*dy;let t=l?((px-ax)*dx+(py-ay)*dy)/l:0;t=clamp(t,0,1);return Math.hypot(px-ax-dx*t,py-ay-dy*t)}
 function myShoot(){
   if(me.fireCd>0||state!=='play'||wheelOpen||phoneOpen||me.downed)return;
