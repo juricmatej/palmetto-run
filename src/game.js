@@ -2281,7 +2281,7 @@ function paintWheel(){
   for(const b of document.querySelectorAll('.wseg')){const w=WEAPONS[WI[b.dataset.id]];b.classList.toggle('lock',!owned[w.id]);b.classList.toggle('sel',b.dataset.id===wheelSel);b.querySelector('span').textContent=owned[w.id]?(w.id==='pistol'?'\u221e':String(ammo[w.id]||0)):'$'+w.price}
   const w=WEAPONS[WI[wheelSel||weap]],m=$('wheelMid');m.replaceChildren();const n=document.createElement('div');n.textContent=w.name;const sm=document.createElement('small');sm.textContent=owned[w.id]?w.desc:`Buy it at a gun shop for $${w.price}`;m.append(n,sm);
 }
-function openWheel(){if(state!=='play'||wheelOpen)return;wheelOpen=true;wheelSel=weap;wheelVec={x:0,y:0};mouse.down=false;$('wheel').hidden=false;paintWheel()}
+function openWheel(){if(state!=='play'||wheelOpen||quickOpen||chatOpen)return;wheelOpen=true;wheelSel=weap;wheelVec={x:0,y:0};mouse.down=false;$('wheel').hidden=false;paintWheel()}
 function closeWheel(apply){if(!wheelOpen)return;wheelOpen=false;$('wheel').hidden=true;if(apply&&wheelSel&&owned[wheelSel]&&wheelSel!==weap){weap=wheelSel;feed(WEAPONS[WI[weap]].name+' equipped')}}
 $('wheel').addEventListener('pointerdown',e=>{if(e.target.id==='wheel')closeWheel(false)});
 
@@ -2708,7 +2708,7 @@ function phHomeShow(){phApp=null;phAppEl.hidden=true;phHome.hidden=false;phFocus
 // re-renders into a detached copy and swaps only when the markup changed, so a tap is never lost to a repaint
 function phPaint(a,force){const t=phBody.cloneNode(false);a.render(t);if(!force&&t.innerHTML===phBody.innerHTML)return;const was=phNavEls().indexOf(document.activeElement);phBody.replaceChildren(...t.childNodes);if(!force&&was>=0)phFocus(was)}
 function phoneOpenNow(toMsg){
-  if(phoneOpen||state!=='play')return;
+  if(phoneOpen||chatOpen||state!=='play')return;
   phoneOpen=true;for(const k in keys)if(!WALKC[k])keys[k]=false;$('phone').classList.add('open');phBan.classList.remove('show');
   try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
   mouse.down=false;touchFire=false;
@@ -2783,10 +2783,11 @@ function wpBuild(){wpGroup=new THREE.Group();const cyl=new THREE.Mesh(new THREE.
 phoneApp('map','Map',IC.map,el=>{el.append(mapCv,mk('div','ph-sub','Click or press Enter to drop a pin. Click the pin again to clear it.'))},'#29e6d6');
 phoneApp('contacts','Contacts',IC.contacts,el=>{for(const[n,r,f]of CONTACTS){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',n),mk('span','ph-sub',r));b.append(mk('span','ph-av',n[0]),g,mk('span','ph-go','Call'));b.onclick=()=>phCallTo(n,f);el.append(b)}},'#ff3ea5');
 phoneApp('messages','Messages',IC.msg,el=>{
-  if(!notes.length&&!phLog.length)el.append(mk('div','ph-sub','No messages yet.'));
+  if(!notes.length&&!phLog.length&&!chatLines.length)el.append(mk('div','ph-sub','No messages yet.'));
   for(const n of notes){const w=mk('div','ph-card');w.append(mk('div','ph-from',n.from),mk('div','ph-txt',n.text),mk('div','ph-tm',n.t));
     if(n.action){const b=mk('button','ph-btn',n.action.label);b.type='button';b.dataset.nav='';b.onclick=()=>{const f=n.action.fn;n.action=null;f();phPaint(apps.messages,true)};w.append(b)}
     n.read=true;el.append(w)}
+  if(chatLines.length){el.append(mk('div','ph-sec','Chat'));for(const l of chatLines.slice(0,100)){const w=mk('div','ph-log'),nm=mk('b','',l.n+' ');nm.style.color=l.c;w.append(nm,mk('span','',l.tx),mk('em','chTm',l.tm));el.append(w)}}
   if(phLog.length){el.append(mk('div','ph-sec','Log'));for(const l of phLog)el.append(mk('div','ph-log',`${l.t}  ${l.text}`))}
 },'#3dd68c');
 phoneApp('jobs','Jobs',IC.jobs,el=>{const on=!!job&&job.phase!=='wait';
@@ -2796,8 +2797,10 @@ phoneApp('jobs','Jobs',IC.jobs,el=>{const on=!!job&&job.phase!=='wait';
   el.append(c,d,n)},'#ffc94a');
 phoneApp('players','Players',IC.players,el=>{
   if(!remotes.size){el.append(mk('div','ph-sub',room?'Nobody else is in the city right now.':'Solo for now. Other players show up once the city is online.'));return}
-  for(const[id,r]of remotes){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
-    const dot=mk('i','ph-dot');dot.style.background=r.color;b.append(dot,g,mk('span','ph-go','GPS'));b.onclick=()=>{waypoint={x:r.x,y:r.y,peer:id};feed(`GPS on ${r.name}`)};el.append(b)}
+  for(const[id,r]of remotes){const w=mk('div','ph-prow'),b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
+    const dot=mk('i','ph-dot');dot.style.background=r.color;b.append(dot,g,mk('span','ph-go','GPS'));b.onclick=()=>{waypoint={x:r.x,y:r.y,peer:id};feed(`GPS on ${r.name}`)};
+    const mu=mk('button','ph-mute',mutedPeers.has(id)?'Unmute':'Mute');mu.type='button';mu.dataset.nav='';mu.onclick=()=>mutePeer(id);
+    w.append(b,mu);el.append(w)}
 },'#7b6bff');
 phoneApp('places','Places',IC.places,el=>{const best={};for(const d of DOORS){const dd=Math.hypot(d.x-me.x,d.y-me.y),o=best[d.label];if(!o||dd<o.dd)best[d.label]={d,dd}}
   for(const[k,{d,dd}]of Object.entries(best).sort((a,b)=>a[1].dd-b[1].dd)){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const dt=mk('span','ph-dt',DOORICON[k]||'?');dt.style.color=d.col;
@@ -2889,6 +2892,8 @@ const ACTIONS=[
   {id:'flares',label:'Flares',group:'Interface',def:['KeyX']},
   {id:'mute',label:'Mute',group:'Interface',def:['KeyM']},
   {id:'settings',label:'Settings',group:'Interface',def:['KeyP']},
+  {id:'chat',label:'Chat',group:'Interface',def:['Enter']},
+  {id:'quickChat',label:'Quick chat',group:'Interface',def:['KeyY']},
 ];
 const DEF={},BINDS={},GRP={};for(const a of ACTIONS){DEF[a.id]=a.def.slice();BINDS[a.id]=a.def.slice();GRP[a.id]=a.group}
 let BINDREF=Object.create(null),WALKC=Object.create(null),sprintOn=false,sprintUsed=false;
@@ -2911,6 +2916,7 @@ addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(state==='menu'||state==='shop')return;
   if(phoneOpen){phoneKey(e);return}
+  if(quickOpen){quickKey(e);return}
   const act=codeToAction(e.code);
   if(act==='phone'){if(!e.repeat&&state==='play')phoneOpenNow(false);return}
   if(e.code==='Escape'&&lap){endLap();return}
@@ -2930,6 +2936,8 @@ addEventListener('keydown',e=>{
     case'drug':if(!e.repeat)usePowder();break;
     case'scope':if(!e.repeat&&weap==='sniper'&&!me.car)scoped=!scoped;break;
     case'sprint':if(!e.repeat&&settings.sprintMode==='toggle'){sprintOn=!sprintOn;sprintUsed=false}break;
+    case'chat':if(!e.repeat&&state==='play'&&!phoneOpen&&!wheelOpen){e.preventDefault();openChat()}break;
+    case'quickChat':if(!e.repeat&&state==='play'&&!wheelOpen&&!chatOpen){e.preventDefault();openQuick()}break;
   }
   if(/^Digit[1-8]$/.test(e.code))equip(WEAPONS[+e.code.slice(5)-1].id);
 });
@@ -3028,7 +3036,7 @@ function aimAssist(dt){
   if(t)look.yaw+=clamp(wrap(Math.atan2(t.y-me.y,t.x-me.x)-look.yaw),-settings.assist*dt,settings.assist*dt);
 }
 function turn(dx,dy){dx*=settings.sens;dy*=settings.sens;if(settings.inv)dy=-dy;if(wheelOpen){wheelVec.x+=dx;wheelVec.y+=dy;const l=Math.hypot(wheelVec.x,wheelVec.y);if(l>120){wheelVec.x*=120/l;wheelVec.y*=120/l}if(l>25){const n=WEAPONS.length,i=((Math.round((Math.atan2(wheelVec.y,wheelVec.x)+Math.PI/2)/(TAU/n))%n)+n)%n;if(WEAPONS[i].id!==wheelSel){wheelSel=WEAPONS[i].id;paintWheel()}}return}const k=me.car?settings.veh:scoped?settings.scope:1;if(me.car){look.off=clamp(look.off+dx*.0026*k,-2.6,2.6);look.offT=time}else look.yaw+=dx*.0026*k;look.pitch=clamp(look.pitch+dy*.0022*k,-.45,1.3)}
-function lockMouse(){if(isTouch||phoneOpen||document.pointerLockElement===cv)return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(_){}}
+function lockMouse(){if(isTouch||phoneOpen||chatOpen||document.pointerLockElement===cv)return;try{const p=cv.requestPointerLock();if(p&&p.catch)p.catch(()=>{})}catch(_){}}
 cv.addEventListener('pointerdown',e=>{
   if(state==='menu')return;audioInit();
   if(e.pointerType==='mouse'){if(document.pointerLockElement!==cv){lockMouse();return}if(e.button===0)mouse.down=true;if(e.button===2&&weap==='sniper'&&!me.car)scoped=true;return}
@@ -3062,7 +3070,7 @@ if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>sett
 
 // ---------- multiplayer (room presence) ----------
 let room=null,myPeer=null,netState='connecting',netWhy='';
-const PV=1; // presence protocol version, bump when the presence shape changes
+const PV=2; // presence protocol version, 2 adds the ch (chat) field; bump when the presence shape changes
 const killXpT={},pvWarn=new Set();
 // The city comes from the URL: ?room=code, else the last code used on this device, else the
 // public city. A room is 1 to 10 lowercase letters and digits; anything else is invalid.
@@ -3097,6 +3105,8 @@ const remotes=new Map();
 const num=(v,d=0)=>Number.isFinite(v)?v:d;
 const hex=(v,d='#ff3ea5')=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)?v:d;
 const str=v=>typeof v==='string'?v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g,'').slice(0,16):'';
+// chat text: like str() but strips the same ranges on any length, collapses whitespace and slices to n (120 by default)
+const txt=(v,n=120)=>typeof v!=='string'?'':v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g,'').replace(/\s+/g,' ').trim().slice(0,n);
 (async()=>{
   try{
     if(!window.claude||typeof window.claude.use!=='function'){if(lobbyHost){room=wsRoom((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?room='+roomName);room.onPeers(ch=>{for(const p of ch.peers)if(p.sameTab)myPeer=p.peer})}else{netState='solo';netWhy='no-viewer'}return}
@@ -3118,10 +3128,13 @@ function syncRoom(dt){
     seen.add(p.peer);
     const pv=num(s.pv)||0;if(pv!==PV&&!pvWarn.has(p.peer)){pvWarn.add(p.peer);feed('Someone is on a different game version. Ask them to reload the page')}
     let r=remotes.get(p.peer);
-    if(!r){r={x:s.x,y:s.y,a:num(s.a),shot:Array.isArray(s.s)?s.s[0]:null,ex:Array.isArray(s.ex)?s.ex[0]:null,fl:s.fl,dmgSeen:null,kMe:null};remotes.set(p.peer,r);feed(`${str(s.n)||'A driver'} rolled into town`)}
+    if(!r){r={x:s.x,y:s.y,a:num(s.a),shot:Array.isArray(s.s)?s.s[0]:null,ex:Array.isArray(s.ex)?s.ex[0]:null,fl:s.fl,dmgSeen:null,kMe:null,chSeq:null,chatLine:'',chatT:-9};remotes.set(p.peer,r);feed(`${str(s.n)||'A driver'} rolled into town`)}
     r.tx=clamp(s.x,-50,W+4500);r.ty=clamp(s.y,HILL.edge,W+300);r.ta=num(s.a);r.name=str(s.n)||'Driver';r.color=hex(s.c);r.inCar=s.v===1;r.inHeli=s.v===2;r.inJet=s.v===3;r.cc=hex(s.cc,r.color);r.ng=hex(s.ng,null);r.z=clamp(num(s.z),0,900);r.cz=clamp(num(s.cz),-50,900);r.ct=hasCT(s.ct)?s.ct:'sedan';r.hp=clamp(num(s.h,100),0,100);r.dead=s.dd===1;r.w=clamp(num(s.w),0,5);r.lv=clamp(Math.floor(num(s.lv,1)),1,30);r.lk=str(s.lk);r.ar=Array.isArray(s.ar)?[clamp(num(s.ar[0]),0,99999),clamp(num(s.ar[1]),0,99999)]:[0,0];
     r.k=s.k&&typeof s.k==='object'?s.k:{};
     r.rk=rkParse(s.rk);
+    // chat: react once per new seq, and never show or sound anything from a muted peer
+    {const cc=Array.isArray(s.ch)?s.ch:null;
+     if(cc&&cc.length>=2){const cs=num(cc[0],-1);if(r.chSeq===null)r.chSeq=cs;else if(cs!==r.chSeq){r.chSeq=cs;if(!mutedPeers.has(p.peer))chatGot(r,Math.floor(num(cc[1])),cc)}}}
     if(myPeer){
       const dv=s.d&&typeof s.d==='object'?num(s.d[myPeer]):0;
       if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}else r.dmgSeen=dv;
@@ -3138,6 +3151,29 @@ function syncRoom(dt){
   const f=1-Math.exp(-dt*12);
   for(const r of remotes.values()){if(Math.hypot(r.tx-r.x,r.ty-r.y)>300){r.x=r.tx;r.y=r.ty}else{r.x+=(r.tx-r.x)*f;r.y+=(r.ty-r.y)*f}r.a+=wrap(r.ta-r.a)*f}
 }
+// ---- chat: one presence field ch=[seq,kind,a,b]. kind 0 chat (a text), kind 1 ping (a,b world x,y), kind 2 quick chat (a phrase 0..7)
+const CHATMAX=200,QUICK=['Follow me','Wait here','On my way','Need help','Watch out','Nice ride','Come find me','Over here'],QPING={6:1,7:1};
+const chatLines=[],chatPings=[],mutedPeers=new Set();
+let thisChat=null,chatSeq=0,chatSlowT=-9;
+function sendChat(v){
+  v=txt(v,120);if(!v)return false;
+  if(time-chatSlowT<1.2){feed('Slow down');return false}
+  chatSlowT=time;thisChat=[(chatSeq=(chatSeq+1)%1e6),0,v];chatSay(myName,myColor,v);pubT=1;return true;
+}
+function quickChat(i){
+  i=Math.floor(num(i,-1));if(!(i>=0&&i<8))return false;
+  const p=QUICK[i];
+  if(QPING[i]){thisChat=[(chatSeq=(chatSeq+1)%1e6),1,Math.round(me.x),Math.round(me.y)];chatSay(myName,myColor,p);chatPing(me.x,me.y,myColor);chatBlip()}
+  else{thisChat=[(chatSeq=(chatSeq+1)%1e6),2,i];chatSay(myName,myColor,p)}
+  pubT=1;return true;
+}
+function chatGot(r,kind,cs){
+  if(kind===0){const v=txt(cs[2],120);if(v)chatSay(r.name,r.color,v)}
+  else if(kind===1){const x=num(cs[2],NaN),y=num(cs[3],NaN);if(Number.isFinite(x)&&Number.isFinite(y)){chatSay(r.name,r.color,'pinged');chatPing(clamp(x,-MO,W+400),clamp(y,-MO,W+400),r.color);chatBlip()}}
+  else if(kind===2){const i=Math.floor(num(cs[2],-1));if(i>=0&&i<8){chatSay(r.name,r.color,QUICK[i]);r.chatLine=QUICK[i];r.chatT=time+4}}
+}
+function mutePeer(id){if(mutedPeers.has(id))mutedPeers.delete(id);else mutedPeers.add(id);const r=remotes.get(id);feed((mutedPeers.has(id)?'Muting ':'Unmuting ')+(r?r.name:'a player'));if(phoneOpen&&phApp==='players')phPaint(apps.players);return mutedPeers.has(id)}
+if(DBG)Object.defineProperties(DBG,{chatOut:{get:()=>thisChat},chatLines:{get:()=>chatLines},sendChat:{get:()=>sendChat},quickChat:{get:()=>quickChat},mutePeer:{get:()=>mutePeer}});
 let pubT=0,pruneT=0;
 function publish(dt){
   if(!room||state==='menu')return;
@@ -3145,7 +3181,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,d:dmgOut,k:killedBy,ch:thisChat,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
@@ -3153,11 +3189,63 @@ if(DBG)Object.defineProperties(DBG,{room:{get:()=>roomName},roomFrom:{get:()=>ro
 
 // ---------- ui ----------
 function feed(t){const d=document.createElement('div');d.textContent=t;$('feed').appendChild(d);setTimeout(()=>d.remove(),5000);while($('feed').children.length>5)$('feed').firstChild.remove();phLogAdd(t)}
+// ---- chat: HUD lines, the one-line input above the HUD and the quick chat wheel
+const chatEl=$('chat'),chatBar=$('chatBar'),chatIn=$('chatIn'),hudChat=[],qsegs=[];
+let chatOpen=false,quickOpen=false,quickSel=0;
+function chatSay(n,c,v){
+  chatLines.unshift({n,c,tx:v,tm:clk()});if(chatLines.length>CHATMAX)chatLines.length=CHATMAX;
+  const d=document.createElement('div'),b=document.createElement('b');b.textContent=n;b.style.color=c;d.append(b,document.createTextNode(' '+v));
+  chatEl.appendChild(d);hudChat.push({d,t:time+8});
+  while(hudChat.length>4)hudChat.shift().d.remove();
+}
+function chatStep(){
+  if(chatOpen&&state!=='play')closeChat();
+  if(quickOpen&&state!=='play')closeQuick();
+  for(let i=hudChat.length-1;i>=0;i--)if(time>=hudChat[i].t){hudChat[i].d.remove();hudChat.splice(i,1)}
+}
+function chatBlip(){tone('sine',960,.09,.16);tone('sine',1420,.07,.1,AC?AC.currentTime+.07:0)}
+function chatPing(x,y,c){chatPings.push({x,y,c,t:time});if(chatPings.length>4)chatPings.shift()}
+function openChat(){
+  if(chatOpen||state!=='play'||phoneOpen||wheelOpen||quickOpen)return;
+  chatOpen=true;for(const k in keys)keys[k]=false;mouse.down=false;touchFire=false;
+  try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
+  chatBar.hidden=false;chatIn.value='';chatIn.focus();
+}
+function closeChat(){
+  if(!chatOpen)return;chatOpen=false;chatBar.hidden=true;if(document.activeElement===chatIn)chatIn.blur();
+  cv.focus&&cv.focus();lockMouse();
+}
+chatIn.addEventListener('keydown',e=>{
+  e.stopPropagation();
+  if(e.code==='Escape'||e.key==='Escape'){e.preventDefault();if(!e.repeat)closeChat();return}
+  if(e.code==='Enter'||e.key==='Enter'){e.preventDefault();if(e.repeat)return;const v=chatIn.value;closeChat();sendChat(v);return}
+});
+chatIn.addEventListener('blur',()=>{if(chatOpen)closeChat()});
+function paintQuick(){for(const b of qsegs)b.classList.toggle('sel',+b.dataset.i===quickSel)}
+function openQuick(){
+  if(quickOpen||state!=='play'||phoneOpen||wheelOpen||chatOpen)return;
+  quickOpen=true;quickSel=0;mouse.down=false;
+  try{document.exitPointerLock&&document.exitPointerLock()}catch(_){}
+  $('qwheel').hidden=false;paintQuick();
+}
+function closeQuick(){if(!quickOpen)return;quickOpen=false;$('qwheel').hidden=true;cv.focus&&cv.focus();lockMouse()}
+function quickKey(e){
+  const c=e.code;
+  if(c==='Escape'||e.key==='Escape'){e.preventDefault();closeQuick();return}
+  if(c==='Enter'||e.key==='Enter'){e.preventDefault();if(!e.repeat){const i=quickSel;closeQuick();quickChat(i)}return}
+  const d=c==='ArrowLeft'||c==='ArrowUp'?-1:c==='ArrowRight'||c==='ArrowDown'?1:0;
+  if(d){e.preventDefault();if(!e.repeat){quickSel=(quickSel+d+8)%8;paintQuick()}return}
+  if(codeToAction(c)==='quickChat'&&!e.repeat)closeQuick();
+}
+{const w=$('qwheelIn');QUICK.forEach((p,i)=>{const b=document.createElement('button');b.type='button';b.className='qseg';b.dataset.i=i;b.textContent=p;
+  const a=-Math.PI/2+i*TAU/8;b.style.left=(50+Math.cos(a)*36)+'%';b.style.top=(50+Math.sin(a)*36)+'%';
+  b.addEventListener('pointerenter',()=>{quickSel=i;paintQuick()});b.addEventListener('click',()=>{closeQuick();quickChat(i)});w.appendChild(b);qsegs.push(b)})}
+$('qwheel').addEventListener('pointerdown',e=>{if(e.target.id==='qwheel')closeQuick()});
 let bigT=0;
 function showBig(t,col,s,dur){const b=$('big');b.hidden=false;b.querySelector('.t').textContent=t;b.querySelector('.t').style.color=col;b.querySelector('.t').style.textShadow=`0 0 24px ${col}`;b.querySelector('.s').textContent=s||'';bigT=dur||0}
 function hideBig(){$('big').hidden=true;bigT=0}
 let uiT=0,saveT=0;
-function ui(dt){phoneStep(dt);
+function ui(dt){phoneStep(dt);chatStep();
   if(bigT>0){bigT-=dt;if(bigT<=0)hideBig()}
   uiT+=dt;if(uiT<.1)return;uiT=0;
   $('cash').textContent='$'+me.cash.toLocaleString('en-US');
@@ -3832,6 +3920,15 @@ function cartMesh(){const g=new THREE.Group(),cart=new THREE.Mesh(new THREE.BoxG
 const barkTexs=new Map();
 function barkTex(s,col){const k=s+col;let t=barkTexs.get(k);if(!t){t=canvasTex(256,64,(g)=>{g.font='700 28px "Chakra Petch", sans-serif';g.textAlign='center';g.textBaseline='middle';const w=Math.min(250,g.measureText(s).width+24);g.fillStyle='rgba(10,8,20,.8)';g.fillRect(128-w/2,8,w,48);g.fillStyle=col;g.fillText(s,128,33)});barkTexs.set(k,t)}return t}
 function barkSprite(){const s=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false}));s.scale.set(44,11,1);s.position.y=30;s.renderOrder=10;return s}
+// chat bubble above a remote: one sprite per remote, its canvas is redrawn only when the phrase or the colour changes
+function chatBubbleSprite(){const c=document.createElement('canvas');c.width=256;c.height=64;const t=new THREE.CanvasTexture(c);const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:false}));s.scale.set(44,11,1);s.position.y=34;s.renderOrder=10;s.userData={c,t,k:''};return s}
+function drawChatBubble(s,v,col){const k=v+col;if(s.userData.k===k)return;s.userData.k=k;const g=s.userData.c.getContext('2d');g.clearRect(0,0,256,64);
+  g.font='700 24px "Chakra Petch", sans-serif';g.textAlign='center';g.textBaseline='middle';const w=Math.min(248,g.measureText(v).width+24);
+  g.fillStyle='rgba(10,8,20,.82)';g.fillRect(128-w/2,8,w,48);g.strokeStyle=col;g.lineWidth=2;g.strokeRect(128-w/2,8,w,48);g.fillStyle=col;g.fillText(v,128,33);s.userData.t.needsUpdate=true}
+// chat ping beacon: the job beacon look in the peer colour, pooled and reused
+const pingObjs=[];
+function pingObj(){const g=new THREE.Group();const cyl=new THREE.Mesh(new THREE.CylinderGeometry(9,9,90,16,1,true),new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:.26,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));cyl.position.y=45;
+  const ring=new THREE.Mesh(new THREE.RingGeometry(9,12,28),new THREE.MeshBasicMaterial({color:'#fff',transparent:true,opacity:.9,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=1.6;g.add(cyl,ring);g.userData.cyl=cyl;g.userData.ring=ring;scene.add(g);return g}
 
 // doors and interiors
 const rgbaOf=(hex,a)=>{const n=parseInt(hex.slice(1),16);return`rgba(${n>>16},${n>>8&255},${n&255},${a})`};
@@ -4074,6 +4171,9 @@ function render(dt){
     if(r.inJet&&!ud.jet){ud.jet=jetMesh();g.add(ud.jet)}if(ud.jet){ud.jet.visible=r.inJet;ud.jet.rotation.y=-r.a}if(r.inHeli&&!ud.heli){ud.heli=heliMesh();g.add(ud.heli)}if(ud.heli){ud.heli.visible=r.inHeli;ud.heli.rotation.y=-r.a;ud.heli.userData.rotor.rotation.y=time*25;ud.heli.userData.trotor.rotation.z=time*40}if(ud.car)ud.car.visible=r.inCar;ud.p.visible=!r.inCar&&!r.inHeli&&!r.inJet;
     g.position.set(r.x,r.inCar?(r.cz||0):(r.z||0),r.y);ud.p.rotation.y=-r.a;if(ud.car)ud.car.rotation.y=-r.a;animPerson(ud.p,Math.hypot(r.tx-r.x,r.ty-r.y)>1?time*9:0,time-(r.shotT||-9)<1.2);
     ud.lab.position.y=r.inCar?32:28;drawLabel(ud.lab,r.name,r.color,r.hp);
+    const cb=r.chatT>time;
+    if(cb&&!ud.bub){ud.bub=chatBubbleSprite();g.add(ud.bub)}
+    if(ud.bub){ud.bub.visible=cb;if(cb){ud.bub.position.y=r.inCar?40:34;drawChatBubble(ud.bub,r.chatLine,r.color)}}
   });
   // bullets
   syncMap(bulletMeshes,bullets,b=>{if(b.rocket){const g=new THREE.Group();g.add(new THREE.Mesh(G.rocket,M.rocket));const f=new THREE.Mesh(new THREE.PlaneGeometry(1,1),M.fire);f.scale.set(30,30,1);f.rotation.x=-Math.PI/2;f.position.x=-8;g.add(f);return g}return new THREE.Mesh(G.tracer,b.owner==='police'?M.ptracer:M.tracer)},
@@ -4097,6 +4197,12 @@ function render(dt){
   const jv=job&&job.phase!=='wait'&&!job.noMarker&&!me.inside;beacon.visible=beaconRing.visible=!!jv;
   if(jv){const col=jobCol();beacon.material.color.set(col);beaconRing.material.color.set(col);beacon.position.set(job.x,80,job.y);beaconRing.position.set(job.x,1.8,job.y);beacon.material.opacity=.22+Math.sin(time*4)*.06}
   for(const r of shopRings)r.scale.setScalar(1+Math.sin(time*3)*.08);
+  // chat ping beacons: 6 s each, pooled
+  for(let i=chatPings.length-1;i>=0;i--)if(time-chatPings[i].t>6)chatPings.splice(i,1);
+  while(pingObjs.length<chatPings.length)pingObjs.push(pingObj());
+  for(let i=0;i<pingObjs.length;i++){const g=pingObjs[i],p=chatPings[i];g.visible=!!p;if(!p)continue;
+    const age=time-p.t;g.position.set(p.x,groundZ(p.x,p.y),p.y);g.userData.cyl.material.color.set(p.c);g.userData.ring.material.color.set(p.c);
+    g.userData.cyl.material.opacity=Math.max(0,(1-age/6)*.3);g.userData.ring.scale.setScalar(1+Math.sin(age*9)*.25);g.userData.ring.material.opacity=Math.max(.25,1-age/6)}
   animInteriors(dt);
   // particles
   const gp=glowPts.geometry.attributes.position.array,gc=glowPts.geometry.attributes.color.array,sp=smokePts.geometry.attributes.position.array,sc=smokePts.geometry.attributes.color.array;let gn=0,sn=0;
@@ -4201,6 +4307,8 @@ function drawMini(){
   if(waypoint&&!me.inside){const[px,py,e]=edge(waypoint.x,waypoint.y);c.fillStyle='#29e6d6';c.beginPath();c.arc(px,py,e?6:8,0,TAU);c.fill();c.strokeStyle='#0b0814';c.lineWidth=2;c.stroke()}
   // friends
   for(const r of remotes.values()){if(r.dead)continue;const[px,py,e]=edge(r.x,r.y);c.save();c.translate(px,py);c.rotate(r.a+rot);c.fillStyle=r.color;c.strokeStyle='#fff';c.lineWidth=2;c.beginPath();c.moveTo(9,0);c.lineTo(-6,6);c.lineTo(-6,-6);c.closePath();c.fill();c.stroke();c.restore()}
+  // chat ping markers: a pulsing ring in the peer colour for 6 s
+  for(const p of chatPings){const[px,py,e]=edge(p.x,p.y),age=time-p.t;c.strokeStyle=p.c;c.globalAlpha=Math.max(.2,1-age/6);c.lineWidth=3;c.beginPath();c.arc(px,py,(e?8:10)*(1+Math.sin(age*9)*.3),0,TAU);c.stroke();c.globalAlpha=1;c.fillStyle=p.c;c.beginPath();c.arc(px,py,3.5,0,TAU);c.fill()}
   // you
   c.save();c.translate(C,C);c.fillStyle='rgba(255,255,255,.12)';c.beginPath();c.moveTo(0,0);c.arc(0,0,60,-Math.PI/2-.45,-Math.PI/2+.45);c.closePath();c.fill();
   c.fillStyle='#fff';c.strokeStyle='#0b0814';c.lineWidth=2;c.beginPath();c.moveTo(0,-11);c.lineTo(8,8);c.lineTo(0,4);c.lineTo(-8,8);c.closePath();c.fill();c.stroke();c.restore();
