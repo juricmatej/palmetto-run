@@ -2942,8 +2942,17 @@ if(DBG)Object.defineProperties(DBG,{qLock:{get:()=>qLock},settings:{get:()=>sett
 let room=null,myPeer=null,netState='connecting',netWhy='';
 const PV=1; // presence protocol version, bump when the presence shape changes
 const killXpT={},pvWarn=new Set();
-// Outside Claude (e.g. the Cloudflare site) the game joins one shared lobby over a WebSocket
-// at /ws (see worker/index.js). This object mimics the parts of Claude's room API the game uses.
+// The city comes from the URL: ?room=code, else the last code used on this device, else the
+// public city. A room is 1 to 10 lowercase letters and digits; anything else is invalid.
+function roomFrom(u){try{const v=new URL(u,'http://x').searchParams.get('room');return v&&/^[a-z0-9]{1,10}$/.test(v.toLowerCase())?v.toLowerCase():'main'}catch(e){return 'main'}}
+const loadRoom=()=>{try{const s=(localStorage.getItem('pr-room')||'').toLowerCase();return /^[a-z0-9]{1,10}$/.test(s)?s:'main'}catch(e){return 'main'}};
+const saveRoom=r=>{try{localStorage.setItem('pr-room',r)}catch(e){}};
+const inClaude=!!(window.claude&&typeof window.claude.use==='function');
+let roomName=/[?&]room=/.test(location.search)?roomFrom(location.search):loadRoom();
+const roomTag=inClaude||roomName==='main'?'':' \u00b7 '+roomName.toUpperCase();
+saveRoom(roomName);
+// Outside Claude (e.g. the Cloudflare site) the game joins the lobby over a WebSocket at
+// /ws?room=<room> (see worker/index.js). This object mimics the parts of Claude's room API the game uses.
 function wsRoom(url){
   let ws=null,mine={},self=null,snap=Object.freeze([]),dirty=false;const others=new Map(),subs=[];
   const rebuild=()=>{const list=[];if(self)list.push({peer:self,sameTab:true,isMe:true,kind:'viewer',guest:false,presence:mine});
@@ -2968,7 +2977,7 @@ const hex=(v,d='#ff3ea5')=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v)?v:d;
 const str=v=>typeof v==='string'?v.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/g,'').slice(0,16):'';
 (async()=>{
   try{
-    if(!window.claude||typeof window.claude.use!=='function'){if(lobbyHost){room=wsRoom((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');room.onPeers(ch=>{for(const p of ch.peers)if(p.sameTab)myPeer=p.peer})}else{netState='solo';netWhy='no-viewer'}return}
+    if(!window.claude||typeof window.claude.use!=='function'){if(lobbyHost){room=wsRoom((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws?room='+roomName);room.onPeers(ch=>{for(const p of ch.peers)if(p.sameTab)myPeer=p.peer})}else{netState='solo';netWhy='no-viewer'}return}
     room=await window.claude.use('room');
     if(!room){netState='solo';netWhy='not-admitted';return}
     netState='online';
@@ -3018,6 +3027,7 @@ function publish(dt){
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
+if(DBG)Object.defineProperties(DBG,{room:{get:()=>roomName},roomFrom:{get:()=>roomFrom}});
 
 // ---------- ui ----------
 function feed(t){const d=document.createElement('div');d.textContent=t;$('feed').appendChild(d);setTimeout(()=>d.remove(),5000);while($('feed').children.length>5)$('feed').firstChild.remove();phLogAdd(t)}
@@ -3034,7 +3044,7 @@ function ui(dt){phoneStep(dt);
   $('hp').style.width=clamp(me.hp,0,100)+'%';$('hp').style.background=me.hp<35?'var(--danger)':'var(--cyan)';
   $('stamBar').hidden=stam>=1;$('stam').style.width=stam*100+'%';
   {const w=WEAPONS[WI[weap]],el=$('weapon');el.firstChild.nodeValue=me.jet?'Jet missiles':me.heli?'Heli rockets':w.name;el.querySelector('span').textContent=me.jet||me.heli||w.id==='pistol'?'\u221e':String(ammo[w.id]||0)}
-  {const nb=$('netb');if(netState==='online'){nb.className='on';nb.textContent=`\u25cf Online \u00b7 ${remotes.size+1} in city`}else if(netState==='solo'){nb.className='off';nb.textContent='Solo \u00b7 '+(netWhy||'not connected')}else{nb.className='';nb.textContent='Connecting'}}
+  {const nb=$('netb'),on=netState==='online',cls=on?'on':netState==='solo'?'off':'',t=on?`\u25cf Online \u00b7 ${remotes.size+1} in city${roomTag}`:netState==='solo'?'Solo \u00b7 '+(netWhy||'not connected'):'Connecting';if(nb.textContent!==t)nb.textContent=t;if(nb.className!==cls)nb.className=cls}
   if(state==='shop')$('shopCash').textContent='$'+me.cash.toLocaleString('en-US');
   if((saveT+=.1)>3){saveT=0;saveArsenal()}
   {const lk=$('lock');lk.hidden=!lockTarget;if(lockTarget)lk.textContent='Locked: '+lockTarget.name;let inc=false;if(myPeer&&state==='play')for(const b of bullets)if(b.owner==='remote'&&b.home&&b.home.peer===myPeer){inc=true;break}$('warn').hidden=!inc}
@@ -4169,7 +4179,24 @@ function start(data){
     try{localStorage.setItem('pr-name',myName);localStorage.setItem('pr-color',myColor)}catch(_){}
     audioInit();lockMouse();$('start').hidden=true;$('name').blur();state='play';me.inv=2.5;
     if(isTouch)$('touch').hidden=false;
+    if(!inClaude&&roomName!=='main')feed('Private city '+roomName.toUpperCase()+'. Only players with the link can join.');
   });
+  // City panel: current room, join by code, copy the link. Claude keeps its single room.
+  $('cityLine').textContent=inClaude?'Claude room':'City: '+roomName.toUpperCase()+(roomName==='main'?' \u00b7 public':'');
+  $('cityPanel').hidden=inClaude;
+  if(!inClaude){
+    $('roomCode').value=roomName==='main'?'':roomName;
+    const goRoom=r=>{myName=str($('name').value.trim())||myName;try{localStorage.setItem('pr-name',myName);localStorage.setItem('pr-color',myColor)}catch(e){};saveRoom(r);const q=new URLSearchParams(location.search);if(r==='main')q.delete('room');else q.set('room',r);location.search=q.toString()};
+    const joinRoom=()=>goRoom(roomFrom('?room='+$('roomCode').value.trim()));
+    $('roomJoin').onclick=joinRoom;
+    $('roomCode').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();joinRoom()}});
+    $('roomNew').onclick=()=>{const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let c='';for(let i=0;i<6;i++)c+=A[Math.floor(rand()*32)];goRoom(c.toLowerCase())};
+    $('roomPublic').onclick=()=>goRoom('main');
+    $('roomCopy').onclick=()=>{const u=location.origin+location.pathname+(roomName==='main'?'':'?room='+roomName);
+      const done=()=>{const b=$('roomCopy');b.textContent='Copied';setTimeout(()=>b.textContent='Copy link',1200)};
+      const fallback=()=>{const t=document.createElement('textarea');t.value=u;t.style.cssText='position:fixed;opacity:0';document.body.appendChild(t);t.select();let yes=false;try{yes=document.execCommand('copy')}catch(e){}t.remove();if(yes)done();else{try{prompt('Copy this link',u)}catch(e){}}};
+      if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(done,fallback);else fallback()};
+  }
   terrainCheck();seedWorld();staticBatch();
   if(data&&data.playing){$('start').hidden=true;state='play';if(isTouch)$('touch').hidden=false}
   let last=performance.now();

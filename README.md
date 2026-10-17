@@ -10,7 +10,7 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 
 | Where | Multiplayer | How |
 |---|---|---|
-| Cloudflare (public site) | Yes, one shared lobby for everyone | https://palmetto-run.palleto.workers.dev (no account needed) |
+| Cloudflare (public site) | Yes, the public city or a private `?room=` link | https://palmetto-run.palleto.workers.dev (no account needed) |
 | Claude Artifact | Yes, everyone with the page open shares one city | Open the artifact link (must be signed in to Claude and have access) |
 | Locally with the lobby | Yes | `npm run preview`, then open http://localhost:8787 in two tabs |
 | Locally, quick | No (solo) | `npm run dev`, then open http://localhost:8080 |
@@ -92,7 +92,9 @@ Coordinates: game logic is 2D on the ground plane (`x`, `y`) with a separate hei
 
 ### Multiplayer
 
-When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude, `room` is unavailable and the game runs solo. The badge above the minimap shows the reason. `npm run lobby:test` starts the Cloudflare lobby locally and checks the relay end to end; presence carries a protocol version (`pv`), and a player on a different version is asked to reload instead of being dropped.
+When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude the game connects to the Cloudflare lobby when the page is served from one, and runs solo otherwise. The badge above the minimap shows the state. `npm run lobby:test` starts the Cloudflare lobby locally and checks the relay end to end; presence carries a protocol version (`pv`), and a player on a different version is asked to reload instead of being dropped.
+
+The default city is public: everyone who opens the site shares it. Add `?room=code` to the link, or type a code on the start screen, to get a separate city that only players with that code can see; a tab remembers the last code. A code is not a secret, just a door: anyone with the link can join, so do not reuse a password as a room name.
 
 ## Publish as a Claude Artifact
 
@@ -120,14 +122,14 @@ The `room` capability is what turns on multiplayer. Without it the artifact runs
 
 ## Host it on Cloudflare (free, with multiplayer)
 
-`worker/index.js` is a Cloudflare Worker that serves `dist/` and runs **one shared lobby** in a Durable Object at `/ws`. When the game is not running inside Claude, it connects there automatically (`wsRoom()` in `game.js`).
+`worker/index.js` is a Cloudflare Worker that serves `dist/` and runs the multiplayer lobby in Durable Objects at `/ws`. Each `?room=` code gets its own object, so groups in different rooms never meet. When the game is not running inside Claude, it connects there automatically (`wsRoom()` in `game.js`).
 
 ```bash
 npx wrangler login   # once
 npm run deploy       # builds and deploys
 ```
 
-`npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. The lobby holds up to 32 players.
+`npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. Each city holds up to 32 players.
 
 ### Automatic deploys
 
