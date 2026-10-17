@@ -502,7 +502,7 @@ function buildHillMini(MS,MO){
   return cv}
 // fog thins in the hills so the city lights show from the overlook at night
 let fogHill=false;
-function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;scene.fog.density=on?.00026:.00105}
+function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;skyLook()}
 
 // ---------- landmarks ----------
 // Hand-placed places on the blocks in LANDBLK. Their buildings are solid boxes (kind 'lm') with a mesh in landmarkMeshes() (models section).
@@ -781,7 +781,7 @@ function drive(c,thr,steer,hand,dt){
   else fwd-=Math.sign(fwd)*Math.min(Math.abs(fwd),coast*dt);
   if(hand)fwd-=Math.sign(fwd)*Math.min(Math.abs(fwd),hl*dt);
   fwd=clamp(fwd,-130,max);
-  lat-=lat*Math.min(1,lg*dt);
+  lat-=lat*Math.min(1,lg*wxGrip*dt);
   c.a+=steer*2.7*clamp(fwd/150,-1,1)*dt*(hand?1.35:1)*(P&&Math.abs(fwd)>.75*max?.75:1);
   c.vx=fx*fwd-fy*lat;c.vy=fy*fwd+fx*lat;
   c.x+=c.vx*dt;c.y+=c.vy*dt;
@@ -3581,6 +3581,46 @@ function pitTick(dt){
   }
 }
 if(DBG)Object.defineProperties(DBG,{pit:{get:()=>pitState},pitStart:{get:()=>pitStart}});
+// ---------- weather ----------
+// One in-game day is 20 real minutes. clock 0 is midnight. Each page load starts at 0.9 (night, the old look).
+// Timers run at 4 Hz (wxTick). Rain is one LineSegments object with a pooled buffer moved in place.
+let clock=.9,wx='clear',wxLeft=rr(90,270),wxAcc=0,wxGrip=1;
+const WXS=['clear','overcast','rain'],C=h=>new THREE.Color(h),V=(x,y,z)=>new THREE.Vector3(x,y,z);
+// sky keys at clock 0 (midnight), .25 (dawn), .5 (day), .75 (dusk), 1 (midnight). Night keys are the old look.
+const SKYK=[
+ {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1},
+ {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(-1,.5,.2),sky:.5},
+ {bg:C('#79b8ee'),fog:C('#b7d8f0'),sun:C('#fff4e0'),si:1.2,hi:1.3,pos:V(-.3,1,.3),sky:0},
+ {bg:C('#4a2046'),fog:C('#8a4a5a'),sun:C('#ffb07a'),si:.9,hi:1,pos:V(1,.5,-.2),sky:.5},
+ {bg:C('#1a0c2e'),fog:C('#2e1442'),sun:C('#a9bbff'),si:.5,hi:.85,pos:V(-.6,1,.4),sky:1}];
+const WXK={clear:{si:1,fog:1,dim:1,grip:1,road:C('#ffffff')},overcast:{si:.6,fog:1.15,dim:.82,grip:1,road:C('#ffffff')},rain:{si:.4,fog:1.6,dim:.6,grip:.85,road:C('#8c97ad')}},INSIDE_FOG=C('#160f28');
+const RAIN_N=300,rainPos=new Float32Array(RAIN_N*6),rainGeo=new THREE.BufferGeometry();
+rainGeo.setAttribute('position',new THREE.BufferAttribute(rainPos,3));
+const rain=new THREE.LineSegments(rainGeo,new THREE.LineBasicMaterial({color:'#b9c8ff',transparent:true,opacity:.6,depthWrite:false}));
+rain.frustumCulled=false;rain.visible=false;
+for(let o=0;o<rainPos.length;o+=6){rainPos[o]=rr(-80,80);rainPos[o+1]=rr(-60,40);rainPos[o+2]=rr(-80,80);rainPos[o+3]=rainPos[o]+1.5;rainPos[o+4]=rainPos[o+1]+14;rainPos[o+5]=rainPos[o+2]}
+function rainStep(dt){if(!rain.visible)return;rain.position.copy(camera.position);const d=dt*400,P=rainPos;
+  for(let o=0;o<P.length;o+=6){let y=P[o+1]-d;if(y<-60){y+=100;P[o]=rr(-80,80);P[o+2]=rr(-80,80)}P[o+1]=y;P[o+3]=P[o]+1.5;P[o+4]=y+14;P[o+5]=P[o+2]}
+  rainGeo.attributes.position.needsUpdate=true}
+// sets sky, fog, sun and road colours from the clock and weather. Interiors use the night look with clear weather.
+function skyLook(){
+  const inside=!!me.inside,W=WXK[inside?'clear':wx],f=(settings.time==='night'||inside?0:clock)*4,i=Math.min(3,f|0),t=f-i,A=SKYK[i],B=SKYK[i+1];
+  scene.background.lerpColors(A.bg,B.bg,t).multiplyScalar(W.dim);
+  scene.fog.color.lerpColors(A.fog,B.fog,t).multiplyScalar(W.dim);
+  if(inside)scene.fog.color.copy(INSIDE_FOG);
+  scene.fog.density=(fogHill?.00026:.00105)*(inside?1:W.fog);
+  moon.color.lerpColors(A.sun,B.sun,t);moon.position.lerpVectors(A.pos,B.pos,t);
+  moon.intensity=(A.si+(B.si-A.si)*t)*W.si;hemi.intensity=A.hi+(B.hi-A.hi)*t;
+  skyDome.visible=A.sky+(B.sky-A.sky)*t>.5;
+  asphMat.color.copy(W.road);wxGrip=W.grip;rain.visible=wx==='rain'&&!inside;
+}
+function wxTick(dt){rainStep(dt);wxAcc+=dt;if(wxAcc<.25)return;const s=wxAcc;wxAcc=0;
+  clock=(clock+s/1200)%1;wxLeft-=s;
+  if(wxLeft<=0){wx=WXS[(WXS.indexOf(wx)+1+(rand()*2|0))%3];wxLeft=rr(90,270)}
+  skyLook()}
+if(DBG)Object.defineProperties(DBG,{weather:{get:()=>({clock,wx})}});
+if(DBG)DBG.setWeather=k=>{wx=k;wxLeft=rr(90,270);skyLook()};
+if(DBG)DBG.setClock=c=>{clock=c;skyLook()};
 
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
@@ -3670,12 +3710,13 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{keys[e.code]=false;if(codeToAction(e.code)==='wheel')closeWheel(true)});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;mouse.down=false;touchFire=false;touchRev=false;sprintOn=sprintUsed=false;if(capAct){capAct=null;capMsg='';paintKeys()}closeWheel(false)});
 const look={yaw:-Math.PI/2,pitch:.2,id:null,lx:0,ly:0,off:0,offT:-9};let lastFireT=-9;
-let settings={sens:1,inv:false,assist:8,veh:1,scope:.3,sprintMode:'hold'},qLock=null;
+let settings={sens:1,inv:false,assist:8,veh:1,scope:.3,sprintMode:'hold',time:'auto'},qLock=null;
 function saveSettings(){try{localStorage.setItem('pr-settings',JSON.stringify(settings))}catch(_){}}
 function openSettings(){capAct=null;capMsg='';
   $('setSens').value=settings.sens;$('setInv').checked=settings.inv;$('setAssist').value=String(settings.assist);
-  $('setVeh').value=String(settings.veh);$('setScope').value=String(settings.scope);$('setSprintMode').value=settings.sprintMode;
+  $('setVeh').value=String(settings.veh);$('setScope').value=String(settings.scope);$('setSprintMode').value=settings.sprintMode;$('setTime').value=settings.time;
   paintKeys();openModal('settings')}
+$('setTime').addEventListener('change',e=>{settings.time=e.target.value==='night'?'night':'auto';saveSettings();skyLook()});
 $('setSens').addEventListener('input',e=>{settings.sens=+e.target.value;saveSettings()});
 $('setInv').addEventListener('change',e=>{settings.inv=e.target.checked;saveSettings()});
 $('setAssist').addEventListener('change',e=>{settings.assist=+e.target.value;saveSettings()});
@@ -4129,7 +4170,7 @@ function ui(dt){phoneStep(dt);chatStep();
 
 // ---------- update ----------
 function update(dt){
-  time+=dt;
+  time+=dt;wxTick(dt);
   lockTarget=(state==='play'&&weap==='homing'&&!me.inside)?findLock():null;
   A.x=me.inside&&me.door?me.door.x:me.x;A.y=me.inside&&me.door?me.door.y:me.y;
   syncRoom(dt);
@@ -4290,7 +4331,7 @@ scene.fog=new THREE.FogExp2('#2e1442',0.00105);
 const camera=new THREE.PerspectiveCamera(62,1,1,7000);
 function resize3d(){renderer.setSize(VW,VH,false);camera.aspect=VW/Math.max(1,VH);camera.updateProjectionMatrix()}
 addEventListener('resize',resize3d);resize3d();
-scene.add(new THREE.HemisphereLight('#6a58a8','#1a1020',0.85));
+const hemi=new THREE.HemisphereLight('#6a58a8','#1a1020',0.85);scene.add(hemi);
 scene.add(new THREE.AmbientLight('#3a2d55',0.45));
 const moon=new THREE.DirectionalLight('#a9bbff',0.5);moon.position.set(-0.6,1,0.4);scene.add(moon);
 
@@ -4380,9 +4421,10 @@ const shopMat=new THREE.MeshBasicMaterial({map:rtex(256,64,(g)=>{g.fillStyle='#1
 if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).length}});
 
 // ground
+const asphMat=new THREE.MeshLambertMaterial({map:asphTex}); // weather tints this in rain
 {const water=new THREE.Mesh(new THREE.PlaneGeometry(W*5,W*5),new THREE.MeshLambertMaterial({color:'#0b2436',emissive:'#05131f'}));water.rotation.x=-Math.PI/2;water.position.set(W/2,-3,W/2);scene.add(water);
  const sand=new THREE.Mesh(new THREE.PlaneGeometry(W+80,W+80),new THREE.MeshLambertMaterial({color:'#3d3242'}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-1,W/2);scene.add(sand);
- const asph=new THREE.Mesh(asphGeo,new THREE.MeshLambertMaterial({map:asphTex}));asph.rotation.x=-Math.PI/2;asph.position.set(W/2,0,W/2);scene.add(asph);}
+ const asph=new THREE.Mesh(asphGeo,asphMat);asph.rotation.x=-Math.PI/2;asph.position.set(W/2,0,W/2);scene.add(asph);}
 
 // lane dashes and crosswalks
 {const per=Math.ceil(W/40),dash=new THREE.InstancedMesh(new THREE.BoxGeometry(20,.3,2),new THREE.MeshBasicMaterial({color:'#9c8240'}),2*(N+1)*per);let n=0;
@@ -5212,9 +5254,9 @@ function skyPaint(g,w,h){
   rep(mx,X=>{const mg=g.createRadialGradient(X,my,0,X,my,9);mg.addColorStop(0,'#ffffff');mg.addColorStop(.8,'#eef2ff');mg.addColorStop(1,'rgba(220,228,255,.4)');g.fillStyle=mg;g.beginPath();g.arc(X,my,9,0,TAU);g.fill()});
 }
 const skyDome=new THREE.Mesh(new THREE.SphereGeometry(6500,48,24),new THREE.MeshBasicMaterial({map:canvasTex(1024,512,skyPaint),side:THREE.BackSide,fog:false,depthWrite:false}));
-skyDome.frustumCulled=false;skyDome.renderOrder=-1;scene.add(skyDome);
+skyDome.frustumCulled=false;skyDome.renderOrder=-1;scene.add(skyDome);scene.add(rain);
 // the outdoor fog colour is the horizon; indoors keeps the old colour so interiors look exactly as before
-let fogIn=false;function roomFog(){const on=!!me.inside;if(on===fogIn)return;fogIn=on;scene.fog.color.set(on?'#160f28':'#2e1442')}
+let fogIn=false;function roomFog(){const on=!!me.inside;if(on===fogIn)return;fogIn=on;skyLook()}
 
 // camera state
 const camPos=new THREE.Vector3(me.x,40,me.y+60);
@@ -5498,7 +5540,7 @@ for(const[x,y]of VENDORS){const p=spawnPed(x,y);p.kind='vendor';p.vendor=true;p.
 const SWATCH=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff','#3dd68c','#ff6b3d','#4aa3ff','#f3ecff'];
 function start(data){
   try{const n=localStorage.getItem('pr-name'),c=localStorage.getItem('pr-color');if(n)myName=n;if(c&&SWATCH.includes(c))myColor=c}catch(e){}
-  try{const s=JSON.parse(localStorage.getItem('pr-settings')||'null');if(s&&typeof s==='object'){if(Number.isFinite(s.sens))settings.sens=clamp(s.sens,.3,3);if(typeof s.inv==='boolean')settings.inv=s.inv;if([0,4,8].includes(s.assist))settings.assist=s.assist;if(Number.isFinite(s.veh))settings.veh=clamp(s.veh,.3,2);if(Number.isFinite(s.scope))settings.scope=clamp(s.scope,.2,1);if(s.sprintMode==='toggle'||s.sprintMode==='hold')settings.sprintMode=s.sprintMode}}catch(e){}
+  try{const s=JSON.parse(localStorage.getItem('pr-settings')||'null');if(s&&typeof s==='object'){if(Number.isFinite(s.sens))settings.sens=clamp(s.sens,.3,3);if(typeof s.inv==='boolean')settings.inv=s.inv;if([0,4,8].includes(s.assist))settings.assist=s.assist;if(Number.isFinite(s.veh))settings.veh=clamp(s.veh,.3,2);if(Number.isFinite(s.scope))settings.scope=clamp(s.scope,.2,1);if(s.sprintMode==='toggle'||s.sprintMode==='hold')settings.sprintMode=s.sprintMode;if(s.time==='night'||s.time==='auto')settings.time=s.time}}catch(e){}
   try{loadBinds(JSON.parse(localStorage.getItem('pr-keys')||'null'))}catch(e){}
   try{loadArsenal(JSON.parse(localStorage.getItem('pr3d-arsenal')||'null'))}catch(e){}
   if(data&&typeof data.name==='string'){myName=data.name;myColor=hex(data.color,myColor);loadArsenal(data)}
