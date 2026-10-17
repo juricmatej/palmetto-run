@@ -8,3 +8,6 @@ node_modules/
 !.dev.vars.example
 .env*
 !.env.example
+
+# stray embedded checkout in the working tree, never part of this project
+IN this project are you able to continue/
