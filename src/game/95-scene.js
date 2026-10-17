@@ -233,12 +233,23 @@ const tchev=new THREE.MeshLambertMaterial({map:canvasTex(64,64,(g,w,h)=>{g.fillS
 tchev.map.wrapS=tchev.map.wrapT=THREE.RepeatWrapping;
 function terrainMesh(s){
   const[i0,j0,i1,j1]=s.box,nw=i1-i0+1,nh=j1-j0+1,pos=[],uv=[],ix=[],hz=(i,j)=>HM.a[j*HM.gw+i];
-  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tchev:s.mat==='wood'?twood:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
+  const bd=district(Math.floor((s.x-R/2)/B),Math.floor((s.y-R/2)/B)),mat=s.kind==='ramp'?tconc:s.mat==='wood'?twood:bd==='park'?tgrass:bd==='beach'?tsand:tconc;
   const sc=mat===tchev?1/40:mat===twood?1/24:mat===tconc?1/(B-R):1/IN;
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell;pos.push(x,hz(i,j),z);uv.push(x*sc,z*sc)}
   for(let j=0;j<nh-1;j++)for(let i=0;i<nw-1;i++){const a=j*nw+i,b=a+1,c=a+nw,d=c+1;if(Math.max(hz(i0+i,j0+j),hz(i0+i+1,j0+j),hz(i0+i,j0+j+1),hz(i0+i+1,j0+j+1))<=0)continue;ix.push(a,c,b,b,c,d)}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();
-  return new THREE.Mesh(g,mat);
+  const out=new THREE.Mesh(g,mat);
+  if(s.kind!=='ramp')return out;
+  // hazard band: the last 6 units before the lip, flat chevrons, normals forced up
+  const ca=Math.cos(s.a),sa=Math.sin(s.a),px=-sa,py=ca,hw=s.w/2-1,
+   at=(d,l)=>{const hh=Math.max(0,s.h*(1-d/s.len));return[s.x+ca*(s.len-d)+px*l,hh+.35,s.y+sa*(s.len-d)+py*l]},
+   q=[at(0,-hw),at(0,hw),at(6,-hw),at(6,hw)],pp=[];
+  for(const v of q)pp.push(v[0],v[1],v[2]);
+  const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));
+  bg.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,1,0,0,1,1,1],2));
+  bg.setIndex([0,1,2,1,3,2]);bg.computeVertexNormals();
+  const na=bg.attributes.normal;for(let i=0;i<na.count;i++)na.setXYZ(i,0,1,0);
+  return [out,new THREE.Mesh(bg,tchev)];
 }
 // footpaths: visual strips that follow the slope from a park edge to the mound top (no physics)
 const tpath=new THREE.MeshLambertMaterial({color:'#5d5670'});
@@ -250,7 +261,7 @@ function footpath(x0,y0,x1,y1,w){
   return new THREE.Mesh(g,tpath)
 }
 for(const[x0,y0,x1,y1]of[[hillA.x,hillA.y,hillA.x,440],[hillA.x,hillA.y,1440,hillA.y],[hillB.x,hillB.y,1440,hillB.y],[hillB.x,hillB.y,hillB.x,562]])scene.add(footpath(x0,y0,x1,y1,10));
-for(const s of TERRAIN)scene.add(terrainMesh(s));
+for(const s of TERRAIN){const m=terrainMesh(s);Array.isArray(m)?scene.add(...m):scene.add(m)}
 for(const m of hillMeshes())scene.add(m);
 // buildings
 const wallTex=canvasTex(256,256,(g)=>{g.fillStyle='#a49ebb';g.fillRect(0,0,256,256);g.fillStyle='#8c86a3';for(let y=0;y<8;y++)g.fillRect(0,y*32+29,256,3);g.fillStyle='#262233';for(let y=0;y<8;y++)for(let x=0;x<8;x++)g.fillRect(8+x*32,8+y*32,18,18)});
@@ -396,12 +407,17 @@ let ferris=null;
  }
 // street furniture, placed by rule along the road grid (every block side, every intersection corner)
 const STREET_PROPS=[];
-{const s=B-R,lp=[],tl=[],hy=[],bn=[],bch=[],sh=[],bl=[],AV=[2,4,6],mx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
- for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x0=bi*B+R,y0=bj*B+R,t=blockType[bj*N+bi];
+{const s=B-R,lp=[],tl=[],hy=[],bn=[],bch=[],sh=[],bl=[],tr=[],pm=[],AV=[2,4,6],mx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x0=bi*B+R,y0=bj*B+R,t=blockType[bj*N+bi],rq=seeded(bi*53+bj*29+11);
    for(const o of[25,135,245])lp.push([x0+7,y0+o,-1,0],[x0+s-7,y0+o,1,0],[x0+o,y0+7,0,-1],[x0+o,y0+s-7,0,1]); // lamps every 110 on both sides of each road
    for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]); // corner housing; index 4 = cycle phase group
    if(t!=='airport'){hy.push([x0+10,y0+80]);for(const o of[80,190])bl.push([x0+4,y0+o],[x0+s-4,y0+o])}
-   if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry])}
+   if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry]);
+   // street trees (suburb, city, midtown, hood) and boulevard palms (beach), 13 in from the block edge
+   if(t==='suburb')for(const o of[46,150,254])tr.push([x0+13,y0+o],[x0+s-13,y0+o],[x0+o,y0+13],[x0+o,y0+s-13]);
+   else if(t==='city'){const o=rq()<.5?[90]:[70,210];for(const u of o)tr.push([x0+13,y0+u],[x0+s-13,y0+u],[x0+u,y0+13],[x0+u,y0+s-13])}
+   else if(t==='hood'&&rq()<.6)tr.push([x0+13,y0+180],[x0+s-13,y0+180]);
+   else if(t==='beach')for(const o of[40,140,240])pm.push([x0+12,y0+o,rq()*TAU],[x0+s-12,y0+o,rq()*TAU]);}
  for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1])||inAF(lp[i][0],lp[i][1]))lp.splice(i,1); // no lamp in a ramp's landing zone or in the airfield
  for(let i=tl.length-1;i>=0;i--)if(inAF(tl[i][0],tl[i][1]))tl.splice(i,1); // no traffic light in the airfield
  for(let i=bl.length-1;i>=0;i--)if(rampZone(bl[i][0],bl[i][1])||DOORS.some(d=>Math.hypot(d.x-bl[i][0],d.y-bl[i][1])<30))bl.splice(i,1); // no bollard in a ramp zone or at a door
@@ -410,11 +426,20 @@ const STREET_PROPS=[];
  for(const[x,y,ry]of sh)bch.push([x,y,ry]);
  STREET_PROPS.push(...hy,...bn,...bl,...sh);
  const lam=c=>new THREE.MeshLambertMaterial({color:c}),IM=(g,m,n)=>new THREE.InstancedMesh(g,m,Math.max(1,n));
- // lamps: slim pole with an arm, small tapered shade facing down and a warm bulb under it
+ // street trees and boulevard palms, instanced, clear of doors, ramps and buildings
+ {const qc=(x,y)=>!rampZone(x,y)&&!inAF(x,y)&&groundZ(x,y)===0&&!DOORS.some(d=>Math.hypot(d.x-x,d.y-y)<26)&&!solidAt(x,y,2);
+  const T=tr.filter(([x,y])=>qc(x,y)),P=pm.filter(([x,y])=>qc(x,y));
+  const tk=IM(new THREE.CylinderGeometry(1.1,1.5,9,6),lam('#4a3426'),T.length),tc2=IM(new THREE.IcosahedronGeometry(1,0),lam('#2a7a4c'),T.length);
+  T.forEach(([x,y],i)=>{const sc=.85+((x*7+y*13)%100)/100*.5;inst(tk,i,x,4.5*sc,y,0,1,sc,1);inst(tc2,i,x,11.5*sc,y,(x+y)%6,sc*3.4,sc*3,sc*3.4)});
+  tk.count=tc2.count=T.length;scene.add(tk,tc2);
+  const pk=IM(new THREE.CylinderGeometry(1.4,2.2,16,6),lam('#6b4a32'),P.length),pf=IM(new THREE.BoxGeometry(24,1,6),lam('#2f8a4e'),P.length*6);
+  P.forEach(([x,y,rot],i)=>{inst(pk,i,x,8,y,0);for(let k=0;k<6;k++){const a=rot+k/6*TAU;inst(pf,i*6+k,x+Math.cos(a)*10,15,y+Math.sin(a)*10,-a)}});
+  pk.count=P.length;pf.count=P.length*6;scene.add(pk,pf);}
+ // lamps: slim pole with an arm and a small tapered six-sided shade with a warm bulb under it
  const post=IM(mergeGeos([[new THREE.CylinderGeometry(.9,1.3,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#2c2938'),lp.length),
-  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,6,4),fadeC(new THREE.MeshBasicMaterial({color:'#ffdf9e'}),'color','#ffdf9e','#8f8776'),lp.length),
+  hd=IM(mergeGeos([[new THREE.CylinderGeometry(2.1,2.6,1.1,6),mx(0,.55,0)],[new THREE.CylinderGeometry(.7,.7,1.6,6),mx(0,-.6,0)]]),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.62,6,4),fadeC(new THREE.MeshBasicMaterial({color:'#ffdf9e'}),'color','#ffdf9e','#8f8776'),lp.length),
   pool=IM(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(255,176,90,.55)'),.4),'opacity',.4,.06),lp.length);
- lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.4,hz);inst(hb,i,hx,38.35,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
+ lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.5,hz);inst(hb,i,hx,38.5,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,96,96,1,-Math.PI/2)});
  // traffic lights: pole, housing and two lamp cubes per corner; colours cycle green/yellow/red in trafficStep via one instanceColor pass per phase change
  const tp=IM(new THREE.CylinderGeometry(.8,1,24,6),post.material,tl.length),th=IM(new THREE.BoxGeometry(4,9,4),lam('#17131f'),tl.length),
   tc=IM(new THREE.BoxGeometry(2.6,2.6,2.6),new THREE.MeshBasicMaterial({color:'#ffffff'}),tl.length*2),
@@ -439,22 +464,24 @@ if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,pro
  const vc=(g,hex)=>{const c=new THREE.Color(hex),n=g.attributes.position.count,a=new Float32Array(n*3);for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g},
   pBox=vc(new THREE.BoxGeometry(9,2.6,4),'#5a5068'),pLeaf=vc(new THREE.IcosahedronGeometry(2.1,0),'#2a7a4c'),
   bSeat=vc(new THREE.BoxGeometry(14,1.2,4.5),'#5a4030'),bBack=vc(new THREE.BoxGeometry(14,5,.8),'#5a4030'),bArm=vc(new THREE.BoxGeometry(1,3,4),'#5a4030'),
-  binG=vc(new THREE.CylinderGeometry(1.6,1.9,4,6),'#2f3a3c');
+  binG=vc(new THREE.CylinderGeometry(1.6,1.9,4,6),'#2f3a3c'),hEdge=vc(new THREE.BoxGeometry(26,3.4,5),'#2a6a3a');
  // local frame: front is +z, which faces the road
  const prop=(x,y,z,ry,items)=>{const M=new THREE.Matrix4().makeRotationY(ry).setPosition(x,y,z);for(const[g,lx,ly,lz]of items)parts.push([g,new THREE.Matrix4().multiplyMatrices(M,new THREE.Matrix4().makeTranslation(lx,ly,lz))])};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi];if(t==='airport')continue;
-  const x0=bi*B+R,y0=bj*B+R,s=B-R,r=seeded(bi*31+bj*7+5),street=t==='city'||t==='hood'||t==='industrial';
+  const x0=bi*B+R,y0=bj*B+R,s=B-R,r=seeded(bi*31+bj*7+5),city=t==='city',hood=t==='hood'||t==='industrial',sub=t==='suburb',pk=t==='park',bc=t==='beach',street=t!=='lot'&&t!=='plaza'&&t!=='skate'&&t!=='pit'&&t!=='marina';
   for(let side=0;side<4;side++){ // 0 west, 1 east, 2 north, 3 south
    const ox=side===0?-1:side===1?1:0,oz=side===2?-1:side===3?1:0,ry=Math.atan2(ox,oz);
    const at=(u,d)=>side<2?[side===0?x0+d:x0+s-d,y0+u]:[x0+u,side===2?y0+d:y0+s-d]; // u along the side, d in from its edge
    if([at(0,0),at(s/2,0),at(s,0)].every(([x,z])=>onFlat(x,z))){const[kx,kz]=at(s/2,1.1),k=new THREE.Mesh(side<2?new THREE.BoxGeometry(2.2,1.6,s):new THREE.BoxGeometry(s,1.6,2.2),kerbMat);k.position.set(kx,.8,kz);scene.add(k)}
    if(!street)continue;
-   const spot=(u,d)=>{const[x,z]=at(u,d);return onFlat(x,z)&&!DOORS.some(v=>Math.hypot(v.x-x,v.y-z)<30)?[x,z]:null},plant=[[pBox,0,1.3,0],[pLeaf,-2.2,3.4,0],[pLeaf,2.2,3.6,0]];
+   const spot=(u,d)=>{const[x,z]=at(u,d);return onFlat(x,z)&&!DOORS.some(v=>Math.hypot(v.x-x,v.y-z)<30)?[x,z]:null},plant=[[pBox,0,1.3,0],[pLeaf,-2.2,3.4,0],[pLeaf,2.2,3.6,0]],
+    seat=[[bSeat,0,3.4,0],[bBack,0,6,-2.2],[bArm,-5.5,1.5,0],[bArm,5.5,1.5,0]],bin=[[binG,0,2,0]],hedge=[[hEdge,0,1.6,0]];
    let p;
-   if(r()<.7&&(p=spot(60,16)))prop(p[0],1.25,p[1],ry,plant);
-   if(r()<.5&&(p=spot(260,16)))prop(p[0],1.25,p[1],ry,plant);
-   if(r()<.5&&(p=spot(160,17)))prop(p[0],1.25,p[1],ry,[[bSeat,0,3.4,0],[bBack,0,6,-2.2],[bArm,-5.5,1.5,0],[bArm,5.5,1.5,0]]);
-   if(r()<.6&&(p=spot(44,12)))prop(p[0],1,p[1],ry,[[binG,0,2,0]]);
+   if((city||hood)&&r()<.7&&(p=spot(60,16)))prop(p[0],1.25,p[1],ry,plant);
+   if((city||hood)&&r()<.5&&(p=spot(260,16)))prop(p[0],1.25,p[1],ry,plant);
+   if((pk||sub?r()<.85:r()<.5)&&(p=spot(160,17)))prop(p[0],1.25,p[1],ry,seat);
+   if((pk?.2:bc?.3:sub?.4:.6)>r()&&(p=spot(44,12)))prop(p[0],1,p[1],ry,bin);
+   if(sub&&r()<.8&&(p=spot(110,13)))prop(p[0],1.25,p[1],ry,hedge);
   }}
  if(DBG)Object.defineProperty(DBG,'furniture',{get:()=>parts.length});
  if(parts.length)scene.add(new THREE.Mesh(mergeGeos(parts),new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true})));

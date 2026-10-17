@@ -143,7 +143,7 @@ function render(dt){
   meMesh.position.set(me.x,me.z||0,me.y);if(lap){meMesh.userData.l1.rotation.z=meMesh.userData.l2.rotation.z=1.45;meMesh.position.y=.5}meMesh.rotation.y=-me.a;animPerson(meMesh,Math.hypot(me.vx,me.vy)>5?time*11:0,time-lastFireT<1.2||scoped);{const ud=meMesh.userData;ud.a1.rotation.x=ud.a2.rotation.x=handsUp?Math.PI:0;if(handsUp)ud.a1.rotation.z=ud.a2.rotation.z=0}
   // job beacon
   const jv=job&&job.phase!=='wait'&&!job.noMarker&&!me.inside;beacon.visible=beaconRing.visible=!!jv;
-  if(jv){const col=jobCol();beacon.material.color.set(col);beaconRing.material.color.set(col);beacon.position.set(job.x,80,job.y);beaconRing.position.set(job.x,1.8,job.y);beacon.material.opacity=.22+Math.sin(time*4)*.06}
+  if(jv){const col=jobCol();beacon.material.color.set(col);beaconRing.material.color.set(col);const jg=groundZ(job.x,job.y);beacon.position.set(job.x,jg+80,job.y);beaconRing.position.set(job.x,jg+1.8,job.y);beacon.material.opacity=.22+Math.sin(time*4)*.06}
   for(const r of shopRings)r.scale.setScalar(1+Math.sin(time*3)*.08);
   // chat ping beacons: 6 s each, pooled
   for(let i=chatPings.length-1;i>=0;i--)if(time-chatPings[i].t>6)chatPings.splice(i,1);
