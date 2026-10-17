@@ -12,7 +12,7 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 
 | Where | Multiplayer | How |
 |---|---|---|
-| Cloudflare (public site) | Yes, one shared lobby for everyone | https://palmetto-run.palleto.workers.dev (no account needed) |
+| Cloudflare (public site) | Yes, the public city or a private `?room=` link | https://palmetto-run.palleto.workers.dev (no account needed) |
 | Claude Artifact | Yes, everyone with the page open shares one city | Open the artifact link (must be signed in to Claude and have access) |
 | Locally with the lobby | Yes | `npm run preview`, then open http://localhost:8787 in two tabs |
 | Locally, quick | No (solo) | `npm run dev`, then open http://localhost:8080 |
@@ -21,18 +21,22 @@ The game is published as a **Claude Artifact**, which gives it live multiplayer.
 
 | Key | Action |
 |---|---|
-| Mouse | Look and aim (click the game to lock the mouse, Esc to free it) |
-| WASD / arrows | Walk or drive |
-| E | Steal or leave a vehicle, use things indoors, climb ladders |
-| Click / Space | Shoot |
-| Shift | Sprint or handbrake |
-| Hold Tab | Weapon wheel (or 1–8 / Q) |
+| Mouse / trackpad | Look and aim (click the game to lock the mouse, Esc to free it) |
+| WASD / arrows | Walk, drive or fly |
+| E or F | Steal or leave a vehicle, use things indoors, climb ladders |
+| Click / Space | Shoot (Space also flies a helicopter or jet up) |
+| Shift | Sprint, handbrake, or dive in a helicopter or jet |
+| Q (hold) | Lock-on aim assist, on foot |
+| R or two-finger scroll | Next weapon (scroll up for the previous one) |
+| Hold Tab | Weapon wheel (or 1–8) |
 | Right-click / Z | Sniper scope |
 | G | Detonate sticky bombs |
-| Space / Shift | Helicopter or jet up / down |
 | X | Flares (break missile locks) |
 | N | Use white powder (super strength) |
 | M | Sound on/off |
+| P | Settings: rebind keys, look sensitivity, vehicle and scope look, invert Y, aim assist, sprint mode |
+
+Every key in this table can be rebound in the settings panel (P): click a key chip and press the new key.
 
 Phones get an on-screen joystick and buttons.
 
@@ -44,6 +48,7 @@ Requires Node 18 or newer. There is nothing to install.
 npm run dev     # build, then serve dist/ on http://localhost:8080
 npm run check   # syntax-check the game code
 npm run build   # write dist/artifact.html, dist/index.html and dist/2d.html
+npm run smoke   # play the build in headless Chrome, print console errors (see the top of scripts/smoke.mjs)
 ```
 
 Edit files in `src/`, then run `npm run dev` again and reload the page.
@@ -91,7 +96,9 @@ Coordinates: game logic is 2D on the ground plane (`x`, `y`) with a separate hei
 
 ### Multiplayer
 
-When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude, `room` is unavailable and the game runs solo. The badge above the minimap shows the reason.
+When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude the game connects to the Cloudflare lobby when the page is served from one, and runs solo otherwise. The badge above the minimap shows the state. `npm run lobby:test` starts the Cloudflare lobby locally and checks the relay end to end; presence carries a protocol version (`pv`), and a player on a different version is asked to reload instead of being dropped.
+
+The default city is public: everyone who opens the site shares it. Add `?room=code` to the link, or type a code on the start screen, to get a separate city that only players with that code can see; a tab remembers the last code. A code is not a secret, just a door: anyone with the link can join, so do not reuse a password as a room name.
 
 ## Publish as a Claude Artifact
 
@@ -119,14 +126,14 @@ The `room` capability is what turns on multiplayer. Without it the artifact runs
 
 ## Host it on Cloudflare (free, with multiplayer)
 
-`worker/index.js` is a Cloudflare Worker that serves `dist/` and runs **one shared lobby** in a Durable Object at `/ws`. When the game is not running inside Claude, it connects there automatically (`wsRoom()` in `game.js`).
+`worker/index.js` is a Cloudflare Worker that serves `dist/` and runs the multiplayer lobby in Durable Objects at `/ws`. Each `?room=` code gets its own object, so groups in different rooms never meet. When the game is not running inside Claude, it connects there automatically (`wsRoom()` in `game.js`).
 
 ```bash
 npx wrangler login   # once
 npm run deploy       # builds and deploys
 ```
 
-`npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. The lobby holds up to 32 players.
+`npm run preview` runs the same thing locally on http://localhost:8787. Configuration is in `wrangler.jsonc`. Each city holds up to 32 players.
 
 ### Automatic deploys
 

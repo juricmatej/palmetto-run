@@ -9,11 +9,15 @@
 <div id="xh" hidden></div>
 <div class="hud" id="area" style="opacity:0"></div>
 <div class="hud" id="lock" hidden></div>
+<div class="hud" id="lockMark" hidden></div>
 <div class="hud" id="warn" hidden>Missile incoming</div>
 <div class="hud" id="tl">
   <div id="cash">$0</div>
+  <div id="lvl"><b>1</b><i><u></u></i></div>
   <div id="stars" aria-label="Wanted level">★★★★★</div>
   <div id="hpbar"><div id="hp"></div></div>
+  <div id="stamBar" hidden><div id="stam"></div></div>
+  <div id="nitBar" hidden><div id="nit"></div></div>
   <div id="weapon">Pistol<span>&infin;</span></div>
   <div id="carhp"></div>
   <div id="drunk" hidden></div>
@@ -26,51 +30,231 @@
   <div id="players"></div>
 </div>
 <div class="hud" id="feed"></div>
+<div class="hud" id="chat"></div>
+<pre class="hud" id="perf" hidden></pre>
 <div class="hud" id="hint" hidden></div>
 <div class="hud" id="big" hidden><div class="t"></div><div class="s"></div></div>
+<div class="hud" id="raceRes" hidden></div>
+<div class="hud" id="rev" hidden><div id="revRing"></div><span id="revTxt"></span></div>
+<div id="down" hidden><div id="downIn">
+  <div id="downTxt">Bleeding out</div>
+  <div id="downBar"><div id="downFill"></div></div>
+  <button id="downGive" type="button">Give up</button>
+</div></div>
 <div id="wheel" hidden><div id="wheelIn"><div id="wheelMid"></div></div></div>
-<div id="touch" hidden><button id="bNose" type="button" hidden>BUMP</button><button id="bFlare" type="button" hidden>FLARE</button><button id="bUp" type="button" hidden>UP</button><button id="bDn" type="button" hidden>DOWN</button><button id="bBoom" type="button" hidden>BOOM</button><button id="bAim" type="button" hidden>AIM</button><button id="bGun" type="button">GUN</button><button id="bCar" type="button">CAR</button><button id="bFire" type="button">FIRE</button></div>
+<div id="chatBar" hidden><input id="chatIn" type="text" maxlength="120" autocomplete="off" placeholder="Message (Enter to send, Escape to close)" aria-label="Chat message"></div>
+<div id="qwheel" hidden><div id="qwheelIn"></div></div>
+<div id="touch" hidden><button id="bNose" type="button" hidden>BUMP</button><button id="bFlare" type="button" hidden>FLARE</button><button id="bUp" type="button" hidden>UP</button><button id="bDn" type="button" hidden>DOWN</button><button id="bBoom" type="button" hidden>BOOM</button><button id="bAim" type="button" hidden>AIM</button><button id="bGun" type="button">GUN</button><button id="bCar" type="button">CAR</button><button id="bFire" type="button">FIRE</button><button id="bNext" type="button" hidden>NEXT</button><button id="bRespawn" type="button" hidden>RESPAWN</button></div>
 
+<button id="phTab" type="button" hidden aria-label="Open the phone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>Phone<b id="phTabN" hidden></b></button>
+<div id="phBan" role="status"></div>
+<div id="phone" role="dialog" aria-label="Phone">
+  <div id="phFrame">
+    <div id="phBar"><b id="phClock">09:00</b><i id="phDnd" hidden>Do not disturb: police</i><span id="phSt"><svg viewBox="0 0 16 11" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.4" y="5" width="3" height="6" rx="1"/><rect x="8.8" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.2" y="0" width="2.8" height="11" rx="1"/></svg><span id="phBat"><i id="phBatF"></i></span></span></div>
+    <div id="phScr">
+      <div id="phHome"></div>
+      <div id="phApp" hidden>
+        <div id="phHd"><button id="phBack" type="button" aria-label="Back" data-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button><h3 id="phTitle"></h3></div>
+        <div id="phBody"></div>
+      </div>
+      <div id="phWarn" hidden>Eyes on the road</div>
+      <div id="phCall" hidden><span class="ph-pulse">Calling</span><b id="phCallName"></b></div>
+    </div>
+  </div>
+</div>
+<div id="phFade"></div>
 <div id="shop" hidden>
   <div class="card" role="dialog" aria-label="Gun shop">
     <h2>Gun shop</h2>
-    <p class="tag" style="margin:0">Cash <b id="shopCash" style="color:var(--gold)"></b>. Equip with keys 1&ndash;5 or cycle with Q.</p>
+    <p class="tag" style="margin:0">Cash <b id="shopCash" style="color:var(--gold)"></b>. Equip with keys 1&ndash;5 or cycle with R.</p>
     <div id="shopList"></div>
     <button id="shopClose" type="button">Back to the street</button>
   </div>
 </div>
+<div id="modshop" class="gm" hidden>
+  <div class="card" role="dialog" aria-label="Palmetto Customs">
+    <h2>Palmetto Customs</h2>
+    <p class="tag" style="margin:0">Cash <b id="modCash" style="color:var(--gold)"></b>. Drive-in bay at the docks garage. Paint, nitro, neon and more.</p>
+    <div id="modTop"><div id="modCats"></div><div id="modList"></div></div>
+    <button id="modClose" type="button">Back to the street</button>
+  </div>
+</div>
+<div id="pit" class="gm" hidden>
+  <div class="card" role="dialog" aria-label="The Pit">
+    <h2>The Pit</h2>
+    <p class="tag" style="margin:0">Pick a run. Winners are paid in cash.</p>
+    <button id="pitK" type="button"></button>
+    <button id="pitC" type="button"></button>
+    <button id="pitG" type="button"></button>
+    <button id="pitClose" type="button">Back to the street</button>
+  </div>
+</div>
+<div id="settings" class="gm" hidden><div class="card" role="dialog" aria-label="Settings">
+  <h2>Settings</h2>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setSens">Look sensitivity</label>
+    <input id="setSens" type="range" min="0.3" max="3" step="0.1" value="1">
+  </div>
+  <label style="display:flex;gap:8px;align-items:center;color:var(--ink)"><input id="setInv" type="checkbox"> Invert Y (mouse up looks down)</label>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setAssist">Aim assist strength (hold Q)</label>
+    <select id="setAssist">
+      <option value="0">Off</option>
+      <option value="4">Light (4 rad/s)</option>
+      <option value="8">Strong (8 rad/s)</option>
+    </select>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setVeh">Vehicle look speed (in a car)</label>
+    <input id="setVeh" type="range" min="0.3" max="2" step="0.1" value="1">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setScope">Scoped look speed (sniper)</label>
+    <input id="setScope" type="range" min="0.2" max="1" step="0.1" value="0.3">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setSprintMode">Sprint key</label>
+    <select id="setSprintMode">
+      <option value="hold">Hold to sprint</option>
+      <option value="toggle">Toggle sprint</option>
+    </select>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <label for="setTime">Time of day</label>
+    <select id="setTime">
+      <option value="auto">Auto (20 min day)</option>
+      <option value="night">Fixed night</option>
+    </select>
+  </div>
+  <h3 class="kh">Keys</h3>
+  <div id="keyList" aria-label="Key bindings"></div>
+  <div class="row"><button class="b" id="setReset" type="button">Reset keys</button><span class="knone">Click a key to rebind it. Escape cancels.</span></div>
+  <div class="keys">
+    <kbd>Mouse / trackpad</kbd><span>Look and aim</span>
+    <kbd>WASD / arrows</kbd><span>Walk, drive or fly</span>
+    <kbd>Click / Space</kbd><span>Shoot (Space flies a helicopter or jet up)</span>
+    <kbd>Shift</kbd><span>Sprint, handbrake, or dive in a helicopter or jet</span>
+    <kbd>E or F</kbd><span>Steal or leave a vehicle, use things indoors</span>
+    <kbd>Q (hold)</kbd><span>Lock-on aim assist, on foot</span>
+    <kbd>Gamepad</kbd><span>Left stick moves or drives, right stick looks, RT shoot, LT aim, A enter or leave, B phone, Y weapon wheel, LB / RB weapons, Start settings</span>
+    <kbd>R / two-finger scroll</kbd><span>Next weapon (scroll up for the previous one)</span>
+    <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8)</span>
+    <kbd>Right-click / Z</kbd><span>Sniper scope</span>
+    <kbd>G</kbd><span>Detonate sticky bombs</span>
+    <kbd>X</kbd><span>Flares (break missile locks)</span>
+    <kbd>N</kbd><span>Use white powder</span>
+    <kbd>M</kbd><span>Sound on/off</span>
+    <kbd>P</kbd><span>This settings panel</span>
+  </div>
+  <button class="b go" type="button" data-close>Back to the street</button></div></div>
 <div id="bj" hidden>
   <div class="card" role="dialog" aria-label="Blackjack">
-    <h2>Blackjack</h2>
-    <p class="tag" style="margin:0;color:#cfe9da">Dealer stands on 17. Blackjack pays 3 to 2. Cash <b id="bjCash" style="color:var(--gold)"></b></p>
-    <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
-    <div class="bjrow"><span class="bjl">You<b id="bjPv"></b></span><div class="hand" id="bjP"></div></div>
-    <div id="bjMsg"></div>
+    <div class="bjtop"><h2 id="bjT">Blackjack</h2><div class="shoe" id="bjShoe"><span id="bjLeft"></span></div></div>
+    <p class="tag bjtag">Dealer stands on 17. Blackjack pays 3 to 2. Insurance pays 2 to 1. Cash <b id="bjCash"></b>. Limit <b id="bjLim"></b></p>
+    <div class="felt">
+      <div class="bjrow"><span class="bjl">Dealer<b id="bjDv"></b></span><div class="hand" id="bjD"></div></div>
+      <div class="rack" id="bjRack"></div>
+      <div id="bjMsg"></div>
+      <div class="bjHands" id="bjP"></div>
+    </div>
+    <div class="bjbar"><span id="bjHint"></span><button id="bjHintT" type="button">Hints off</button></div>
     <div id="bjBtns"></div>
     <button id="bjClose" type="button">Leave the table</button>
   </div>
 </div>
-<div id="roul" class="gm" hidden><div class="card" role="dialog" aria-label="Roulette">
-  <h2 style="color:var(--gold)">Roulette</h2>
-  <div class="row" style="gap:14px;align-items:flex-start"><div id="rwheelWrap"><canvas id="rwheel" width="400" height="400"></canvas></div>
-  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px"><div class="msg" id="rMsg"></div><div class="row" id="rHist"></div><div class="row" id="rChips"></div></div></div>
-  <button class="rz" id="rZero" type="button">0</button><div class="rgrid" id="rGrid"></div>
-  <div class="row" id="rOut"></div><div class="row" id="rAct"></div>
-  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="roul" class="gm" hidden><div class="card rcard" role="dialog" aria-label="Roulette">
+  <div class="rtop">
+    <div id="rwheelWrap"><canvas id="rwheel" width="400" height="400"></canvas></div>
+    <div class="rside">
+      <div class="msg" id="rMsg"></div>
+      <div id="rCash"></div>
+      <div class="rlim">Table: $10 to $10,000 a spin</div>
+      <div class="row" id="rHist"></div>
+      <div class="rhot" id="rHot"></div>
+    </div>
+  </div>
+  <div class="rbrd" id="rBoard">
+    <div class="rnw">
+      <div class="rnums" id="rNums"><div class="cell g" id="rZero">0</div><div class="rovl" id="rOvl"></div><div class="rhov" id="rHov" hidden></div></div>
+      <div class="rcols" id="rCols"></div>
+    </div>
+    <div class="rdoz" id="rDoz"></div>
+    <div class="rout" id="rOut"></div>
+    <div class="rrake" id="rRake"></div>
+  </div>
+  <div class="row rchips" id="rChips"></div>
+  <div class="row" id="rAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button>
+</div></div>
 <div id="slots" class="gm" hidden><div class="card" role="dialog" aria-label="Candy Cascade slots">
   <h2 style="color:#fff;text-shadow:0 3px 0 #7b1f55">Candy Cascade</h2>
-  <p class="tag" style="margin:0;color:#fff">8 or more of the same candy anywhere pays. Wins tumble away and new candy drops in. 4 lollipops give 10 free spins with multiplier bombs.</p>
-  <div id="sgrid"></div><div class="msg" id="sMsg" style="color:#fff"></div><div class="row" id="sAct"></div>
+  <p class="tag" style="margin:0;color:#fff">8 or more of the same candy anywhere pays. Wins tumble away and new candy drops in. 4 lollipops start 10 free spins, 3 more add 5. Or buy the feature for 45 bets.</p>
+  <div id="slWrap"><canvas id="slc" aria-label="Candy Cascade reels"></canvas><div id="slOv" hidden><div class="t"></div><div class="s"></div><button class="b go" type="button"></button></div></div>
+  <div class="msg" id="sMsg" style="color:#fff"></div><div class="row" id="sAct"></div>
   <button class="b" type="button" data-close>Leave the machine</button></div></div>
+<div id="slots7" class="gm" hidden><div class="card" role="dialog" aria-label="Neon 7s">
+  <h2 style="color:#ffd84a;text-shadow:0 0 14px #ff3ea5">Neon 7s</h2>
+  <p class="tag" style="margin:0;color:#fff">One line, three reels. Cherries pay anywhere on the line. Bets $25 to $2,500.</p>
+  <div id="s7Wrap"><canvas id="s7c" aria-label="Neon 7s reels"></canvas></div>
+  <div class="msg" id="s7Msg" style="color:#fff"></div><div class="row" id="s7Act"></div>
+  <button class="b" type="button" data-close>Leave the machine</button></div></div>
+<div id="lwheel" class="gm" hidden><div class="card" role="dialog" aria-label="Lucky Wheel">
+  <h2>Lucky Wheel</h2>
+  <p class="tag" style="margin:0;color:#e9dcff">One free spin every real day. Cash, RP, chips, a mystery box and a $250,000 jackpot segment.</p>
+  <div id="lwWrap"><canvas id="lwc" width="420" height="420" aria-label="Lucky Wheel"></canvas></div>
+  <div class="msg" id="lwMsg"></div>
+  <div class="row" id="lwAct"><button class="b go" id="lwGo" type="button">Spin (free today)</button></div>
+  <button class="b" type="button" data-close>Leave the wheel</button></div></div>
+<div id="lrocket" class="gm" hidden><div class="card" role="dialog" aria-label="Rocket">
+  <h2>Rocket</h2>
+  <p class="tag" style="margin:0;color:#d6fff8">Bet before the launch, cash out before it crashes. Players at the table see the same flight. House edge 4 percent.</p>
+  <div id="rkWrap"><canvas id="rkc" width="640" height="360" aria-label="Rocket flight graph"></canvas></div>
+  <div class="msg" id="rkMsg"></div>
+  <div class="row" id="rkChips"></div>
+  <div class="row" id="rkAct"><button class="b go" id="rkBet" type="button">Bet $100</button><button class="b go" id="rkOut" type="button" disabled>Cash out</button></div>
+  <div class="row" id="rkHist" aria-label="Last crash points"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="tcp" class="gm" hidden><div class="card" role="dialog" aria-label="Three Card Poker">
+  <h2>Three Card Poker</h2>
+  <p class="tag" style="margin:0;color:#d8ffe8">Dealer qualifies with Queen high. Ante bonus pays on a straight or better. Pair Plus pays on your hand alone. Cash <b id="tcpCash" style="color:var(--gold)"></b></p>
+  <div class="tcpLbl">Dealer<b id="tcpDv"></b></div><div class="tcpHand" id="tcpD"></div>
+  <div class="tcpLbl">You<b id="tcpPv"></b></div><div class="tcpHand" id="tcpP"></div>
+  <div class="msg" id="tcpMsg"></div>
+  <div class="row"><span class="tcpLbl">Ante</span><span class="row" id="tcpAnte"></span></div>
+  <div class="row"><span class="tcpLbl">Pair Plus</span><span class="row" id="tcpPP"></span></div>
+  <div class="row" id="tcpAct"></div>
+  <button class="b" type="button" data-close>Leave the table</button></div></div>
+<div id="horses" class="gm" hidden><div class="card" role="dialog" aria-label="Horse racing">
+  <h2>Horse racing</h2>
+  <p class="tag" style="margin:0;color:#eaffd6">Six horses, 20 seconds. Win pays on the winner. Place pays when your horse finishes top two. House margin 10 percent. Cash <b id="hrCash" style="color:var(--gold)"></b></p>
+  <div id="hrWrap"><canvas id="hrc" width="640" height="360" aria-label="Race track"></canvas></div>
+  <div class="msg" id="hrMsg"></div>
+  <div id="hrOdds" class="hrOdds"></div>
+  <div class="row"><span class="tcpLbl">Stake</span><span class="row" id="hrChips"></span></div>
+  <div class="row" id="hrAct"></div>
+  <div class="row" id="hrBoard" aria-label="Recent finishes"></div>
+  <button class="b" type="button" data-close>Leave the track</button></div></div>
+<div id="pm" class="gm" hidden><div class="card" role="dialog" aria-label="Place">
+  <h2 id="pmT"></h2><p class="tag" id="pmD" style="margin:0"></p>
+  <div class="row" id="pmG" style="gap:12px;align-items:flex-start"><canvas id="pmCv" width="320" height="320" hidden></canvas><canvas id="gmCv" width="360" height="300" hidden></canvas><div id="pmB" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"></div></div>
+  <div class="msg" id="pmM"></div>
+  <button class="b" type="button" data-close>Leave</button></div></div>
 <div id="brief" class="gm" hidden><div class="card" role="dialog" aria-label="Heist board">
   <h2 style="color:var(--gold)">The Union Job</h2><div id="bBody" style="display:flex;flex-direction:column;gap:12px"></div>
   <div class="row" id="bAct"></div><button class="b" type="button" data-close>Close</button></div></div>
+<div id="garage" class="gm" hidden><div class="card" role="dialog" aria-label="Garage">
+  <h2 id="gTitle">Garage</h2><div id="gList" style="display:flex;flex-direction:column;gap:8px"></div>
+  <button class="b" type="button" data-close>Back to the street</button></div></div>
 <div id="hack" class="gm" hidden><div class="card" role="dialog" aria-label="Mainframe hack">
   <h2>MAINFRAME://CRACK</h2>
   <p>Guess the 3-digit code. Digits are 1&ndash;6. <b style="color:#3dd68c">Green</b> = right digit in the right spot, <b style="color:#ffc94a">yellow</b> = in the code but in another spot, <b style="color:#777">grey</b> = not in the code. 10 tries.</p>
   <div id="hackLog"></div>
   <div class="row"><input id="hackIn" maxlength="3" inputmode="numeric" autocomplete="off" aria-label="Code guess"><button class="b go" id="hackGo" type="button">Try</button></div>
   <button class="b" type="button" data-close>Disconnect</button></div></div>
+<div id="minigame" class="gm" hidden><div class="card" role="dialog" aria-label="Minigame">
+  <h2 id="miniTitle"></h2>
+  <div id="miniDial" style="position:relative;width:200px;height:200px;margin:14px auto;border-radius:50%;border:2px solid #3dd68c"><div id="miniHand" style="position:absolute;left:50%;top:0;width:3px;height:50%;margin-left:-1.5px;transform-origin:50% 100%;background:#fff"></div></div>
+  <p id="miniInfo" class="msg"></p></div></div>
 <div id="start">
   <form class="card" id="startForm">
     <h1 class="logo">Palmetto<br>Run 3D</h1>
@@ -84,21 +268,34 @@
       <div id="swatches"></div>
     </div>
     <div class="keys">
-      <kbd>Mouse</kbd><span>Look and aim (click the game to lock the mouse, Esc to free it)</span>
-      <kbd>WASD / arrows</kbd><span>Walk or drive</span>
-      <kbd>E</kbd><span>Steal or leave a car, use things indoors</span>
+      <kbd>Mouse / trackpad</kbd><span>Look and aim (click the game to lock the mouse, Esc to free it)</span>
+      <kbd>WASD / arrows</kbd><span>Walk, drive or fly</span>
+      <kbd>E or F</kbd><span>Steal or leave a car, use things indoors</span>
       <kbd>Click / Space</kbd><span>Shoot</span>
       <kbd>Shift</kbd><span>Sprint or handbrake</span>
+      <kbd>Q (hold)</kbd><span>Lock-on aim assist, on foot</span>
+      <kbd>R / two-finger scroll</kbd><span>Next weapon (scroll up for the previous one)</span>
       <kbd>G</kbd><span>Detonate sticky bombs</span>
       <kbd>Space / Shift</kbd><span>Helicopter up / down (helipad in Lagoon Park)</span>
       <kbd>X</kbd><span>Helicopter / jet flares (break missile locks)</span>
       <kbd>Airport</kbd><span>Steal a fighter jet: W throttle, mouse steers, Space climbs, click fires missiles</span>
       <kbd>N</kbd><span>Use white powder: super strength (dealer in Low Palms)</span>
       <kbd>Right-click / Z</kbd><span>Sniper scope</span>
-      <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8 / Q). Buy guns at the cyan gun shops</span>
+      <kbd>Hold Tab</kbd><span>Weapon wheel (or 1&ndash;8). Buy guns at the cyan gun shops</span>
       <kbd>M</kbd><span>Sound on/off</span>
+      <kbd>P</kbd><span>Settings: sensitivity, invert Y, aim assist</span>
     </div>
     <div id="net">Connecting to the city…</div>
+    <div id="city">
+      <div id="cityLine">City: MAIN &middot; public</div>
+      <div id="cityPanel">
+        <input id="roomCode" maxlength="10" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="CODE" aria-label="City code">
+        <button id="roomJoin" type="button">Join</button>
+        <button id="roomCopy" type="button">Copy link</button>
+        <button id="roomNew" type="button">New code</button>
+        <button id="roomPublic" type="button">Public city</button>
+      </div>
+    </div>
     <button id="play" type="submit">Hit the streets</button>
   </form>
 </div>
