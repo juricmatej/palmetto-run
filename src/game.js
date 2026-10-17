@@ -615,7 +615,7 @@ const tableProp=(r,x,y,w,h,ht,col)=>{const p=prop(r,x,y,w,h,ht,col);p.tbl=1;retu
 const spot=(r,x,y,act,label)=>r.spots.push({x:r.ox+x,y:r.oy+y,act,label});
 const gunInt=mkRoom('guns','Gun shop',260,200,'#1b2a33',0);
 prop(gunInt,40,40,180,18,14,'#3a3348');prop(gunInt,0,0,260,10,44,'#2a2333');prop(gunInt,0,60,10,100,36,'#2a2333');prop(gunInt,250,60,10,100,36,'#2a2333');
-spot(gunInt,130,80,'shop','Browse weapons');
+spot(gunInt,130,80,'shop','Browse weapons');spot(gunInt,220,150,'safe','Safe');
 const club=mkRoom('club','Velvet Palms',440,330,'#24102a',1);
 prop(club,110,18,220,62,6,'#3a1840');prop(club,18,110,26,150,16,'#3b2416');prop(club,370,150,50,40,14,'#151022');
 for(const[x,y]of[[70,290],[380,280],[90,60],[360,60]])prop(club,x,y,18,18,10,'#2c1a33');
@@ -722,6 +722,8 @@ function interact(){const p=nearSpot();if(!p||state!=='play'||me.downed)return;
   else if(p.act==='blackjack')openBJ();
   else if(p.act==='liquor'){if(me.cash<25){feed('That costs $25');return}me.cash-=25;drunk=Math.min(60,drunk+20);noise(.15,1200,.15);feed(drunk>35?'You are hammered. Driving will be rough':'Down the hatch')}
   else if(p.act==='vip')startLap();
+  else if(p.act==='prize')miniOpen('lock',openPrize);
+  else if(p.act==='safe')miniOpen('lock',()=>{me.cash+=500;feed('Safe open. +$500')});
   else if(placesAct(p)){}
   else if(casinoAct(p)||heistAct(p)){}
   else if(p.act==='rob'||p.act==='heist')startRob(p);
@@ -1366,6 +1368,7 @@ function toggleCar(){
   if(!me.car&&nearDealer()){buyDrug();return}
   if(me.car){leaveCar(false);return}
   const c=nearestCar();if(!c){talkPed();return}
+  if(c.kind==='parked'&&!c.keyed){miniOpen('hot',()=>{c.keyed=1;c.kind='mine';me.car=c;handsUp=false});return}
   if(c.kind==='traffic')crime(c.x,c.y,.3);
   if(c.kind==='traffic'){const p=spawnPed(c.x+Math.cos(c.a-1.57)*20,c.y+Math.sin(c.a-1.57)*20);p.flee=4;p.fx=c.x;p.fy=c.y;c.vx=Math.cos(c.a)*c.cur*.3;c.vy=Math.sin(c.a)*c.cur*.3;
     for(const q of cars)if(q.kind==='police'&&Math.hypot(q.x-me.x,q.y-me.y)<400){addHeat(.5);break}}
@@ -3414,6 +3417,31 @@ function drugChip(){const pw=$('power'),k=DK[drugSel];pw.hidden=!drugState.k&&!D
   else{pw.style.color=DRUGS[k].col;pw.textContent=`${DRUGS[k].name} x${drugs[k]} (${isTouch?'BUMP':kb('drug')} use, ${kb('drugSwitch')} switch)`}}
 function drugTest(k){drugs[k]++;drugSel=DK.indexOf(k);useDrug()} // debug only
 if(DBG)Object.defineProperties(DBG,{drug:{get:()=>drugState},drugTest:{get:()=>drugTest}});
+// ---------- minigames ----------
+// Hotwire (parked cars) and lockpick (prize counter, gun shop safe) run in the #minigame overlay. The world stays paused and nothing is drawn in the scene.
+let miniState=null,miniLast=0;
+const miniBand=()=>22-(clamp(lv,1,15)-1)*10/14; // green band in degrees: 22 at level 1, 12 at level 15
+const miniHit=m=>((m.a-m.s+360)%360)<m.b;
+function miniOpen(k,done){const b=miniBand();miniState={k,a:0,b,s:rr(0,360-b),w:1+Math.floor(rand()*3),hits:0,miss:0,res:null,done};miniLast=performance.now();openModal('minigame');miniPaint();requestAnimationFrame(miniFrame)}
+function miniFrame(t){const m=miniState;if(!m||m.res)return;m.a=(m.a+200*(t-miniLast)/1000)%360;miniLast=t;miniPaint();requestAnimationFrame(miniFrame)}
+function miniEnd(ok){const m=miniState;m.res=ok===true?'win':ok===false?'fail':'cancel';closeShop();if(ok===true)m.done()}
+function miniKey(e){const m=miniState;if(!m||m.res||e.repeat)return;
+  if(e.code==='Escape'){miniEnd();return}
+  if(m.k==='lock'){if(e.code!=='Space')return;e.preventDefault();
+    if(miniHit(m)){if(++m.hits===3)miniEnd(true)}else{m.hits=0;addHeat(.5)}
+    m.s=rr(0,360-m.b);return}
+  if(!/^Digit[1-3]$/.test(e.code))return;
+  if(+e.code.slice(5)===m.w&&miniHit(m))return miniEnd(true);
+  if(++m.miss===3)return miniEnd(false);
+  m.s=rr(0,360-m.b)}
+addEventListener('keydown',miniKey);
+function miniPaint(){const m=miniState;$('miniHand').style.transform=`rotate(${m.a}deg)`;
+  $('miniDial').style.background=`conic-gradient(transparent ${m.s}deg,#3dd68c ${m.s}deg ${m.s+m.b}deg,transparent ${m.s+m.b}deg)`;
+  $('miniTitle').textContent=m.k==='hot'?'Hotwire':'Lockpick';
+  $('miniInfo').textContent=m.res?'Done: '+m.res:m.k==='hot'?`Cut wire ${m.w}. Misses ${m.miss} of 3. Esc cancels`:`Space in the green arc. ${m.hits} of 3 in a row. Esc cancels`}
+if(DBG)Object.defineProperties(DBG,{mini:{get:()=>miniState}});
+if(DBG){DBG.hotwireTest=()=>miniOpen('hot',()=>{});DBG.lockTest=()=>miniOpen('lock',()=>{})}
+
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
