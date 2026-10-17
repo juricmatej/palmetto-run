@@ -1356,6 +1356,7 @@ function tryLadder(){const n=nearLadder();if(!n)return false;me.climb={b:n.b,up:
 function toggleCar(){
   if(lap){endLap();return}
   if(state!=='play'||me.downed)return;
+  if(crewAccept())return;
   {const q=msNear();if(q){if(!q.def)feed(q.c.name+' has no more work for you');else if(q.locked)feed(q.def.title+' needs level '+q.def.level);else startMission(q.def.id);return}}
   if(!me.car&&!me.heli&&!me.jet&&pitNear()&&(!pitState||pitState.done)){pitOpen();return}
   {const k=RACES.findIndex(r=>!me.car&&Math.hypot(r.board.x-me.x,r.board.y-me.y)<40);if(k>=0){raceStart(k);return}}
@@ -2994,10 +2995,15 @@ const MISSIONS=[
       {type:'goto',x:2700,y:940,r:50,text:'Stop three, the last one. Get there.'},
       {type:'kill',n:4,text:'It is an ambush. Survive it and kill the four Vipers.'},
     ]},
+  {id:'bank',contact:'vic',title:'Bank van pickup',level:3,reward:6000,xp:600,col:'#ffc94a',crew:true,intro:'Vic needs three spots held at once while the bank van is pulled. A crew of two or more.',
+    steps:[
+      {type:'talk',who:'Vic',text:'The bank van rolls at dawn. Put one of your crew on each marked spot and hold it for 4 seconds, all three inside one minute. Everyone in the crew takes the job from me.'},
+      {type:'crew',text:'Hold the three marked spots within one minute. The beacon shows the nearest open one.'},
+    ]},
 ];
 // Contacts stand at fixed spots. `list` is the missions this contact hands out in order.
 const MCON=[
-  {id:'vic',name:'Vic',short:'V',col:'#ffc94a',x:2104,y:1893,fa:Math.PI/2,list:['accountant','armored','tail']},
+  {id:'vic',name:'Vic',short:'V',col:'#ffc94a',x:2104,y:1893,fa:Math.PI/2,list:['accountant','armored','tail','bank']},
   {id:'rosa',name:'Rosa',short:'R',col:'#ff3ea5',x:636,y:1453,fa:-Math.PI/2,list:['repo','double']},
   {id:'dex',name:'Dex',short:'D',col:'#9a5ad8',x:3230,y:2352,fa:Math.PI/2,list:['dock','sweep']},
 ];
@@ -3028,10 +3034,12 @@ function msWhere(){
   if(st.type==='goto'||st.type==='deliver')return mission.ax===null?null:[mission.ax,mission.ay];
   if(st.type==='steal'||st.type==='follow'||st.type==='kill'||st.type==='defend'||st.type==='destroy')return mission.car?[mission.car.x,mission.car.y]:null;
   if(st.type==='collect'){const p=mission.pk.find(p=>pickups.includes(p));return p?[p.x,p.y]:null}
+  if(st.type==='crew')return crewWhere();
   return null}
 function msBegin(){
   const st=msStep();if(!st)return;
   mission.t=st.time||0;mission.tt=st.type==='talk'?(st.talk||3):(st.t||0);
+  if(st.type==='crew'){crewRd=null;crewHold=[0,0,0]}
   mission.n=0;mission.msg='';mission.nearT=0;mission.pk=[];mission.g=0;
   mission.ax=st.x===undefined?null:st.x;mission.ay=st.y===undefined?null:st.y;
   if(st.spawn){mission.car=msCar(st.spawn);if(st.type==='goto'){mission.ax=mission.car.x;mission.ay=mission.car.y}}
@@ -3092,6 +3100,7 @@ const MSH={
       if(!left)return'next';mission.msg='Escorts left: '+left}
     else{const max=t?ctOf(t).hp:1;if(t&&(t.kind==='dead'||t.hp<=max*.5))return'next';mission.msg='Truck at '+Math.round(Math.max(0,t?t.hp/max:0)*100)+' percent'}},
   lose(st){mission.msg=Math.max(0,Math.ceil(heat))+' star'+(Math.ceil(heat)===1?'':'s')+' left';if(heat<=0)return'next'},
+  crew:crewStep,
   choice(st){if(mission.pick)return'next'},
   photo(st,dt){
     const c=mission.car;if(!c||!cars.includes(c))return'fail:The car is gone';
@@ -3118,7 +3127,7 @@ function msSeed(){
       g.fillStyle=q.col;g.font='86px Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(q.short,64,70)}),depthTest:false,transparent:true}));
     s.scale.set(26,26,1);s.renderOrder=10;s.position.set(q.x,36,q.y);scene.add(s);
     const r=new THREE.Mesh(new THREE.RingGeometry(12,16,32),new THREE.MeshBasicMaterial({color:q.col,side:THREE.DoubleSide}));r.rotation.x=-Math.PI/2;r.position.set(q.x,1.6,q.y);scene.add(r);shopRings.push(r)}}
-function msNextMission(c){if(msRetry&&c.list.includes(msRetry))return msById(msRetry);return MISSIONS.find(m=>m.contact===c.id&&!msDone[m.id])||null}
+function msNextMission(c){if(msRetry&&c.list.includes(msRetry))return msById(msRetry);return MISSIONS.find(m=>m.contact===c.id&&!msDone[m.id]&&(!m.crew||crewOn()))||null}
 function msNear(){
   if(mission||me.car||me.heli||me.jet||me.inside||me.roof||state!=='play')return null;
   for(const c of MCON)if(Math.hypot(c.x-A.x,c.y-A.y)<44){const def=msNextMission(c);return{c,def,retry:!!(def&&msRetry===def.id),locked:!!(def&&lv<def.level)}}
@@ -3126,6 +3135,7 @@ function msNear(){
 function startMission(id,force){
   const def=msById(id);
   if(!def||mission||state!=='play')return;
+  if(def.crew&&!crewOn()){feed(`${def.title} needs a crew of two`);return}
   if(!force&&lv<def.level){feed(`${def.title} needs level ${def.level}`);return}
   msClear();endJob();job=null;hideBig();
   mission={def:{...def,steps:def.steps.slice()},i:0,t:0,tt:0,n:0,msg:'',pk:[],log:[]};msRetry=null;msDeath=null;
@@ -3134,7 +3144,7 @@ function startMission(id,force){
   feed('New mission: '+def.title+'. '+def.intro)}
 function msPass(){
   if(!mission)return;
-  const def=mission.def,sc=mission.scale,pay=Math.round(def.reward*(mission.mul||1)*(sc===undefined?1:(.4+.6*clamp(sc,0,1))));
+  const def=mission.def,sc=mission.scale,base=Math.round(def.reward*(mission.mul||1)*(sc===undefined?1:(.4+.6*clamp(sc,0,1)))),pay=def.crew?crewCut(base):base;
   msClear();me.cash+=pay;gainXP(def.xp,'Mission');
   msDone[def.id]=true;msSave();mission=null;msRetry=null;jingle('pass');
   showBig('MISSION PASSED','#ffc94a',`${def.title} · +$${pay.toLocaleString('en-US')}`,3);saveArsenal()}
@@ -3263,6 +3273,7 @@ const IC={map:'<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6
   radio:'<rect x="3" y="8" width="18" height="12" rx="2"/><circle cx="15.5" cy="14" r="2.5"/><path d="M7 12h4M7 16h3M8 8l9-4"/>',
   cam:'<rect x="3" y="7" width="18" height="13" rx="2"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8.5 7l1.5-2.5h4L15.5 7"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M5.5 18.5l2.1-2.1M16.4 7.6l2.1-2.1"/>',
+  crew:'<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/>',
   rules:'<path d="M3 8l4.5 4L12 5l4.5 7L21 8v10H3z"/>'};
 function phoneApp(id,name,icon,render,col){apps[id]={name,icon:ICO(icon),render,col:col||'#ff3ea5'};phDrawHome()}
 function phDrawHome(){phHome.replaceChildren();for(const id in apps){const a=apps[id],b=mk('button','ph-app');b.type='button';b.dataset.nav='';b.style.setProperty('--c',a.col);const ic=mk('span','ph-ic');ic.innerHTML=a.icon;a.bd=mk('b','ph-bd');a.bd.hidden=true;b.append(ic,mk('span','',a.name),a.bd);b.onclick=()=>phShow(id);phHome.append(b)}}
@@ -3374,8 +3385,10 @@ phoneApp('players','Players',IC.players,el=>{
   if(!remotes.size){el.append(mk('div','ph-sub',room?'Nobody else is in the city right now.':'Solo for now. Other players show up once the city is online.'));return}
   for(const[id,r]of remotes){const w=mk('div','ph-prow'),b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
     const dot=mk('i','ph-dot');dot.style.background=r.color;b.append(dot,g,mk('span','ph-go','GPS'));b.onclick=()=>{waypoint={x:r.x,y:r.y,peer:id};feed(`GPS on ${r.name}`)};
+    const far=Math.hypot(r.x-me.x,r.y-me.y)>60,inC=!!crewS&&crewS.members.includes(id);
+    const iv=mk('button','ph-mute',inC?'In crew':far?'Too far':'Invite');iv.type='button';iv.dataset.nav='';iv.disabled=far||inC;iv.onclick=()=>crewInvite(id);
     const mu=mk('button','ph-mute',mutedPeers.has(id)?'Unmute':'Mute');mu.type='button';mu.dataset.nav='';mu.onclick=()=>mutePeer(id);
-    w.append(b,mu);el.append(w)}
+    w.append(b,iv,mu);el.append(w)}
 },'#7b6bff');
 phoneApp('places','Places',IC.places,el=>{const best={};for(const d of DOORS){const dd=Math.hypot(d.x-me.x,d.y-me.y),o=best[d.label];if(!o||dd<o.dd)best[d.label]={d,dd}}
   for(const[k,{d,dd}]of Object.entries(best).sort((a,b)=>a[1].dd-b[1].dd)){const b=mk('button','ph-row');b.type='button';b.dataset.nav='';const dt=mk('span','ph-dt',DOORICON[k]||'?');dt.style.color=d.col;
@@ -3717,6 +3730,73 @@ function raceStep(dt){
     if(++v.i>n){v.done=true;rs.fin.push(rs.t)}else{v.g=p[v.i%n];v.n=p[(v.i+1)%n];decide(c,true)}}
 }
 if(DBG)Object.defineProperties(DBG,{race:{get:()=>raceState},raceStart:{value:raceStart},rivals:{get:()=>rvs.map(c=>({x:c.x|0,y:c.y|0,i:c.rv.i,k:c.kind}))}});
+
+// ---------- crews ----------
+// A crew is 2 to 4 players in one room. The leader invites a player within 60 units from the Players app and the
+// invitee presses E. Both ride on the presence field cw=[crewId, stations held as bits, invitee]. Crews live in memory only.
+let crewS=null,crewRd=null,crewInv=null,crewHold=[0,0,0];
+const CREW_STN=[{x:940,y:1380},{x:1820,y:3140},{x:2700,y:940}]; // bank van spots, one in each block
+function crewOn(){return!!crewS&&crewS.members.length>=2}
+function crewCnt(m){return(m&1)+(m>>1&1)+(m>>2&1)}
+function crewMask(){let m=crewRd?crewRd.m:0;if(crewOn())for(const p of crewS.members)if(p!==myPeer){const r=remotes.get(p);if(r)m|=r.cwM}return m}
+function crewPub(){return crewS?[crewS.id,crewRd?crewRd.m:0,crewS.inv?crewS.inv.peer:'']:null}
+// members are the remotes whose cw names this crew. The lowest peer id leads if the leader is gone.
+function crewFrame(dt){
+  if(crewRd&&(crewRd.t-=dt)<=0){if(crewRd.m&&!crewRd.done)feed('The crew stations reset');crewRd=null}
+  if(!room||!myPeer){crewS=null;crewInv=null;return}
+  const was=crewInv;crewInv=null;
+  for(const[p,r]of remotes)if(r.cwInv===str(myPeer)&&r.cwId&&!(crewS&&crewS.id===r.cwId)){crewInv={peer:p,name:r.name,id:r.cwId};break}
+  if(crewInv&&(!was||was.peer!==crewInv.peer||was.id!==crewInv.id))feed(`${crewInv.name} invites you to a crew. Press ${kb('interact')} to join.`);
+  if(!crewS)return;
+  if(crewS.inv&&(time>crewS.inv.t||crewS.members.includes(crewS.inv.peer)))crewS.inv=null;
+  crewS.members=[myPeer];for(const[p,r]of remotes)if(r.cwId===crewS.id&&crewS.members.length<4)crewS.members.push(p);
+  if(!crewS.members.includes(crewS.leader))crewS.leader=crewS.members.reduce((a,b)=>b<a?b:a);
+}
+function crewInvite(peer){
+  const r=remotes.get(peer);if(!r||!myPeer)return;
+  if(Math.hypot(r.x-me.x,r.y-me.y)>60)return feed(`${r.name} is too far. Get within 60 units`);
+  if(!crewS)crewS={id:(Math.random()*0x7fffffff|0).toString(16),leader:myPeer,members:[myPeer],inv:null};
+  if(crewS.leader!==myPeer)return feed('Only the crew leader can invite');
+  if(crewS.members.length>=4)return feed('A crew is four at most');
+  crewS.inv={peer,t:time+15};pubT=1;
+  feed(`Invited ${r.name}. Stand close, they press ${kb('interact')} to join`);
+}
+function crewAccept(){
+  if(!crewInv||me.car||me.heli||me.jet||me.inside)return false;
+  crewS={id:crewInv.id,leader:crewInv.peer,members:[myPeer],inv:null};crewRd=null;crewInv=null;pubT=1;
+  feed('You joined the crew');return true;
+}
+function crewLeave(){if(!crewS)return;crewS=null;crewRd=null;pubT=1;feed('You left the crew')}
+// co-op job: each spot needs one crew member in its ring for 4 s. A held spot stays held for the minute.
+function crewStep(st,dt){
+  if(!crewOn())return'fail:The crew broke up';
+  const P=jobPos();let near=-1,nd=18;
+  for(let i=0;i<3;i++){const d=Math.hypot(CREW_STN[i].x-P.x,CREW_STN[i].y-P.y);if(d<nd){nd=d;near=i}}
+  for(let i=0;i<3;i++)if(i!==near)crewHold[i]=0;
+  if(near>=0&&!(crewMask()>>near&1)&&(crewHold[near]+=dt)>=4){crewRd=crewRd||{t:60,m:0,done:false};crewRd.m|=1<<near}
+  const got=crewMask();
+  if(got===7){if(crewRd)crewRd.done=true;return'next'}
+  mission.msg=`Stations ${crewCnt(got)} of 3 held`+(crewRd?` · ${Math.ceil(crewRd.t)} s`:'');
+}
+function crewWhere(){const m=crewMask();let b=null,bd=1e9;for(let i=0;i<3;i++)if(!(m>>i&1)){const d=Math.hypot(CREW_STN[i].x-me.x,CREW_STN[i].y-me.y);if(d<bd){bd=d;b=CREW_STN[i]}}return b?[b.x,b.y]:null}
+// co-op payout: an even split rounded down, the leader keeps the rest
+function crewCut(v){if(!crewOn())return v;const n=crewS.members.length,s=Math.floor(v/n);return crewS.leader===myPeer?v-s*(n-1):s}
+phoneApp('crew','Crew',IC.crew,el=>{
+  if(!crewOn()){el.append(mk('div','ph-sub',crewInv?`${crewInv.name} invites you. Press ${kb('interact')} to join.`:'No crew yet. Invite a player within 60 units from the Players app.'));return}
+  for(const p of crewS.members){const r=p===myPeer?null:remotes.get(p),c=mk('div','ph-card');
+    c.append(mk('b','ph-big',r?r.name:myName+' (you)'),mk('div','ph-sub',(p===crewS.leader?'Leader':'Member')+(r?` · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m away`:'')));el.append(c)}
+  el.append(mk('div','ph-sub',mission&&mission.def.crew?`Bank van pickup: ${crewCnt(crewMask())} of 3 stations held.`:'No crew job running. Vic has one for crews.'));
+  const b=mk('button','ph-btn alt','Leave crew');b.type='button';b.dataset.nav='';b.onclick=crewLeave;el.append(b)},'#ff6b3d');
+if(DBG)Object.defineProperties(DBG,{crew:{get:()=>crewS}});
+// test hook: a fake remote 20 units away. With no argument it takes the invite at once and the bank job starts.
+// With true it is the leader inviting you, so press E to join.
+if(DBG)DBG.crewTest=inv=>{
+  const bot={peer:'bot',kind:'viewer',presence:{n:'Tester',c:'#3dd68c',pv:PV,v:0,x:0,y:0,cw:null}};
+  room={presence:()=>Promise.resolve(),peers:()=>{bot.presence.x=me.x+20;bot.presence.y=me.y;
+    bot.presence.cw=inv&&!(crewS&&crewS.id==='c0ffee')?['c0ffee',0,'me']:crewS?[crewS.id,0,'']:null;return[{peer:'me',sameTab:true},bot]}};
+  syncRoom(0);
+  if(!inv){crewInvite('bot');syncRoom(0);crewFrame(0);startMission('bank',true)}
+  return crewS};
 
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
@@ -4071,6 +4151,7 @@ function syncRoom(dt){
     {const rv=Array.isArray(s.rv)?s.rv:null;
      if(rv&&rv.length>=2){const rs=num(rv[1],-1),rp=str(rv[0]);if(rs>(r.rvSeen===null?-1:r.rvSeen)){r.rvSeen=rs;if(rp&&myPeer&&rp===str(myPeer))applyRevive(p.peer,rs)}}}
     r.hr=Array.isArray(s.hr)&&s.hr.length===5?s.hr:null;
+    {const cw=Array.isArray(s.cw)?s.cw:[];r.cwId=typeof cw[0]==='string'&&/^[0-9a-f]{1,8}$/.test(cw[0])?cw[0]:'';r.cwM=clamp(Math.floor(num(cw[1])),0,7);r.cwInv=str(cw[2])}
     if(myPeer){
       const dv=s.d&&typeof s.d==='object'?num(s.d[myPeer]):0;
       if(r.dmgSeen===null)r.dmgSeen=dv;else if(dv>r.dmgSeen){const amt=Math.min(dv-r.dmgSeen,120);r.dmgSeen=dv;if(RULES.ff){if(me.jet){me.jet.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.heli){me.heli.hp-=amt*BAL.remote.air;me.lastHitBy=p.peer;me.lastHitT=time}else if(me.car){const arm=me.car.type==='armored';damageCar(me.car,amt*(arm?BAL.remote.arm:BAL.remote.car),false);if(arm){me.lastHitBy=p.peer;me.lastHitT=time}else hurtMe(amt*BAL.remote.occ,p.peer)}else hurtMe(amt,p.peer)}}else r.dmgSeen=dv; // ff off: the counter still advances so nothing bursts when it is turned back on
@@ -4118,7 +4199,7 @@ function publish(dt){
   if(pruneT>3){pruneT=0;for(const m of[dmgOut,killedBy])for(const k of Object.keys(m))if(!remotes.has(k))delete m[k]}
   if(pubT<.066)return;pubT=0;
   const c=me.car,x=c?c.x:me.x,y=c?c.y:me.y,a=c?c.a:me.a;
-  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
+  room.presence({lk:lookCode(look3),ar:[arc.hi[0],arc.hi[1]],n:myName,c:myColor,x:Math.round(x),y:Math.round(y),a:Math.round(a*100)/100,v:me.jet?3:me.heli?2:c?1:0,fl:flareSeq,hs:heist.on?[heist.seed,heist.bits,Math.round(heist.drill),heist.drilling?1:0]:null,cc:c?c.color:myColor,ng:c&&c.mods&&c.mods.neon||null,ct:c?c.type:'sedan',h:Math.round(clamp(me.hp,0,100)),z:Math.round(me.car?0:me.z||0),cz:Math.round(me.car?me.car.z||0:0),dd:state==='play'?0:1,dn:me.downed?1:0,pm:pitState&&!pitState.done?pitState.m:'',d:dmgOut,k:killedBy,ch:thisChat,rv:lastRv,s:lastShot,sb:stickies.map(b=>[Math.round(b.x),Math.round(b.y),Math.round(b.z)]),ex:lastEx,cw:crewPub(),w:Math.ceil(heat),lv,rk:rkMine(),hr:amHost()?[hrVer,RULES.cops,RULES.traffic,RULES.ff,RULES.grav]:null,pv:PV}).catch(()=>{});
 }
 function killsOf(peer){let k=0;for(const r of remotes.values())k+=num(r.k[peer]);if(peer!==myPeer)k+=num(killedBy[peer]);return k}
 if(DBG)Object.defineProperties(DBG,{pv:{get:()=>PV}});
@@ -4242,6 +4323,7 @@ function ui(dt){phoneStep(dt);chatStep();
     else if(me.inside){const p=nearSpot();t=p?(isTouch?'Tap CAR: ':kb('interact')+': ')+p.label:''}
     else if(nearLadder()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+(nearLadder().up?'Climb the ladder':'Climb down')}
     else if(me.roof){t=''}
+    else if(crewInv)t=(isTouch?'Tap CAR: ':kb('interact')+': ')+'join '+crewInv.name+"'s crew";
     else if(msNear()){const q=msNear(),sn=isTouch?'Tap CAR: ':kb('interact')+': ';
       t=!q.def?`${q.c.name} has no more work`:q.locked?`${q.def.title} needs level ${q.def.level}`:sn+(q.retry?'retry ':'start ')+`${q.def.title} · Lv ${q.def.level} · $${q.def.reward.toLocaleString('en-US')}`}
     else if(nearDealer()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+`Buy ${DRUGS[DK[drugSel]].name} ($${DRUGS[DK[drugSel]].price})`}
@@ -4269,7 +4351,7 @@ function update(dt){
   time+=dt;wxTick(dt);
   lockTarget=(state==='play'&&weap==='homing'&&!me.inside)?findLock():null;
   A.x=me.inside&&me.door?me.door.x:me.x;A.y=me.inside&&me.door?me.door.y:me.y;
-  syncRoom(dt);
+  syncRoom(dt);crewFrame(dt);
   downedStep(dt);
   if(state==='dead'){specPick();deadT-=dt;if(deadT<=0)respawn()}
   me.inv=Math.max(0,me.inv-dt);me.fireCd-=dt;shopCd-=dt;
