@@ -422,14 +422,16 @@ const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new 
 function hillMeshes(){
   const det=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#c8c8c8';g.fillRect(0,0,w,h);grit(g,w,h,9000,31,.12)});det.wrapS=det.wrapT=THREE.RepeatWrapping;
   const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[];
-  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),nr=j1-j0+1,pos=[],nor=[],col=[],uv=[],ix=[];
-    for(let j=j0;j<=j1;j++)for(let i=0;i<nx;i++){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell,h=hz(i,j);
+  // every 2nd heightmap sample (20 units): a quarter of the triangles, the same slopes
+  const cs=[];for(let i=0;i<nx;i+=2)cs.push(i);if(cs[cs.length-1]!==nx-1)cs.push(nx-1);
+  for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),rs=[];for(let j=j0;j<=j1;j+=2)rs.push(j);if(rs[rs.length-1]!==j1)rs.push(j1);const pos=[],nor=[],col=[],uv=[],ix=[];
+    for(const j of rs)for(const i of cs){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell,h=hz(i,j);
       const gx=(hz(i+1,j)-hz(i-1,j))/(2*HM.cell),gz=(hz(i,j+1)-hz(i,j-1))/(2*HM.cell),s=Math.hypot(gx,gz),ln=Math.hypot(gx,1,gz);
       pos.push(x,h,z);nor.push(-gx/ln,1/ln,-gz/ln);uv.push(x/120,z/120);
       if(h<1.5)HCOL.copy(HC.verge);else{HCOL.lerpColors(HC.g1,HC.g2,clamp(h/360,0,1));HCOL2.lerpColors(HC.r1,HC.r2,vnoise(x/90,z/90));
         HCOL.lerp(HCOL2,clamp((s-.42)/.28,0,1)*clamp((s-.42)/.28,0,1)*(3-2*clamp((s-.42)/.28,0,1)))}
       col.push(HCOL.r,HCOL.g,HCOL.b)}
-    for(let j=0;j<nr-1;j++)for(let i=0;i<nx-1;i++){const a=j*nx+i,b=a+1,c=a+nx,d=c+1;ix.push(a,c,b,b,c,d)}
+    const nc=cs.length;for(let j=0;j<rs.length-1;j++)for(let i=0;i<nc-1;i++){const a=j*nc+i,b=a+1,c=a+nc,d=c+1;ix.push(a,c,b,b,c,d)}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
     out.push(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:det})))}
@@ -4378,7 +4380,7 @@ const STREET_PROPS=[];
  const lam=c=>new THREE.MeshLambertMaterial({color:c}),IM=(g,m,n)=>new THREE.InstancedMesh(g,m,Math.max(1,n));
  // lamps: slim pole with an arm, small tapered shade facing down and a warm bulb under it
  const post=IM(mergeGeos([[new THREE.CylinderGeometry(.9,1.3,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#2c2938'),lp.length),
-  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,8,6),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),lp.length),
+  hd=IM(new THREE.CylinderGeometry(1.2,2.5,2.3,4),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.95,6,4),new THREE.MeshBasicMaterial({color:'#ffdf9e'}),lp.length),
   pool=IM(new THREE.PlaneGeometry(1,1),additive(glowTex('rgba(255,176,90,.55)'),.4),lp.length);
  lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.4,hz);inst(hb,i,hx,38.35,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,120,120,1,-Math.PI/2)});
  // traffic lights: pole, housing and two lamp cubes per corner; colours cycle green/yellow/red in trafficStep via one instanceColor pass per phase change
