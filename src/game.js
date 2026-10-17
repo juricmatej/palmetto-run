@@ -984,6 +984,7 @@ function policeClear(){ // respawn and die('BUSTED') drop everything the police 
   spikes.length=0;copHeli=null;lastSeen=null;unseenT=0;blockCd=0;
 }
 if(DBG)Object.defineProperties(DBG,{unseenT:{get:()=>unseenT},lastSeen:{get:()=>lastSeen},copHeli:{get:()=>copHeli},spikes:{get:()=>spikes},addHeat:{get:()=>addHeat}});
+if(DBG)Object.defineProperties(DBG,{spawnHeli:{get:()=>()=>copHeli=spawnCopHeli()}}); // debug only: drop a helicopter into the world through the real spawn call
 
 // ---------- peds ----------
 const SPORTS=['#ff3ea5','#29e6d6','#ffc94a','#7b6bff'];
