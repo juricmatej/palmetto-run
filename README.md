@@ -92,7 +92,7 @@ Coordinates: game logic is 2D on the ground plane (`x`, `y`) with a separate hei
 
 ### Multiplayer
 
-When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude, `room` is unavailable and the game runs solo. The badge above the minimap shows the reason.
+When the page runs inside Claude, `window.claude.use('room')` returns a live room. Each player publishes a small presence object about 15 times a second: position, vehicle, health, last shot, damage dealt to others, heist progress and so on. Every client simulates its own traffic and pedestrians. Damage is decided by the shooter and applied by the victim when they see it in the shooter's presence. Outside Claude, `room` is unavailable and the game runs solo. The badge above the minimap shows the reason. `npm run lobby:test` starts the Cloudflare lobby locally and checks the relay end to end; presence carries a protocol version (`pv`), and a player on a different version is asked to reload instead of being dropped.
 
 ## Publish as a Claude Artifact
 
