@@ -473,7 +473,7 @@ function wxTick(dt){rainStep(dt);wxAcc+=dt;if(wxAcc<.25)return;const s=wxAcc;wxA
   clock=(clock+s/1200)%1;wxLeft-=s;
   if(wxLeft<=0){wx=WXS[(WXS.indexOf(wx)+1+(rand()*2|0))%3];wxLeft=rr(90,270)}
   skyLook()}
-if(DBG)Object.defineProperties(DBG,{weather:{get:()=>({clock,wx})}});
+if(DBG)Object.defineProperties(DBG,{weather:{get:()=>({clock,wx})},fades:{get:()=>({num:FADE.length,col:FADEC.length,day:dAlast})}});
 if(DBG)DBG.setWeather=k=>{wx=k;wxLeft=rr(90,270);skyLook()};
 if(DBG)DBG.setClock=c=>{clock=c;skyLook()};
 // ---------- events ----------

@@ -23,7 +23,7 @@ function mergeGeos(list){const hasUv=list.every(([g])=>g.attributes.uv),hasCol=l
 // so meshes with the same look but different material objects still share a draw. Animated or toggled objects stay apart.
 function staticBatch(){
   const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,LMA.boats,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
-  const look=m=>[m.type,m.map?m.map.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',m.emissive?m.emissive.getHex():'',m.side,+!!m.flatShading,+!!m.transparent,m.opacity,m.blending,+!!m.depthWrite,+!!m.depthTest,+!!m.fog,+!!m.vertexColors,m.specular?m.specular.getHex():'',m.shininess||''].join('|');
+  const look=m=>[m.type,m.map?m.map.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',m.emissive?m.emissive.getHex():'',m.side,+!!m.flatShading,+!!m.transparent,m.opacity,m.blending,+!!m.depthWrite,+!!m.depthTest,+!!m.fog,+!!m.vertexColors,m.specular?m.specular.getHex():'',m.shininess||'',m.userData.fade?JSON.stringify(m.userData.fade):'',m.userData.fadeC?JSON.stringify(m.userData.fadeC):''].join('|');
   for(const o of scene.children){
     if(!o.isMesh&&!o.isInstancedMesh||!o.visible||Array.isArray(o.material)||skip.has(o))continue;const m=o.material,g=o.geometry;
     if(m.transparent&&!(m.blending===THREE.AdditiveBlending&&!m.depthWrite))continue; // additive glows can join a batch: additive blending does not depend on draw order
@@ -37,8 +37,9 @@ function staticBatch(){
   for(const o of gone)scene.remove(o);
   for(const{mats,list}of groups.values()){if(!list.length)continue;
     const one=[...mats][0],plain=mats.size===1&&one.color.getHex()===0xffffff&&!one.vertexColors; // a lone white material is used as it is, so runtime edits to it still apply
-    const mat=plain?one:Object.assign(one.clone(),{vertexColors:true});if(!plain){mat.color.set(0xffffff);mat.needsUpdate=true}
-    fadeApply(mat); // a clone keeps its day/night registration (its colour is white; the tint moved into vertex colours)
+    const mat=plain?one:Object.assign(one.clone(),{vertexColors:true});
+    if(!plain){mat.color.set(0xffffff);mat.needsUpdate=true;if(one.userData)mat.userData=JSON.parse(JSON.stringify(one.userData));
+      fadeApply(mat)} // a clone keeps its day/night registration (its colour is white; the tint moved into vertex colours)
     const parts=plain?list.map(([g,mx])=>[g,mx]):list.map(([g,mx,mt])=>{const k=g.uuid+mt.uuid;if(!tinted.has(k))tinted.set(k,tintGeo(g,mt));return[tinted.get(k),mx]});
     if(parts.length===1){const[g,mx]=parts[0];const m=new THREE.Mesh(g,mat);m.matrixAutoUpdate=false;m.matrix.copy(mx);scene.add(m);continue}
     const m=new THREE.Mesh(mergeGeos(parts),mat);m.matrixAutoUpdate=false;scene.add(m)}
@@ -293,7 +294,7 @@ const chainMat=new THREE.MeshBasicMaterial({map:chainTex,alphaTest:.45,side:THRE
  chainPost=mergeGeos([[new THREE.CylinderGeometry(.5,.5,7,5),new THREE.Matrix4().makeTranslation(0,3.5,0)],[new THREE.BoxGeometry(.5,.5,.5),new THREE.Matrix4().makeTranslation(0,7,0)]]);
 const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{})));
 const glassMat=fade(new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3);
-const winMat=fadeC(new THREE.MeshBasicMaterial({color:'#ffd28a'}),'color','#ffd28a','#6b5f45'),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
+const winMat=fadeC(new THREE.MeshBasicMaterial({color:'#ffd28a'}),'color','#ffd28a','#2f3f5c'),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
 // rooftop dressing: parapets, set-backs, roof plant, lit crowns and shop blade signs.
 // Per-building detail runs on its own seeded stream (keyed off the footprint), so the world stream never moves.
 const mtx=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
@@ -334,13 +335,13 @@ for(const b of buildings){
     const gs=hr()<.5?-1:1,gx=gs*(sideL/2+13);
     pc(new THREE.BoxGeometry(18,14,20),blam(b.roof),gx,7,2);pc(new THREE.BoxGeometry(13,11,1),hard,gx,5.6,12.2);
     {const d0=13,el=Math.max(d0+6,edge),len=el-d0;pc(new THREE.BoxGeometry(9,.16,len),hard,gx,1.32,d0+len/2)}
-    // windows on all four faces
-    for(const[ox,oz,sgn]of[[0,-1,'n'],[0,1,'s'],[-1,0,'w'],[1,0,'e']]){
-      const wide=oz?b.w:b.h,n=wide>64?2:1;
-      for(let i=0;i<n;i++){const u=(i-(n-1)/2)*wide*.42;
-        pc(new THREE.PlaneGeometry(11,9),winMat,oz?u:ox*(b.w/2+.3),9,oz?oz*(b.h/2+.3):u,oz?0:ox*Math.PI/2)}
-      for(let i=0;i<n;i++){const u=(i-(n-1)/2)*wide*.42;
-        pc(new THREE.PlaneGeometry(11,9),winMat,oz?u:ox*(b.w/2+.3),16.5,oz?oz*(b.h/2+.3):u,oz?0:ox*Math.PI/2)}}
+    // windows on all four faces (local frame: +z is the front, so the front-axis half is fHalf, the side half is sHalf)
+    {const fHalf=half,sHalf=fz?b.w/2:b.h/2;
+     for(const[ox,oz]of[[0,-1],[0,1],[-1,0],[1,0]]){
+      const across=oz?sHalf:fHalf,n=across>30?2:1;
+      for(const yy of[9,16.5])for(let i=0;i<n;i++){const u=(i-(n-1)/2)*across*1.1;
+        if(oz)pc(new THREE.PlaneGeometry(11,9),winMat,u,yy,oz*(fHalf+.3));
+        else pc(new THREE.PlaneGeometry(11,9),winMat,ox*(sHalf+.3),yy,u,ox*Math.PI/2)}}}
     pc(new THREE.PlaneGeometry(9,14),doorMat,0,7,half+.3);
     // picket fence along the front yard, gate at the porch and a gap at the drive
     {const fy=edge-26,kx=-sideL/2+6,ex=sideL/2-6,runs=[[kx,Math.min(0,gx)-6],[Math.min(0,gx)+6,Math.max(0,gx)-6],[Math.max(0,gx)+6,ex]];
