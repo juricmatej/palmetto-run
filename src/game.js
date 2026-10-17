@@ -762,7 +762,7 @@ function drive(c,thr,steer,hand,dt){
   if(P)modBay(c);
   if(P&&state==='shop'){c.vx=c.vy=0;return} // the shop freezes your car
   let fwd=c.vx*fx+c.vy*fy,lat=-c.vx*fy+c.vy*fx;
-  const T=ctOf(c),boost=P&&c.boost,max=(c.kind==='police'?300:T.max*modK(c,'max')*(boost?1.2:1))*sh;
+  const T=ctOf(c),boost=P&&c.boost,max=(c.kind==='police'?300:T.max*modK(c,'max')*(boost?1.2:1)*(P?drugMul('move'):1))*sh;
   let lg=(hand?1.4:T.grip*modK(c,'grip'))*sk,hl=180,brk=650,coast=110;
   if(P){ // player car: handbrake drift, calmer steering at speed, sharper braking
     const dr=hand&&steer&&Math.hypot(c.vx,c.vy)>160;
@@ -938,10 +938,10 @@ function policeStep(dt){
     for(const p of peds)if(!seen&&p.cop&&!p.down&&Math.hypot(p.x-me.x,p.y-me.y)<430&&!blockedLine(p.x,p.y,me.x,me.y))seen=true;
     if(!seen&&copHeli&&!copHeli.dead&&!copHeli.falling&&Math.hypot(copHeli.x-me.x,copHeli.y-me.y)<650)seen=true;
   }
-  if(seen){lastSeen={x:me.x,y:me.y};unseenT=0;policeBusy=true}else if(heat>0)unseenT+=dt; // no heat, no one is watching
+  if(seen){lastSeen={x:me.x,y:me.y};unseenT=0;policeBusy=true}else if(heat>0&&drugState.k!=='calm')unseenT+=dt; // no heat, no one is watching
   coolT=seen?0:coolT+dt; // pdPay reads coolT as the time since the cops last saw you
   const pv=heat;
-  if(heat>0){ // hide: waited out the search, or sat outside the search circle
+  if(heat>0&&drugState.k!=='calm'){ // hide: waited out the search, or sat outside the search circle
     const st0=Math.ceil(heat-.001),r=220+140*st0;
     if(unseenT>5+3*st0||(unseenT>=3&&lastSeen&&Math.hypot(me.x-lastSeen.x,me.y-lastSeen.y)>r))heat=0;
   }
@@ -1021,7 +1021,7 @@ function setPedBlock(p){
 function pedCorners(p){const x0=p.bi*B+R+7,y0=p.bj*B+R+7,x1=(p.bi+1)*B-7,y1=(p.bj+1)*B-7;return[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]}
 function knockPed(p,vx,vy,byMe){
   if(p.down)return;p.down=10;p.vx=vx;p.vy=vy;
-  if(!p.cop){pickups.push({x:p.x,y:p.y,amt:Math.floor(p.gang?rr(40,150):rr(5,40)),t:25});if(p.gang&&rand()<.3)pickups.push({x:p.x-6,y:p.y+4,powder:1,amt:0,t:25})}
+  if(!p.cop){pickups.push({x:p.x,y:p.y,amt:Math.floor(p.gang?rr(40,150):rr(5,40)),t:25})}
   burst(p.x,p.y,8,'#ffd27a',140,.35);
   if(byMe){if(p.cop)addHeat(.6);else if(p.gang)addHeat(.1);else crime(p.x,p.y,.4)}if(p.gang&&byMe)gainXP(6,'Gang member');
   if(p.gang){for(const q of peds)if(q.gang&&!q.down&&Math.hypot(q.x-p.x,q.y-p.y)<420)q.aggro=true;if(byMe&&job&&job.type==='turf'&&(p.gname||'Vipers')===(job.gname||'Vipers'))job.n++}
@@ -1283,14 +1283,14 @@ function myShoot(){
   if(w.throw){if(!throwSticky())ammo[w.id]++;return}
   fireZ=(me.car?me.car.z||0:me.z||0)+12;fireSpd=w.speed||0;fireLife=w.life||0;fireSlope=0;
   if(!me.car&&aimPt){const dx=aimPt[0]-me.x,dy=aimPt[1]-me.y,dh=Math.hypot(dx,dy);if(dh>4){me.a=Math.atan2(dy,dx);fireSlope=clamp((aimPt[2]-fireZ)/dh,-3,3)}}
-  const c=me.car,a=c?c.a:(aimPt?me.a:(me.a=look.yaw)),x=c?c.x+Math.cos(a)*26:me.x+Math.cos(a)*12,y=c?c.y+Math.sin(a)*26:me.y+Math.sin(a)*12;
-  for(let i=0;i<w.pellets;i++)fire(x,y,a+rr(-w.spread,w.spread),'me',w.dmg*(power>0?2:1),w.rocket,i>0,w.homing&&lockTarget?lockTarget:null,w.id);
+  const c=me.car,a=drugAim(c?c.a:(aimPt?me.a:(me.a=look.yaw))),x=c?c.x+Math.cos(a)*26:me.x+Math.cos(a)*12,y=c?c.y+Math.sin(a)*26:me.y+Math.sin(a)*12;
+  for(let i=0;i<w.pellets;i++)fire(x,y,a+rr(-w.spread,w.spread)*drugMul('spread'),'me',w.dmg,w.rocket,i>0,w.homing&&lockTarget?lockTarget:null,w.id);
   shotSeq=(shotSeq+1)%1e6;lastShot=[shotSeq,Math.round(x),Math.round(y),Math.round(a*100)/100,WI[w.id],w.homing&&lockTarget&&lockTarget.peer?lockTarget.peer:null,Math.round(fireZ),Math.round(fireSlope*100)/100];
   fireZ=12;fireSpd=0;fireLife=0;fireSlope=0;
   if(w.rocket)shake=Math.max(shake,5);
   if(time>heatShotT)for(const p of cars)if(p.kind==='police'&&Math.hypot(p.x-me.x,p.y-me.y)<450){addHeat(.08);heatShotT=time+2;break}
 }
-function addHeat(v){if(!RULES.cops)return;heat=clamp(heat+v,0,5);coolT=0} // cops off: heat cannot rise
+function addHeat(v){if(!RULES.cops)return;heat=clamp(heat+v*drugMul('heat'),0,5);coolT=0} // cops off: heat cannot rise
 function explode(x,y,byMe,cosmetic,ez,k=1,sk){const gz=groundZ(x,y);ez=ez===undefined?gz:Math.max(0,ez);burstZ=ez;
   burst(x,y,40,'#ffb347',320,.7);burst(x,y,26,'#ff3ea5',220,.5);burst(x,y,18,'rgba(60,50,70,1)',90,2.2,'smoke');
   parts.push({x,y,z0:ez,vx:0,vy:0,life:.25,max:.25,col:'#fff1c2',k:'flash',sz:180});
@@ -1304,11 +1304,11 @@ function explode(x,y,byMe,cosmetic,ez,k=1,sk){const gz=groundZ(x,y);ez=ez===unde
   scare(x,y,400);burstZ=0;
 }
 function hurtMe(amt,from){
-  if(state!=='play'||me.inv>0||amt<=0)return;
-  if(me.downed){me.downT-=amt*(power>0?.35:1)*palmMul()*1.5;me.lastHurt=time;if(from){me.lastHitBy=from;me.lastHitT=time}
+  if(state!=='play'||me.inv>0||amt<=0)return;amt*=drugMul('hurt');
+  if(me.downed){me.downT-=amt*palmMul()*1.5;me.lastHurt=time;if(from){me.lastHitBy=from;me.lastHitT=time}
     $('vig').style.boxShadow='inset 0 0 140px rgba(255,40,60,.55)';setTimeout(()=>$('vig').style.boxShadow='',180);
     if(me.downT<=0)bleedout();return}
-  me.hp-=amt*(power>0?.35:1)*palmMul();me.lastHurt=time;if(from){me.lastHitBy=from;me.lastHitT=time}
+  me.hp-=amt*palmMul();me.lastHurt=time;if(from){me.lastHitBy=from;me.lastHitT=time}
   $('vig').style.boxShadow='inset 0 0 140px rgba(255,40,60,.55)';setTimeout(()=>$('vig').style.boxShadow='',180);
   if(me.hp<=0)die('WASTED');
 }
@@ -1363,7 +1363,7 @@ function toggleCar(){
   if(!me.car&&tryLadder())return;
   if(me.roof)return;
   if(!me.car&&propAct())return;
-  if(!me.car&&nearDealer()){buyPowder();return}
+  if(!me.car&&nearDealer()){buyDrug();return}
   if(me.car){leaveCar(false);return}
   const c=nearestCar();if(!c){talkPed();return}
   if(c.kind==='traffic')crime(c.x,c.y,.3);
@@ -1406,13 +1406,13 @@ function renderShop(){
     row.append(nm,acts,ds);L.appendChild(row);
   });
 }
-function saveArsenal(){try{localStorage.setItem('pr3d-arsenal',JSON.stringify({owned,ammo,cash:me.cash,bonus10k:true,powder,xp}));localStorage.setItem('pr3d-career',JSON.stringify(career))}catch(e){}}
+function saveArsenal(){try{localStorage.setItem('pr3d-arsenal',JSON.stringify({owned,ammo,cash:me.cash,bonus10k:true,powder,drugs,xp}));localStorage.setItem('pr3d-career',JSON.stringify(career))}catch(e){}}
 function loadArsenal(d){
   if(!d||typeof d!=='object')return;
   if(d.owned&&typeof d.owned==='object')for(const w of WEAPONS)if(d.owned[w.id]===true)owned[w.id]=true;
   if(d.ammo&&typeof d.ammo==='object')for(const w of WEAPONS)if(Number.isFinite(d.ammo[w.id]))ammo[w.id]=Math.max(0,Math.floor(d.ammo[w.id]));
   if(Number.isFinite(d.cash))me.cash=Math.max(0,Math.floor(d.cash));if(!d.bonus10k)me.cash=Math.max(me.cash,10000);
-  if(Number.isFinite(d.powder))powder=clamp(Math.floor(d.powder),0,99);
+  if(d.drugs&&typeof d.drugs==='object')for(const k of DK)if(Number.isFinite(d.drugs[k]))drugs[k]=clamp(Math.floor(d.drugs[k]),0,3);
   if(Number.isFinite(d.xp))xp=clamp(Math.floor(d.xp),0,1e7);lv=lvOf(xp);
   if(typeof d.weap==='string'&&owned[d.weap])weap=d.weap;
 }
@@ -1493,17 +1493,10 @@ function jetFire(){const j=me.jet;if(!j||j.falling)return;me.fireCd=.2;jetSide=-
   fireZ=12;fireSpd=0;fireLife=0;fireSlope=0;shake=Math.max(shake,2)}
 
 // ---------- white powder ----------
-const DEALER={x:6*B+R+10,y:5*B+R+10};let powder=0,power=0,crashT=0;
+const DEALER={x:6*B+R+10,y:5*B+R+10};let drugs={coke:0,speed:0,calm:0},drugSel=0,drugState={k:null,t:0},drugHist=[],odT=0;
+const DK=['coke','speed','calm'],DRUGS={coke:{name:'Coke',price:300,t:25,col:'#f3ecff',fx:{heat:1.2}},speed:{name:'Speed',price:200,t:30,col:'#29e6d6',fx:{move:1.35,spread:1.3,crash:1.25}},calm:{name:'Calm',price:150,t:40,col:'#3dd68c',fx:{hurt:.8}}};
 const nearDealer=()=>!me.car&&!me.heli&&!me.jet&&!me.inside&&!me.roof&&Math.hypot(DEALER.x-me.x,DEALER.y-me.y)<30;
-function buyPowder(){if(me.cash<200){feed('A bag costs $200');return}me.cash-=200;powder++;feed(`Bought a bag of white powder (${powder}). Press ${kb('drug')} to use it`);noise(.1,5000,.12);saveArsenal()}
-function usePowder(){if(!powder||state!=='play'||me.downed||power>0)return;powder--;power=25;crashT=0;noise(.5,5000,.18);showBig('SUPER STRENGTH','#f3ecff','25 seconds',1.4);feed('Your heart is racing. Run into cars and people');saveArsenal()}
-function powerStep(dt){
-  if(power>0){power-=dt;if(power<=0){power=0;crashT=10;feed('You are crashing...')}
-    if(state==='play'&&!me.car&&!me.heli&&!me.jet&&!me.inside){
-      for(const p of peds){if(p.down)continue;const d=Math.hypot(p.x-me.x,p.y-me.y);if(d<16){const nx=(p.x-me.x)/(d||1),ny=(p.y-me.y)/(d||1);knockPed(p,nx*520,ny*520,true)}}
-      for(const c of cars){if(c.kind==='dead'||c.kind==='mine')continue;const d=Math.hypot(c.x-me.x,c.y-me.y);if(d<26&&!(c.shoveT>time)){c.shoveT=time+.6;if(c.kind==='traffic')wreck(c,true);if(c.kind==='police')c.mode='chase';
-        const nx=(c.x-me.x)/(d||1),ny=(c.y-me.y)/(d||1);c.vx=(c.vx||0)+nx*420;c.vy=(c.vy||0)+ny*420;damageCar(c,BAL.shove,true);shake=Math.max(shake,6);noise(.3,500,.35)}}}}
-  else if(crashT>0)crashT-=dt}
+function buyDrug(){const k=DK[drugSel],d=DRUGS[k];if(me.cash<d.price){feed(`${d.name} costs $${d.price}`);return}if(drugs[k]>=3){feed(`You already carry three ${d.name}`);return}me.cash-=d.price;drugs[k]++;feed(`Bought ${d.name} (${drugs[k]}). ${kb('drugSwitch')} switches, ${kb('drug')} uses`);noise(.1,5000,.12);saveArsenal()}
 
 // ---------- robberies ----------
 function startRob(p){if(rob)return;if(p.act==='heist'&&!unlocked('casinoHeist')){feed(`Come back at level ${UNLOCK.casinoHeist}`);return}const id=p.act+p.x;if((robCd[id]||0)>time){feed(`Nothing left to take. Come back in ${Math.ceil(robCd[id]-time)}s`);return}
@@ -3402,6 +3395,25 @@ function careerStep(dt){
 }
 if(DBG)Object.defineProperties(DBG,{career:{get:()=>career},bountyTest:{get:()=>()=>{const P=jobPos();bounty={x:P.x,y:P.y,pay:bountyPay(),t:180}}}});
 
+// ---------- drugs ----------
+// Timed abilities bought at the dealer. One is active at a time. A third dose within 60 s knocks you down for 4 s.
+function useDrug(){const k=DK[drugSel];if(!drugs[k]||state!=='play'||me.downed)return;
+  drugs[k]--;drugHist=drugHist.filter(x=>time-x<60);const od=drugHist.length>=2;drugHist.push(time);
+  drugState={k,t:DRUGS[k].t};showBig(DRUGS[k].name.toUpperCase(),DRUGS[k].col,DRUGS[k].t+' seconds',1.4);noise(.5,5000,.18);
+  if(od&&goDown())odT=4;saveArsenal()}
+function drugStep(dt){
+  if(drugState.k&&(drugState.t-=dt)<=0){feed(DRUGS[drugState.k].name+' has worn off');drugState={k:null,t:0}}
+  if(odT>0&&(odT-=dt)<=0&&me.downed){me.downed=false;me.downT=0;feed('You get back up')}}
+const drugMul=f=>DRUGS[drugState.k]?.fx?.[f]||1;
+// coke: the shot bends halfway toward the nearest person or car inside 40 degrees
+function drugAim(a){if(drugState.k!=='coke')return a;let best=null,bd=500;
+  for(const t of[...peds,...cars]){if(t.down||t.kind==='dead'||t.kind==='mine'||t===me.car)continue;const dx=t.x-me.x,dy=t.y-me.y,d=Math.hypot(dx,dy),ta=Math.atan2(dy,dx);if(d<bd&&Math.abs(wrap(ta-a))<40*Math.PI/180){bd=d;best=ta}}
+  return best===null?a:a+wrap(best-a)*.5}
+function drugChip(){const pw=$('power'),k=DK[drugSel];pw.hidden=!drugState.k&&!DK.some(x=>drugs[x]);
+  if(drugState.k){pw.style.color=drugState.t>10?'#3dd68c':drugState.t>4?'#ffc94a':'#ff4b4b';pw.textContent=`${DRUGS[drugState.k].name} ${Math.ceil(drugState.t)}s`}
+  else{pw.style.color=DRUGS[k].col;pw.textContent=`${DRUGS[k].name} x${drugs[k]} (${isTouch?'BUMP':kb('drug')} use, ${kb('drugSwitch')} switch)`}}
+function drugTest(k){drugs[k]++;drugSel=DK.indexOf(k);useDrug()} // debug only
+if(DBG)Object.defineProperties(DBG,{drug:{get:()=>drugState},drugTest:{get:()=>drugTest}});
 // ---------- input ----------
 const isTouch=matchMedia('(pointer:coarse)').matches;
 const keys={};let mouse={x:0,y:0,t:-99,down:false},stick={id:null,ox:0,oy:0,x:0,y:0},touchFire=false;
@@ -3428,6 +3440,7 @@ const ACTIONS=[
   {id:'phone',label:'Phone',group:'Interface',def:['KeyT']},
   {id:'radio',label:'Radio',group:'Interface',def:['KeyK']},
   {id:'drug',label:'Use drug',group:'Interface',def:['KeyN']},
+  {id:'drugSwitch',label:'Switch drug',group:'Interface',def:['KeyB']},
   {id:'detonate',label:'Detonate',group:'Interface',def:['KeyG']},
   {id:'flares',label:'Flares',group:'Interface',def:['KeyX']},
   {id:'mute',label:'Mute',group:'Interface',def:['KeyM']},
@@ -3474,7 +3487,8 @@ addEventListener('keydown',e=>{
     case'wheel':if(!e.repeat)openWheel();break;
     case'detonate':if(!e.repeat)detonate();break;
     case'flares':if(!e.repeat)dropFlares();break;
-    case'drug':if(!e.repeat)usePowder();break;
+    case'drug':if(!e.repeat)useDrug();break;
+    case'drugSwitch':if(!e.repeat&&!me.downed)drugSel=(drugSel+1)%DK.length;break;
     case'scope':if(!e.repeat&&weap==='sniper'&&!me.car&&!me.downed)scoped=!scoped;break;
     case'sprint':if(!e.repeat&&settings.sprintMode==='toggle'){sprintOn=!sprintOn;sprintUsed=false}break;
     case'lockOn':if(!e.repeat&&state==='dead')spectateNext();break;
@@ -3610,7 +3624,7 @@ $('downGive').addEventListener('click',()=>{if(me.downed)bleedout()});
 let gunHold=null,gunHeld=false;
 $('bGun').addEventListener('pointerdown',e=>{e.preventDefault();gunHeld=false;clearTimeout(gunHold);gunHold=setTimeout(()=>{gunHeld=true;openWheel()},280)});
 for(const[id,set]of[['bUp',v=>heliUpT=v],['bDn',v=>heliDnT=v]]){$(id).addEventListener('pointerdown',e=>{e.preventDefault();set(true)});for(const t of['pointerup','pointercancel','pointerleave'])$(id).addEventListener(t,()=>set(false))}
-$('bNose').addEventListener('pointerdown',e=>{e.preventDefault();usePowder()});
+$('bNose').addEventListener('pointerdown',e=>{e.preventDefault();useDrug()});
 $('bFlare').addEventListener('pointerdown',e=>{e.preventDefault();dropFlares()});
 $('bBoom').addEventListener('pointerdown',e=>{e.preventDefault();detonate()});
 $('bAim').addEventListener('pointerdown',e=>{e.preventDefault();if(weap==='sniper'&&!me.car)scoped=!scoped});
@@ -3879,8 +3893,8 @@ function ui(dt){phoneStep(dt);chatStep();
   if(state==='shop')$('shopCash').textContent='$'+me.cash.toLocaleString('en-US');
   if((saveT+=.1)>3){saveT=0;saveArsenal()}
   {const lk=$('lock');lk.hidden=!lockTarget;if(lockTarget)lk.textContent='Locked: '+lockTarget.name;let inc=false;if(myPeer&&state==='play')for(const b of bullets)if(b.owner==='remote'&&b.home&&b.home.peer===myPeer){inc=true;break}$('warn').hidden=!inc}
-  {const dk=$('drunk');dk.hidden=drunk<=0;if(drunk>0)dk.textContent='Drunk '+'●'.repeat(Math.max(1,Math.ceil(drunk/12)));cv.style.filter=((drunk>3?`blur(${Math.min(2.2,drunk/20).toFixed(2)}px) saturate(${(1+Math.min(.8,drunk/40)).toFixed(2)})`:'')+(power>0?' contrast(1.2) saturate(1.6) brightness(1.08)':crashT>0?' grayscale(.6) blur(1px)':'')).trim()}
-  {const pw=$('power');pw.hidden=!(power>0||crashT>0||powder>0);pw.textContent=power>0?`Super strength ${Math.ceil(power)}s`:crashT>0?`Crashing ${Math.ceil(crashT)}s`:`White powder x${powder} (${isTouch?'BUMP':kb('drug')})`;if(isTouch)$('bNose').hidden=!(powder>0&&!power)}
+  {const dk=$('drunk');dk.hidden=drunk<=0;if(drunk>0)dk.textContent='Drunk '+'●'.repeat(Math.max(1,Math.ceil(drunk/12)));cv.style.filter=((drunk>3?`blur(${Math.min(2.2,drunk/20).toFixed(2)}px) saturate(${(1+Math.min(.8,drunk/40)).toFixed(2)})`:'')+(drugState.k==='speed'?' contrast(1.2) saturate(1.6) brightness(1.08)':'')).trim()}
+  drugChip();if(isTouch)$('bNose').hidden=!DK.some(x=>drugs[x]);
   if(isTouch){$('bBoom').hidden=!stickies.length;$('bAim').hidden=!(weap==='sniper'&&!me.car)}
   // downed overlay and the revive ring (both read state the combat and movement sections keep)
   {const dn=$('down');if(me.downed&&state==='play'){dn.hidden=false;$('downTxt').textContent='Bleeding out · '+Math.ceil(Math.max(0,me.downT))+'s';$('downFill').style.width=clamp(me.downT/30*100,0,100)+'%'}else if(!dn.hidden)dn.hidden=true}
@@ -3925,7 +3939,7 @@ function ui(dt){phoneStep(dt);chatStep();
     else if(me.roof){t=''}
     else if(msNear()){const q=msNear(),sn=isTouch?'Tap CAR: ':kb('interact')+': ';
       t=!q.def?`${q.c.name} has no more work`:q.locked?`${q.def.title} needs level ${q.def.level}`:sn+(q.retry?'retry ':'start ')+`${q.def.title} · Lv ${q.def.level} · $${q.def.reward.toLocaleString('en-US')}`}
-    else if(nearDealer()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+'Buy a bag of white powder ($200)'}
+    else if(nearDealer()){t=(isTouch?'Tap CAR: ':kb('interact')+': ')+`Buy ${DRUGS[DK[drugSel]].name} ($${DRUGS[DK[drugSel]].price})`}
     else{const c=nearestCar();if(c)t=(isTouch?'Tap CAR — ':kb('interact')+' — ')+(c.kind==='traffic'?'jack this car':c.kind==='police'?'steal the cruiser':'take this car');else{const q=talkTarget();if(q)t=(isTouch?'Tap CAR: ':kb('interact')+': ')+(robbing(q)?'rob':'talk')}}}
   if(!t&&state==='play'&&!me.car&&!isTouch&&document.pointerLockElement!==cv)t='Click the game to aim with your mouse';
   if(lap)t=`Private dance... ${Math.ceil(lap.dur-lap.t)}s left (${isTouch?'CAR':'Esc'} to leave)`;
@@ -3979,7 +3993,7 @@ function update(dt){
     // toggle: clear the latched sprint once the player has been moving and then stops
     if(sprintOn){if(mv)sprintUsed=true;else if(sprintUsed)sprintOn=sprintUsed=false}
     const spr=(settings.sprintMode==='toggle'?sprintOn:shift)&&mv&&!stamOut&&!me.downed;
-    const sp=(spr?205:135)*Math.min(1,l)*(power>0?1.6:crashT>0?.7:1)*(me.downed?.35:1),k=Math.min(1,dt*(mv?14:30));
+    const sp=(spr?205:135)*Math.min(1,l)*drugMul('move')*(me.downed?.35:1),k=Math.min(1,dt*(mv?14:30));
     me.vx+=((mv?mx/l*sp:0)-me.vx)*k;me.vy+=((mv?my/l*sp:0)-me.vy)*k;stamStep(spr,dt);
     me.x+=me.vx*dt;me.y+=me.vy*dt;if(me.roof&&roofAt(me.x,me.y)!==me.roof)me.roof=null;if(!me.roof)collide(me,me.x,me.y,8);footStep(dt);
     if(time-lastFireT<.6||(document.pointerLockElement===cv&&l<.15))me.a+=wrap(look.yaw-me.a)*Math.min(1,dt*18);
@@ -3999,7 +4013,7 @@ function update(dt){
       if(drunk>0){const k=Math.min(1,drunk/25);st=clamp(st+(Math.sin(time*1.3)*.55+Math.sin(time*3.7)*.3)*k,-1,1);if(rand()<dt*k*.8)thr*=.2}
       if(c.burn||!play){thr=0;st=0}
       drive(c,thr,st,hand,dt);
-      const imp=carWalls(c);if(imp>90){damageCar(c,Math.min(BAL.crashMax,(imp-90)*.12),true);thud(imp);shake=Math.max(shake,imp/60);burst(c.x+Math.cos(c.a)*20,c.y+Math.sin(c.a)*20,6,'#ffd27a',160,.3)}
+      const imp=carWalls(c);if(imp>90){damageCar(c,Math.min(BAL.crashMax,(imp-90)*.12)*drugMul('crash'),true);thud(imp);shake=Math.max(shake,imp/60);burst(c.x+Math.cos(c.a)*20,c.y+Math.sin(c.a)*20,6,'#ffd27a',160,.3)}
       carZ(c,dt);me.x=c.x;me.y=c.y;me.a=c.a;me.z=c.z;
       const sp=Math.hypot(c.vx,c.vy);
       for(const p of peds){if(p.down)continue;if(Math.hypot(p.x-c.x,p.y-c.y)<16&&sp>55)knockPed(p,c.vx*1.1,c.vy*1.1,true)}
@@ -4052,10 +4066,10 @@ function update(dt){
     if(!dead&&b.owner==='police'&&state==='play'){const rad=me.car?16:10;if(b.z>(me.z||0)-3&&b.z<(me.z||0)+28&&segDist(me.x,me.y,b.px,b.py,b.x,b.y)<rad){if(me.jet)me.jet.hp-=b.dmg*BAL.bulletAir;else if(me.heli)me.heli.hp-=b.dmg*BAL.bulletAir;else if(me.car){if(me.car.type!=='armored')damageCar(me.car,b.dmg*BAL.bulletVeh,false),hurtMe(b.dmg*.3,null)}else hurtMe(b.dmg,null);dead=true;burst(b.x,b.y,5,'#ff6b6b',120,.25)}}
     if(dead){if(b.rocket)explode(b.x,b.y,b.owner==='me',b.owner!=='me',b.z,b.heli?BAL.heliRocketK:b.jet?BAL.jetMissileK:1);bullets.splice(i,1)}
   }
-  stickyStep(dt);robStep(dt);heistStep(dt);powerStep(dt);revStep(dt);trafficStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
+  stickyStep(dt);robStep(dt);heistStep(dt);drugStep(dt);revStep(dt);trafficStep(dt);if(lap){lap.t+=dt;if(lap.t>=lap.dur)endLap()}
   if(scoped&&(weap!=='sniper'||me.car||me.heli||me.jet||state!=='play'||me.climb||me.downed))scoped=false;
   // pickups
-  for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t-=dt;if(play&&Math.hypot(p.x-me.x,p.y-me.y)<22){if(p.powder){powder++;feed(`Picked up a bag of white powder. Press ${kb('drug')} to use it`)}me.cash+=p.amt;noise(.08,7000,.12);pickups.splice(i,1);continue}if(p.t<=0)pickups.splice(i,1)}
+  for(let i=pickups.length-1;i>=0;i--){const p=pickups[i];p.t-=dt;if(play&&Math.hypot(p.x-me.x,p.y-me.y)<22){me.cash+=p.amt;noise(.08,7000,.12);pickups.splice(i,1);continue}if(p.t<=0)pickups.splice(i,1)}
   // particles
   for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=Math.pow(.15,dt);p.vy*=Math.pow(.15,dt);if(p.life<=0)parts.splice(i,1)}
   if(parts.length>700)parts.splice(0,parts.length-700);
@@ -5079,7 +5093,7 @@ function render(dt){
   syncMap(bulletMeshes,bullets,b=>{if(b.rocket){const g=new THREE.Group();g.add(new THREE.Mesh(G.rocket,M.rocket));const f=new THREE.Mesh(new THREE.PlaneGeometry(1,1),M.fire);f.scale.set(30,30,1);f.rotation.x=-Math.PI/2;f.position.x=-8;g.add(f);return g}return new THREE.Mesh(G.tracer,b.owner==='police'?M.ptracer:M.tracer)},
     (b,m)=>{m.position.set(b.x,b.z||12,b.y);m.rotation.y=-Math.atan2(b.vy,b.vx)});
   // cash
-  syncMap(cashMeshes,pickups,p=>new THREE.Mesh(G.cash,p.powder?M.white:M.cash),(p,m)=>{m.position.set(p.x,groundZ(p.x,p.y)+4+Math.sin(time*4+p.x)*1.5,p.y);m.rotation.y=time*2});
+  syncMap(cashMeshes,pickups,p=>new THREE.Mesh(G.cash,M.cash),(p,m)=>{m.position.set(p.x,groundZ(p.x,p.y)+4+Math.sin(time*4+p.x)*1.5,p.y);m.rotation.y=time*2});
   // roadblock spike strips
   syncMap(spikeMeshes,spikes,s=>{const g=new THREE.Group(),st=new THREE.Mesh(box(70,2,13),spkMat);st.position.y=1;g.add(st);
     for(let i=-3;i<=3;i++){const k=new THREE.Mesh(spkTip,spkTipMat);k.position.set(i*10,4.5,0);g.add(k)}return g},
@@ -5143,7 +5157,7 @@ function render(dt){
   if(drunk>0){drunk=Math.max(0,drunk-dt);const k2=Math.min(1.8,drunk/12);camera.rotation.z+=Math.sin(time*1.7)*.08*k2;camera.position.x+=Math.sin(time*1.1)*4*k2;camera.position.y+=Math.sin(time*.9)*2*k2}
   if(scoped){const hz=(me.z||0)+19;camera.position.set(me.x+fx*6,hz,me.y+fy*6);camera.lookAt(me.x+fx*300,hz-(look.pitch-.2)*200,me.y+fy*300);meMesh.visible=false}
   if(lap){camera.position.set(club.ox+398,24,club.oy+322);camera.lookAt(club.ox+386,14,club.oy+272)}
-  const fov=scoped?16:62+(inCar?clamp(Math.hypot(me.car.vx,me.car.vy)/330,0,1)*14:0);if(Math.abs(camera.fov-fov)>.1){camera.fov+=(fov-camera.fov)*Math.min(1,dt*9);camera.updateProjectionMatrix()}
+  const fov=scoped?16:62-(drugState.k==='calm'?4:0)+(inCar?clamp(Math.hypot(me.car.vx,me.car.vy)/330,0,1)*14:0);if(Math.abs(camera.fov-fov)>.1){camera.fov+=(fov-camera.fov)*Math.min(1,dt*9);camera.updateProjectionMatrix()}
   aimPt=null;aimHit=false;
   if(state==='play'&&!inCar){camera.updateMatrixWorld();aimRay.setFromCamera(scoped?ndc0:ndcX,camera);const o=aimRay.ray.origin,dv=aimRay.ray.direction;
     const near=[];for(const c of cars)if(c!==me.car&&c.kind!=='dead'&&Math.abs(c.x-me.x)<1800&&Math.abs(c.y-me.y)<1800)near.push(c);
