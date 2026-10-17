@@ -276,9 +276,14 @@ function hipGeo(w,d,rise,ins,alongX){
  if(!alongX){const p=g.attributes.position;for(let i=0;i<p.count;i++){const x=p.getX(i),z=p.getZ(i);p.setX(i,z);p.setZ(i,-x)}} // ridge along z: rotate a quarter turn
  g.computeVertexNormals();return g}
 function boxUV(geo,w,h,d,tw=120,th=120){const uv=geo.attributes.uv,sx=[d,d,w,w,w,w],sy=[h,h,d,d,h,h];for(let f=0;f<6;f++)for(let i=0;i<4;i++){const k=f*4+i;if(f===2||f===3)uv.setXY(k,.01,.01);else uv.setXY(k,uv.getX(k)*sx[f]/tw,uv.getY(k)*sy[f]/th)}uv.needsUpdate=true}
-const graffMats=['KINGS','LOW PALMS','LPK 4 LIFE'].map((t,i)=>new THREE.MeshBasicMaterial({transparent:true,map:canvasTex(512,136,(g)=>{const cols=[['#9a5ad8','#ffc94a'],['#ff3ea5','#29e6d6'],['#7b3fb8','#3dd68c']][i];
+const graffMats=['KINGS','LOW PALMS','LPK 4 LIFE','PALM CITY','VIPERS'].map((t,i)=>new THREE.MeshBasicMaterial({map:canvasTex(512,136,(g)=>{const cols=[['#9a5ad8','#ffc94a'],['#ff3ea5','#29e6d6'],['#7b3fb8','#3dd68c'],['#ffc94a','#ff3ea5'],['#3d9a4a','#e8e4f0']][i];
+  g.fillStyle='#171310';g.fillRect(0,0,512,136);g.fillStyle='rgba(255,255,255,.05)';for(let y=0;y<136;y+=17)g.fillRect(0,y,512,2);
   g.font='bold 86px Impact, "Arial Black", sans-serif';g.textAlign='center';g.textBaseline='middle';g.lineWidth=14;g.strokeStyle='#101010';g.strokeText(t,256,64);g.fillStyle=cols[0];g.fillText(t,256,64);
   g.lineWidth=4;g.strokeStyle=cols[1];g.strokeText(t,256,64);g.fillStyle=cols[0];for(let k=0;k<9;k++){const x=60+Math.random()*390;g.fillRect(x,92,4,14+Math.random()*30)}})}));
+const chainTex=rtex(64,64,(g,w,h)=>{g.clearRect(0,0,w,h);g.strokeStyle='rgba(196,200,214,.85)';g.lineWidth=2;
+ for(let k=-2;k<6;k++){g.beginPath();g.moveTo(k*16,0);g.lineTo(k*16+32,h);g.stroke();g.beginPath();g.moveTo(k*16,0);g.lineTo(k*16-32,h);g.stroke()}});
+const chainMat=new THREE.MeshBasicMaterial({map:chainTex,alphaTest:.45,side:THREE.DoubleSide}),
+ chainPost=mergeGeos([[new THREE.CylinderGeometry(.5,.5,7,5),new THREE.Matrix4().makeTranslation(0,3.5,0)],[new THREE.BoxGeometry(.5,.5,.5),new THREE.Matrix4().makeTranslation(0,7,0)]]);
 const bLam={},blam=(c,o)=>bLam[c]||(bLam[c]=new THREE.MeshLambertMaterial(Object.assign({color:c},o||{})));
 const glassMat=fade(new THREE.MeshLambertMaterial({color:'#6a9cc8',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3);
 const winMat=fadeC(new THREE.MeshBasicMaterial({color:'#ffd28a'}),'color','#ffd28a','#6b5f45'),doorMat=new THREE.MeshLambertMaterial({color:'#2a2633'}),redLight=new THREE.MeshBasicMaterial({color:'#ff2d55'});
@@ -341,9 +346,36 @@ for(const b of buildings){
   if(b.kind==='warehouse'){const g=new THREE.BoxGeometry(b.w,H,b.h);boxUV(g,b.w,H,b.h);
     put(g,facMat('ind',facPick(b)),cx,H/2,cz);put(new THREE.PlaneGeometry(50,30),doorMat,cx+b.w*.2,15,b.y+b.h+.3);
     put(new THREE.BoxGeometry(b.w+1,1.5,b.h+1),blam('#ffc94a'),cx,H,cz);continue}
-  if(b.kind==='brick'){const g=new THREE.BoxGeometry(b.w,H,b.h);boxUV(g,b.w,H,b.h);put(g,facMat('brick',facPick(b)),cx,H/2,cz);put(roofBox(b.w+1,1.6,b.h+1),roofMat,cx,H+.8,cz);
-    for(let y=14;y<H-6;y+=14)put(new THREE.BoxGeometry(Math.min(30,b.w*.4),.8,6),capMat,b.x+b.w*.72,y,b.y+b.h+3);
-    if(b.graffiti>=0){const gp=new THREE.Mesh(new THREE.PlaneGeometry(Math.min(64,b.w*.8),17),graffMats[b.graffiti]);gp.position.set(cx-b.w*.1,9,b.y+b.h+.35);scene.add(gp)}
+  if(b.kind==='brick'){
+    // Low Palms: the footprint becomes a row of two to four row houses, stoops on the street side, windows all round,
+    // a mural on a blind end and a corner store in some runs. The footprint itself does not move, so block edges stay open.
+    const hr=seeded((b.x*17+b.y*131+b.w*7)|0),alongX=b.w>=b.h,len=alongX?b.w:b.h,dep=alongX?b.h:b.w,
+      n=clamp(Math.round(len/34),2,4),uw=len/n,fc=facMat('brick',facPick(b)),
+      bi=Math.floor(cx/B),bj=Math.floor(cz/B),X0=bi*B+R,Y0=bj*B+R,X1=X0+B-R,Y1=Y0+B-R,
+      dN=cz-Y0,dS=Y1-cz,dW=cx-X0,dE=X1-cx,front=dN<=dS&&dN<=dW&&dN<=dE?[0,-1]:dS<=dW&&dS<=dE?[0,1]:dW<=dE?[-1,0]:[1,0],
+      fx=front[0],fz=front[1],store=hr()<.34;
+    for(let i=0;i<n;i++){
+      const u=(i+.5)*uw-len/2,uh=H*(.82+hr()*.3),x=cx+(alongX?u:0),z=cz+(alongX?0:u),
+        gw=alongX?uw-.5:dep,gd=alongX?dep:uw-.5,g=new THREE.BoxGeometry(gw,uh,gd);boxUV(g,gw,uh,gd);
+      put(g,fc,x,uh/2,z);put(roofBox(gw+1,1.3,gd+1),roofMat,x,uh+.65,z);
+      // windows: two per floor on the long faces, one on the ends
+      for(const sgn of[-1,1])for(const fy of[.5,.76]){
+        if(alongX){put(new THREE.PlaneGeometry(8,7),winMat,x,uh*fy,cz+sgn*(dep/2+.3))}
+        else{const wm=new THREE.Mesh(new THREE.PlaneGeometry(8,7),winMat);wm.position.set(cx+sgn*(dep/2+.3),uh*fy,z);wm.rotation.y=sgn*Math.PI/2;scene.add(wm)}}
+      // stoop on the street side of every unit
+      const sx=cx+(alongX?u:0)+fx*(dep/2+.9),sz=cz+(alongX?0:u)+fz*(dep/2+.9);
+      put(new THREE.BoxGeometry(fz?11:2.6,2.6,fz?2.6:11),blam('#6a5a4a'),sx,1.3,sz);
+      // corner store: a shutter, a canopy and a sign on the first unit
+      if(store&&i===0){const mv=(fx||fz)*(dep/2+.35),mx=cx+(alongX?u:0)+(fx?mv:0),mz=cz+(alongX?0:u)+(fz?mv:0),
+        ry2=fz?(fz>0?0:Math.PI):(fx>0?Math.PI/2:-Math.PI/2);
+        put(new THREE.BoxGeometry(fz?18:14,.4,fz?14:18),blam('#3a3742'),mx,3.4,mz);
+        const sh=new THREE.Mesh(new THREE.PlaneGeometry(12,8),blam('#2e2b36'));sh.position.set(mx+(fz?0:fx*.4),5,mz+(fz?fz*.4:0));sh.rotation.y=ry2;scene.add(sh);
+        const cn=new THREE.Mesh(new THREE.BoxGeometry(fz?20:8,.8,fz?8:20),blam('#c0283c'));cn.position.set(mx+(fz?0:fx*2.6),9.4,mz+fz*2.6);scene.add(cn);
+        const sg=new THREE.Mesh(new THREE.PlaneGeometry(15,3.6),new THREE.MeshBasicMaterial({map:signTex(['SNACK & GO','LIQUOR','DELI'][hr()<.5?0:hr()<.5?1:2],'#ffc94a')}));sg.position.set(mx+(fz?0:fx*.5),12.4,mz+(fz?fz*.5:0));sg.rotation.y=ry2;scene.add(sg)}}
+    // mural on the face away from the street
+    {const g=(b.graffiti>=0?b.graffiti:hr()<.5?3:4),matt=graffMats[g],wdt=Math.min(64,len*.7),
+      mvx=cx-fx*(dep/2+.35),mvz=cz-fz*(dep/2+.35),ry3=fz?(fz>0?Math.PI:0):(fx>0?-Math.PI/2:Math.PI/2),
+      mp=new THREE.Mesh(new THREE.PlaneGeometry(wdt,17),matt);mp.position.set(mvx,9,mvz);mp.rotation.y=ry3;scene.add(mp)}
     continue}
   if(b.kind==='bank'){const gm=fade(new THREE.MeshLambertMaterial({color:'#d4aa4c',map:wallTex,emissive:new THREE.Color('#ffffff'),emissiveMap:litTex}),'emissiveIntensity',1,.3),gold=new THREE.MeshBasicMaterial({color:'#ffc94a'});
     const tiers=[[1,0,.62],[.78,.62,.26],[.5,.88,.12]];
@@ -380,6 +412,17 @@ for(const b of buildings){
     const m=new THREE.Mesh(new THREE.PlaneGeometry(w,4.4),mat);m.position.set(f[0]+f[2]*4.9,18.5,f[1]+f[3]*4.9);if(f[2]!==0)m.rotation.y=Math.PI/2;scene.add(m);
     if(roofN.blades.length<12)roofN.blades.push([Math.round(m.position.x),Math.round(m.position.z),f[2]!==0?1:0,f[0],f[1]])}}
 }
+// Low Palms lot lines: chain-link runs along the back lines between the row-house yards, with posts
+{const cl=[];
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){if(blockType[bj*N+bi]!=='hood')continue;
+   const x0=bi*B+R,y0=bj*B+R,s=B-R,m=26,cr=seeded(bi*71+bj*13+3);
+   if(cr()<.6){const x=x0+s/2+9,y0b=y0+m,y1b=y0+s-m;cl.push([x,(y0b+y1b)/2,1,y1b-y0b])}
+   if(cr()<.6){const y=y0+s/2+9,x0b=x0+m,x1b=x0+s-m;cl.push([(x0b+x1b)/2,y,0,x1b-x0b])}}
+ const parts=[];for(const[x,y,vert,len]of cl){const g=new THREE.PlaneGeometry(len,6.4);
+   const m=new THREE.Mesh(g,chainMat);m.position.set(x,4.75,y);if(vert)m.rotation.y=Math.PI/2;scene.add(m);
+   for(let u=-len/2;u<=len/2;u+=Math.max(8,len/10)){const px=vert?x:x+u,py=vert?y+u:y;
+     parts.push([chainPost,new THREE.Matrix4().makeTranslation(px,1.55,py)])}}
+ if(parts.length)scene.add(new THREE.Mesh(mergeGeos(parts),new THREE.MeshLambertMaterial({color:'#8a8699'})))}
 landmarkMeshes(); // after graffMats
 // ladders
 {const rail=new THREE.MeshLambertMaterial({color:'#a7a1ba'}),rungs=[];
@@ -395,7 +438,17 @@ const fireGlows=[];
    const mid=new THREE.Mesh(new THREE.BoxGeometry(sz-50,.2,1.2),new THREE.MeshBasicMaterial({color:'#e8e4f0'}));mid.position.set(x0+sz/2,1.5,y0+sz/2-10);scene.add(mid);
    for(const sx of[-1,1]){const px=x0+sz/2+sx*(sz/2-34),py=y0+sz/2-10;const pole=new THREE.Mesh(new THREE.CylinderGeometry(1,1,34,8),capMat);pole.position.set(px+sx*6,17,py);scene.add(pole);
      const bb=new THREE.Mesh(new THREE.BoxGeometry(1,12,18),new THREE.MeshLambertMaterial({color:'#e8e4f0'}));bb.position.set(px,32,py);scene.add(bb);
-     const rim=new THREE.Mesh(new THREE.TorusGeometry(4,.5,6,16),new THREE.MeshBasicMaterial({color:'#ff6b3d'}));rim.rotation.x=Math.PI/2;rim.position.set(px-sx*4.5,28,py);scene.add(rim)}}}
+     const rim=new THREE.Mesh(new THREE.TorusGeometry(4,.5,6,16),new THREE.MeshBasicMaterial({color:'#ff6b3d'}));rim.rotation.x=Math.PI/2;rim.position.set(px-sx*4.5,28,py);scene.add(rim)}
+    // court surround: chain-link on all four sides with gates east and west, a mural wall behind the north hoop, benches
+    {const ccx=x0+sz/2,ccy=y0+sz/2-10,hw=145,hd=125,posts=[];
+     const run=(x,z,w,vert)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(w,6.8),chainMat);m.position.set(x,4.9,z);if(vert)m.rotation.y=Math.PI/2;scene.add(m);
+       for(let u=-w/2;u<=w/2;u+=Math.max(8,w/12)){const px2=vert?x:x+u,pz2=vert?z+u:z;posts.push([chainPost,new THREE.Matrix4().makeTranslation(px2,1.75,pz2)])}};
+     run(ccx,ccy-hd,hw*2,false);run(ccx,ccy+hd,hw*2,false);
+     for(const sx of[-1,1])for(const seg of[-1,1]){const z0=ccy+seg*(15+ (hd-15)/2);run(ccx+sx*hw,z0,hd-15,true)}
+     scene.add(new THREE.Mesh(mergeGeos(posts),new THREE.MeshLambertMaterial({color:'#8a8699'})));
+     const wall=new THREE.Mesh(new THREE.BoxGeometry(64,9,2.4),blam('#5a4a44'));wall.position.set(ccx,5.7,ccy-hd-2.4);scene.add(wall);
+     const gg=new THREE.Mesh(new THREE.PlaneGeometry(60,8.4),graffMats[1]);gg.position.set(ccx,5.7,ccy-hd-1.1);scene.add(gg);
+     for(const sx of[-1,1]){const bn=new THREE.Mesh(new THREE.BoxGeometry(14,1.2,4.5),blam('#5a4030'));bn.position.set(ccx+sx*60,2.6,ccy-hd-5);scene.add(bn)}}}}
 // landscape: beach, pier, ferris wheel, palms, pools, cranes, mountains
 let ferris=null;
 {const sand=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(W+600,300),(W+600)/IN,300/IN),new THREE.MeshLambertMaterial({map:sandTex}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-.5,W+150);scene.add(sand);

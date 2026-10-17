@@ -29,7 +29,7 @@ const SHOTS = [
   { n: 3, name: 'day-avenue', pre: `${DAY}__pr.setClock(0.5);__pr.view(1380,1820,-0.9,0.35)` },
   { n: 4, name: 'day-midtown', pre: `${DAY}__pr.setClock(0.5);__pr.view(1060,620,0.55,0.25)` },
   { n: 5, name: 'day-suburb', pre: `${DAY}__pr.setClock(0.5);__pr.view(2820,620,0.5,0.25)` },
-  { n: 6, name: 'day-hood', pre: `${DAY}__pr.setClock(0.5);__pr.view(3000,3000,0.8,0.3)` },
+  { n: 6, name: 'day-hood', pre: `${DAY}__pr.setClock(0.5);__pr.view(3000,2700,1.5708,0.3)` },
   { n: 7, name: 'day-docks', pre: `${DAY}__pr.setClock(0.5);__pr.view(500,1500,0,0.25)` },
   { n: 8, name: 'day-airport', pre: `${DAY}__pr.setClock(0.5);__pr.view(3700,1350,0,0.25)` },
   { n: 9, name: 'day-beach', pre: `${DAY}__pr.setClock(0.5);__pr.view(2050,4480,1.2,0.3)` },
