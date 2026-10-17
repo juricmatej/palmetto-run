@@ -2944,12 +2944,42 @@ const MISSIONS=[
       {type:'steal',lost:'The van is wrecked',text:'The van is clear. Get in and take it.'},
       {type:'deliver',veh:true,minHp:.3,x:KINGSHQ.x,y:KINGSHQ.y,r:90,text:'Deliver the van to Low Palms. Below 30 percent and the Kings lose it.'},
     ]},
+  // Choice steps wait for U or I. The picked branch's steps are spliced in after the choice (see the keydown below).
+  {id:'tail',contact:'vic',title:'The Councillor',level:8,reward:9000,xp:800,col:'#ffc94a',intro:'Vic wants a councillor followed to a meet and photographed.',
+    steps:[
+      {type:'talk',who:'Vic',text:'A councillor sends his driver to meet a buyer after dark. Follow the driver, get the meet on camera, and do not get burned.'},
+      {type:'follow',t:60,spd:165,spawn:{type:'sedan',color:'#2d4a6e',x:1820,y:1820,a:Math.PI},route:MS_ROUTE,text:'Follow the blue sedan. Stay 60 to 380 units back.'},
+      {type:'photo',r:20,t:3,text:'Get within 20 units of the car and hold still for 3 seconds.'},
+      {type:'hide',t:20,text:'Get 60 units clear and stay out of sight for 20 seconds.'},
+      {type:'choice',text:'Sell the photos to the press (U) or blackmail the councillor (I).',opts:[
+        {k:'KeyU',label:'Sell the photos to the press',mul:1,steps:[{type:'deliver',x:MS_HOME.x,y:MS_HOME.y,r:70,text:'Drop the photos at the safehouse.'}]},
+        {k:'KeyI',label:'Blackmail the councillor',mul:2.2,steps:[{type:'lose',stars:3,text:'The councillor sends his men after you. Lose the cops. Three stars.'}]}]},
+    ]},
+  {id:'double',contact:'rosa',title:'Double Cross',level:1,reward:6000,xp:600,col:'#ff3ea5',intro:'Rosa has a package at the docks and a second buyer in mind.',
+    steps:[
+      {type:'talk',who:'Rosa',text:'Pick up the package at the docks. Dex pays more than my buyer, so think before you deliver.'},
+      {type:'goto',x:MS_VAN.x,y:MS_VAN.y,r:50,text:'Pick up the package at the docks.'},
+      {type:'lose',stars:2,text:'Dex has a runner on your tail. Lose him. Two stars.'},
+      {type:'choice',text:'Deliver it to the buyer (U) or sell it to Dex (I).',opts:[
+        {k:'KeyU',label:'Deliver it to the buyer',mul:1,steps:[{type:'deliver',x:MS_BUY.x,y:MS_BUY.y,r:70,text:'Deliver the package to the buyer at the airport fence.'}]},
+        {k:'KeyI',label:'Sell it to Dex',mul:1.8,steps:[{type:'lose',stars:3,text:'Rosa sends her people after you. Lose the cops. Three stars.'},{type:'deliver',x:3230,y:2352,r:70,text:'Sell the package to Dex at the docks.'}]}]},
+    ]},
+  {id:'sweep',contact:'dex',title:'Clean Sweep',level:6,reward:7000,xp:650,col:'#9a5ad8',intro:'Dex has three stops to clear before sunrise.',
+    steps:[
+      {type:'goto',x:1380,y:2260,r:50,text:'Stop one is on the grid by the trucks. Go in.'},
+      {type:'choice',text:'Pay the doorman to let you in quietly (U) or go in loud (I).',opts:[
+        {k:'KeyU',label:'Pay the doorman',mul:.7,steps:[]},
+        {k:'KeyI',label:'Go in loud',mul:1.4,steps:[{type:'kill',n:3,text:'Shoot your way past the three guards at the door.'}]}]},
+      {type:'goto',x:2260,y:2260,r:50,text:'Stop two. Keep moving.'},
+      {type:'goto',x:2700,y:940,r:50,text:'Stop three, the last one. Get there.'},
+      {type:'kill',n:4,text:'It is an ambush. Survive it and kill the four Vipers.'},
+    ]},
 ];
 // Contacts stand at fixed spots. `list` is the missions this contact hands out in order.
 const MCON=[
-  {id:'vic',name:'Vic',short:'V',col:'#ffc94a',x:2104,y:1893,fa:Math.PI/2,list:['accountant','armored']},
-  {id:'rosa',name:'Rosa',short:'R',col:'#ff3ea5',x:636,y:1453,fa:-Math.PI/2,list:['repo']},
-  {id:'dex',name:'Dex',short:'D',col:'#9a5ad8',x:3230,y:2352,fa:Math.PI/2,list:['dock']},
+  {id:'vic',name:'Vic',short:'V',col:'#ffc94a',x:2104,y:1893,fa:Math.PI/2,list:['accountant','armored','tail']},
+  {id:'rosa',name:'Rosa',short:'R',col:'#ff3ea5',x:636,y:1453,fa:-Math.PI/2,list:['repo','double']},
+  {id:'dex',name:'Dex',short:'D',col:'#9a5ad8',x:3230,y:2352,fa:Math.PI/2,list:['dock','sweep']},
 ];
 const msById=id=>MISSIONS.find(m=>m.id===id);
 let mission=null,msRetry=null,msDeath=null,msGrp=null,msCyl=null,msRing=null;
@@ -3042,6 +3072,16 @@ const MSH={
       if(!left)return'next';mission.msg='Escorts left: '+left}
     else{const max=t?ctOf(t).hp:1;if(t&&(t.kind==='dead'||t.hp<=max*.5))return'next';mission.msg='Truck at '+Math.round(Math.max(0,t?t.hp/max:0)*100)+' percent'}},
   lose(st){mission.msg=Math.max(0,Math.ceil(heat))+' star'+(Math.ceil(heat)===1?'':'s')+' left';if(heat<=0)return'next'},
+  choice(st){if(mission.pick)return'next'},
+  photo(st,dt){
+    const c=mission.car;if(!c||!cars.includes(c))return'fail:The car is gone';
+    const d=Math.hypot(c.x-A.x,c.y-A.y);
+    if(d>st.r){mission.tt=st.t;mission.msg=Math.round(d/10)+' m, get within '+st.r;return}
+    if((mission.tt-=dt)<=0)return'next';mission.msg='Hold still'},
+  hide(st,dt){
+    const c=mission.car;if(!c||!cars.includes(c))return'fail:You lost them';
+    if(Math.hypot(c.x-A.x,c.y-A.y)<60){mission.nearT+=dt;if(mission.nearT>3)return'fail:You were spotted'}else mission.nearT=0;
+    if((mission.tt-=dt)<=0)return'next';mission.msg=Math.ceil(mission.tt)+' s to go'},
   deliver(st){
     const c=mission.car;
     if(st.veh){if(!c||!cars.includes(c))return'fail:The ride is gone';
@@ -3068,13 +3108,13 @@ function startMission(id,force){
   if(!def||mission||state!=='play')return;
   if(!force&&lv<def.level){feed(`${def.title} needs level ${def.level}`);return}
   msClear();endJob();job=null;hideBig();
-  mission={def,i:0,t:0,tt:0,n:0,msg:'',pk:[]};msRetry=null;msDeath=null;
+  mission={def:{...def,steps:def.steps.slice()},i:0,t:0,tt:0,n:0,msg:'',pk:[],log:[]};msRetry=null;msDeath=null;
   msBegin();
   showBig('MISSION STARTED','#29e6d6',`${def.title} · Level ${def.level}`,1.8);
   feed('New mission: '+def.title+'. '+def.intro)}
 function msPass(){
   if(!mission)return;
-  const def=mission.def,sc=mission.scale,pay=Math.round(def.reward*(sc===undefined?1:(.4+.6*clamp(sc,0,1))));
+  const def=mission.def,sc=mission.scale,pay=Math.round(def.reward*(mission.mul||1)*(sc===undefined?1:(.4+.6*clamp(sc,0,1))));
   msClear();me.cash+=pay;gainXP(def.xp,'Mission');
   msDone[def.id]=true;msSave();mission=null;msRetry=null;jingle('pass');
   showBig('MISSION PASSED','#ffc94a',`${def.title} · +$${pay.toLocaleString('en-US')}`,3);saveArsenal()}
@@ -3095,12 +3135,19 @@ function missionStep(dt){
   const st=msStep(),def=mission.def;
   if(mission.t>0){mission.t-=dt;if(mission.t<=0){msFail('Out of time');return}}
   const r=MSH[st.type]?MSH[st.type](st,dt):null;
-  if(r==='next'){mission.i++;if(mission.i>=def.steps.length){msPass();return}msBegin()}
+  if(r==='next'){mission.log.push(st.type==='choice'?'Chose: '+mission.pick:st.text);mission.i++;if(mission.i>=def.steps.length){msPass();return}msBegin()}
   else if(r&&r.slice(0,5)==='fail:'){msFail(r.slice(5));return}
   const w=msWhere();
   if(w&&!me.inside)msBeacon(def.col,w[0],w[1]);else if(msGrp)msGrp.visible=false}
 if(DBG)Object.defineProperties(DBG,{mission:{get:()=>mission&&{id:mission.def.id,i:mission.i}},startMission:{get:()=>startMission},MISSIONS:{get:()=>MISSIONS.map(m=>m.id)}});
 if(DBG)Object.defineProperties(DBG,{skipTalk:{get:()=>skipTalk}});
+// U and I pick a branch at a choice step. The picked steps go in right after the choice.
+addEventListener('keydown',e=>{
+  const st=mission&&msStep();
+  if(!st||st.type!=='choice'||mission.pick||e.repeat||capAct||phoneOpen)return;
+  const o=st.opts.find(o=>o.k===e.code);if(!o)return;
+  mission.pick=o.label;mission.mul=o.mul;mission.def.steps.splice(mission.i+1,0,...o.steps)});
+if(DBG)Object.defineProperties(DBG,{msDev:{get:()=>MISSIONS.filter(m=>m.steps.length>=4&&m.steps.some(s=>s.type==='choice')).map(m=>m.id)}});
 
 // ---------- movement ----------
 // stamina, jump, roof drops, hands up and horn
@@ -3296,6 +3343,10 @@ phoneApp('career','Career',IC.career,el=>{const b=bounty,P=jobPos(),c=mk('div','
   c.append(mk('b','ph-big',b?`Bounty ${money(b.pay)}`:'No bounty'),mk('div','ph-sub',b?`${Math.round(Math.hypot(b.x-P.x,b.y-P.y)/10)} m away. ${Math.ceil(b.t)} s left.`:'The next one goes up in a few minutes.'));
   s.append(mk('b','ph-big','Career'),mk('div','ph-sub',`Kills ${career.kills}. Cars stolen ${career.cars}. Cash earned ${money(career.cash)}.`),mk('div','ph-sub',`Longest chase ${career.chase} s. Farthest drive ${career.drive} m.`),mk('div','ph-sub',`Deaths ${career.deaths}. Jobs done ${career.jobs}.`));
   el.append(c,s)},'#ffc94a');
+phoneApp('missions','Missions',IC.jobs,el=>{
+  if(!mission){el.append(mk('div','ph-sub','No mission running. Ask a contact in the city.'));return}
+  const c=mk('div','ph-card');c.append(mk('b','ph-big',mission.def.title),mk('div','ph-sub',`Step ${mission.i+1} of ${mission.def.steps.length}. Next: ${msStep().text}`));
+  el.append(c,...mission.log.map(t=>mk('div','ph-sub',t)))},'#ffc94a');
 phoneApp('players','Players',IC.players,el=>{
   if(!remotes.size){el.append(mk('div','ph-sub',room?'Nobody else is in the city right now.':'Solo for now. Other players show up once the city is online.'));return}
   for(const[id,r]of remotes){const w=mk('div','ph-prow'),b=mk('button','ph-row');b.type='button';b.dataset.nav='';const g=mk('span','ph-grow');g.append(mk('b','',r.name),mk('span','ph-sub',`Lv ${r.lv} · ${Math.round(Math.hypot(r.x-me.x,r.y-me.y)/10)} m`));
