@@ -116,15 +116,22 @@ const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'mar
     continue}
   if(dist==='midtown'&&r()<.16){lots.push({x:x0,y:y0,s});blockType.push('lot');continue}
   blockType.push('city');
-  const tall=dist==='downtown',m=22,ix=x0+m,iy=y0+m,is=s-2*m,g=12,lay=Math.floor(r()*4);
+  const tall=dist==='downtown',m=22,ix=x0+m,iy=y0+m,is=s-2*m,g=12;
+  // The skyline is planned, not random: heights rise along the downtown ridge (the diagonal from block
+  // (2,2) to (5,5)) and four fixed blocks carry signature towers with a lit crown and an antenna.
+  const SIG={'2,3':260,'5,4':240,'2,5':220,'5,1':200},sig=SIG[bi+','+bj];
+  if(sig){const w=Math.round(is*.62),h=Math.round(is*.62);
+    mk(list,{x:ix+(is-w)/2,y:iy+(is-h)/2,w,h,H:sig,kind:'glass',vent:null,sign:false,sig:1});
+  }else{
+  const ridge=1-clamp(Math.abs(bi-bj)/3,0,1),lay=Math.floor(r()*4);
   const L=lay===0?[[0,0,1,1]]:lay===1?[[0,0,.5,1],[.5,0,.5,1]]:lay===2?[[0,0,1,.5],[0,.5,1,.5]]:[[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]];
   for(const[fx,fy,fw,fh]of L){
     const x=ix+fx*is+(fx>0?g/2:0),y=iy+fy*is+(fy>0?g/2:0);
     const w=fw*is-(fx>0?g/2:0)-(fx+fw<1?g/2:0),h=fh*is-(fy>0?g/2:0)-(fy+fh<1?g/2:0);
-    const H=Math.round(tall?(90+r()*230)*(1+Math.max(0,2.5-Math.hypot(bi-3.5,bj-3.5))*.3):(44+r()*80));
+    const H=Math.round(tall?(80+r()*140)*(tall?(.7+.5*ridge):1):(44+r()*80));
     const b=mk(list,{x,y,w,h,H,kind:tall?'glass':'tower',vent:r()<.7?[r()*.5+.1,r()*.5+.1]:null,sign:r()<.25});
     if(Math.abs(y+h-(y0+s-22))<1&&r()<(tall?.4:.55))b.ladder=1;
-  }
+  }}
  }
  // airfield: buildings, then the fence. A piece goes in the cell nearB reads for it (floor of its min x and y over B), so each piece is at most 400 long
  const afMk=(x,y,w,h,H,kind,pal)=>mk(cells[Math.min(N-1,Math.floor(y/B))*N+Math.min(N-1,Math.floor(x/B))],{x,y,w,h,H,kind,pal});
@@ -697,7 +704,7 @@ addShape({kind:'plateau',x:3360,y:3262,w:200,d:22,h:6,slope:2});                
 addShape({kind:'ramp',x:3360,y:3600,a:-Math.PI/2,len:40,w:30,h:12});             // stunt ramp on the road south of the Pit, over the south wall
 // Alleys: the largest tower in three downtown blocks without a door is split in two with a 30-wide alley between, so a car can cut through the block.
 const ALLEYS=[];
-function alleyCut(bi,bj){const cell=cells[bj*N+bi];let b=null;for(const q of cell)if((q.kind==='glass'||q.kind==='tower')&&!q.ladder&&(!b||q.w*q.h>b.w*b.h))b=q;if(!b)return;
+function alleyCut(bi,bj){const cell=cells[bj*N+bi];let b=null;for(const q of cell)if((q.kind==='glass'||q.kind==='tower')&&!q.ladder&&!q.sig&&(!b||q.w*q.h>b.w*b.h))b=q;if(!b)return;
   const gap=30,hw=(b.w-gap)/2,ax=b.x+hw;cell.splice(cell.indexOf(b),1);buildings.splice(buildings.indexOf(b),1);
   for(const x of[b.x,ax+gap]){const h={...b,x,w:hw,vent:null,sign:false,ladder:null};cell.push(h);buildings.push(h)}
   ALLEYS.push({x:ax,y:b.y,h:b.h});

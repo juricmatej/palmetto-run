@@ -306,7 +306,7 @@ const roofG={
  ant:mergeGeos([[new THREE.BoxGeometry(1.1,24,1.1),mtx(0,12,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,19,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,23.5,0)]])};
 const crownMats={},BLADE=[['PALMETTO LIQUOR','#3dd68c'],['24 HR','#29e6d6'],['DINER','#ff3ea5'],['LAUNDRY','#4aa3ff'],['PAWN','#ffc94a'],['TATTOO','#ff7ad9'],['NOODLES','#ff6b3d'],['MOTEL','#c08bff']],
  bladeMats=BLADE.map(([t,c])=>fadeC(new THREE.MeshBasicMaterial({map:signTex(t,c),side:THREE.DoubleSide}),'color','#ffffff','#8f8f96'));
-const roofN={blade:0,parapet:0,clutter:0,crown:0,setback:0,blades:[]};
+const roofN={blade:0,parapet:0,clutter:0,crown:0,setback:0,sig:0,blades:[]};
 if(DBG)Object.defineProperties(DBG,{roof:{get:()=>roofN}});
 for(const b of buildings){
   if(b.kind==='lm')continue; // landmark solids are drawn by landmarkMeshes
@@ -406,12 +406,16 @@ for(const b of buildings){
    put(new THREE.BoxGeometry(1.4,1.5,rh-1.4),tm,cx-(rw/2-.7),H+.75,cz);put(new THREE.BoxGeometry(1.4,1.5,rh-1.4),tm,cx+(rw/2-.7),H+.75,cz)}
   if(rw>50&&rh>50&&br()<.5){roofN.clutter++;const t=['tank','bulk','ac','ant'][Math.floor(br()*4)];
    put(roofG[t],capMat,cx+(br()-.5)*Math.max(8,rw-46),H+.1,cz+(br()-.5)*Math.max(8,rh-46))}
-  if(H>200){roofN.crown++;const cm=crownMats[b.trim]||(crownMats[b.trim]=fadeC(new THREE.MeshBasicMaterial({color:b.trim}),'color',b.trim,shade(b.trim,.5)));
+  if(H>200||b.sig){roofN.crown++;const cm=crownMats[b.trim]||(crownMats[b.trim]=fadeC(new THREE.MeshBasicMaterial({color:b.trim}),'color',b.trim,shade(b.trim,.5)));
    put(new THREE.BoxGeometry(rw+1.6,2.2,1.2),cm,cx,H-1.1,cz-(rh/2+.1));put(new THREE.BoxGeometry(rw+1.6,2.2,1.2),cm,cx,H-1.1,cz+(rh/2+.1));
    put(new THREE.BoxGeometry(1.2,2.2,rh+1.6),cm,cx-(rw/2+.1),H-1.1,cz);put(new THREE.BoxGeometry(1.2,2.2,rh+1.6),cm,cx+(rw/2+.1),H-1.1,cz)}
   if(b.sign)put(new THREE.BoxGeometry(Math.min(60,b.w*.6),7,1),tm,cx,30,b.y+b.h+.6);
   if(b.vent)put(new THREE.BoxGeometry(Math.min(26,b.w*.3),8,Math.min(18,b.h*.25)),capMat,b.x+b.w*(b.vent[0]+.1),H+5,b.y+b.h*(b.vent[1]+.1));
   if(glass&&H>240){put(new THREE.CylinderGeometry(1,1.6,60,6),capMat,cx,H+30,cz);put(new THREE.BoxGeometry(3,3,3),redLight,cx,H+61,cz)}
+  if(b.sig){ // signature tower: antenna with a beacon and an entrance canopy on the south face
+   put(new THREE.CylinderGeometry(.9,1.4,46,6),capMat,cx,H+23,cz);put(new THREE.BoxGeometry(3.4,3.4,3.4),redLight,cx,H+47,cz);
+   put(new THREE.BoxGeometry(18,1.2,8),tm,cx,9,cz+rh/2+3.6);put(new THREE.BoxGeometry(1.2,9,1.2),tm,cx-8,4.6,cz+rh/2+7);put(new THREE.BoxGeometry(1.2,9,1.2),tm,cx+8,4.6,cz+rh/2+7);
+   roofN.sig=(roofN.sig||0)+1}
   if(b.kind!=='brick'&&(b.sign||br()<.55)){ // a blade sign on the face that fronts a street
    const bx=Math.floor(cx/B),bz=Math.floor(cz/B),x0=bx*B+R,y0=bz*B+R,x1=(bx+1)*B,y1=(bz+1)*B,faces=[];
    for(const f of[[b.x,b.y+b.h/2,-1,0,b.h,b.x-x0],[b.x+b.w,b.y+b.h/2,1,0,b.h,x1-b.x-b.w],[b.x+b.w/2,b.y,0,-1,b.w,b.y-y0],[b.x+b.w/2,b.y+b.h,0,1,b.w,y1-b.y-b.h]])
