@@ -638,7 +638,9 @@ if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='h
 // shared map palette: the minimap and the phone map draw from these colours
 const MAPC={water:'#12384f',waterLight:'#1d6a8a',surf:'#bfeaf5',sand:'#b09064',park:'#1f5c36',parkLight:'#2f8a4e',
  road:'#23212c',roadEdge:'#4a4658',ave:'#57536a',downtown:'#3b3448',midtown:'#3e3950',hood:'#4a3c34',suburb:'#3c5340',
- industrial:'#3a4250',airport:'#33363f',runway:'#191b22',gold:'#ffc94a',wood:'#6a5040',lot:'#2a2735',front:'#9c9084'};
+ industrial:'#3a4250',airport:'#33363f',runway:'#191b22',gold:'#ffc94a',wood:'#6a5040',lot:'#2a2735',
+ front:'#a0707e', // Sunset Strip: the hotel tint
+ amber:'#e0a23a'}; // Palmetto Boulevard road
 // minimap layer for the hills, drawn once: terrain colour, roads and the lake. buildMapBase adds the relief on top.
 function buildHillMini(MS,MO){
   const X0=-MO,Y0=HILL.edge-MO,cv=document.createElement('canvas');cv.width=Math.ceil((W+2*MO)/MS);cv.height=Math.ceil(-Y0/MS);cv.ox=X0;cv.oy=Y0;

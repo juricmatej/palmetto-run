@@ -208,38 +208,48 @@ function render(dt){
 
 // minimap
 const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig.height=Math.ceil((W+500)/MS);
+// building footprints in a darker block tint, same size and origin as miniBig; the phone map shows it when zoomed in
+const footBig=document.createElement('canvas');footBig.width=miniBig.width;footBig.height=miniBig.height;
 {const g=miniBig.getContext('2d'),t=v=>(v+MO)/MS;
  g.fillStyle=MAPC.water;g.fillRect(0,0,miniBig.width,miniBig.height);
  g.fillStyle=MAPC.sand;g.fillRect(t(-30),t(W-10),(W+60)/MS,310/MS);
  g.fillStyle=MAPC.road;g.fillRect(t(0),t(0),W/MS,W/MS);
  // district tints, the two avenues, landmark blocks ringed in gold
  const BC={airport:MAPC.airport,hood:MAPC.hood,park:MAPC.park,lot:MAPC.lot,beach:MAPC.sand,front:MAPC.front,suburb:MAPC.suburb,industrial:MAPC.industrial,city:MAPC.midtown};
- for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R,tp=blockType[bj*N+bi];
+ const TILE=[]; // the fill of each block, so the footprints can take a darker shade of it
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R,tp=blockType[bj*N+bi],lmb=Object.values(LANDBLK).includes(tp);
    g.fillStyle=MAPC.roadEdge;g.fillRect(t(x),t(y),sz/MS,sz/MS);
-   g.fillStyle=Object.values(LANDBLK).includes(tp)?MAPC.gold:district(bi,bj)==='downtown'?MAPC.downtown:(BC[tp]||MAPC.midtown);
-   g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
-   if(Object.values(LANDBLK).includes(tp)){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
+   // landmark blocks take their district tint and ring in gold; the real footprint is filled gold below
+   const fc=district(bi,bj)==='downtown'?MAPC.downtown:(BC[lmb?district(bi,bj):tp]||MAPC.midtown);TILE[bj*N+bi]=fc;
+   g.fillStyle=fc;g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
+   if(lmb){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
  g.fillStyle=MAPC.ave;for(const k of AVENUE){g.fillRect(t(k*B+40),t(0),40/MS,W/MS);g.fillRect(t(0),t(k*B+40),W/MS,40/MS)}
  // the docks canal: water with a quay casing
  {const x0=t(CANAL.x0),x1=t(CANAL.x1),y0=t(CANAL.y0),y1=t(CANAL.y1);
   g.fillStyle=MAPC.roadEdge;g.fillRect(x0-2,y0-2,x1-x0+4,y1-y0+4);
   g.fillStyle=MAPC.waterLight;g.fillRect(x0,y0,x1-x0,y1-y0);
   g.fillStyle=MAPC.roadEdge;g.fillRect(t(CANAL.bridge[0]),y0-2,(CANAL.bridge[1]-CANAL.bridge[0])/MS,y1-y0+4)}
- // the planned corridors: a light verge with the road down its middle
+ // the planned corridors: a light verge, then the boulevard as an amber road with a dark casing
  for(const c of CUTS){g.lineCap='round';
   g.strokeStyle=MAPC.roadEdge;g.lineWidth=2*c.half/MS;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke();
-  g.strokeStyle=MAPC.ave;g.lineWidth=2*c.road/MS;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke()}
+  g.strokeStyle=MAPC.road;g.lineWidth=2*c.road/MS+3;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke();
+  g.strokeStyle=MAPC.amber;g.lineWidth=2*c.road/MS-1;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke()}
  g.lineCap='butt';
  g.fillStyle=MAPC.airport;g.fillRect(t(AF.x0),t(AF.y0),(AF.x1-AF.x0)/MS,(AF.y1-AF.y0)/MS);
  g.fillStyle=MAPC.runway;g.fillRect(t(RWX-48),t(300),96/MS,2000/MS);
  g.fillStyle=MAPC.roadEdge;g.fillRect(t(RWX+60),t(300),26/MS,2130/MS);g.fillRect(t(4096),t(2430),296/MS,195/MS);
+ // landmarks: their real footprint in gold, under the buildings
+ g.fillStyle=MAPC.gold;for(const l of LANDMARKS)g.fillRect(t(l.x),t(l.y),l.w/MS,l.h/MS);
  for(const p of parks)for(const[x,y,r]of p.trees){g.fillStyle='#2f8a4e';g.beginPath();g.arc(t(x),t(y),r/MS,0,TAU);g.fill()}
  for(const b of buildings){if(b.kind==='water'){g.fillStyle='#1d6a8a';g.beginPath();g.ellipse(t(b.x+b.w/2),t(b.y+b.h/2),(b.w+30)/2/MS,(b.h+30)/2/MS,0,0,TAU);g.fill();continue}
    g.fillStyle=b.kind==='house'?b.trim:b.kind==='container'?b.roof:shade(b.roof,1.25);g.fillRect(t(b.x),t(b.y),b.w/MS,b.h/MS)}
  for(const p of pools){g.fillStyle='#2bb8e6';g.fillRect(t(p.x),t(p.y),p.w/MS,p.h/MS)}
  for(const k of RAISED){const i=k%HM.gw,j=(k/HM.gw)|0,h=HM.a[k];g.fillStyle=`rgba(255,240,220,${Math.min(.4,h/120)})`;g.fillRect(t(HM.x0+i*HM.cell),t(HM.y0+j*HM.cell),HM.cell/MS+1,HM.cell/MS+1)} // raised ground reads lighter
 g.fillStyle='#6a5040';g.fillRect(t(2077),t(W+300),46/MS,520/MS);
- g.strokeStyle='rgba(255,201,74,.35)';g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();for(let k=0;k<=N;k++){g.moveTo(t(0),t(k*B+60));g.lineTo(t(W),t(k*B+60));g.moveTo(t(k*B+60),t(0));g.lineTo(t(k*B+60),t(W))}g.stroke();g.setLineDash([])}
+ g.strokeStyle='rgba(255,201,74,.35)';g.lineWidth=1;g.setLineDash([3,3]);g.beginPath();for(let k=0;k<=N;k++){g.moveTo(t(0),t(k*B+60));g.lineTo(t(W),t(k*B+60));g.moveTo(t(k*B+60),t(0));g.lineTo(t(k*B+60),t(W))}g.stroke();g.setLineDash([])
+ // footprints: every building in a darker shade of its block, drawn once into footBig
+ const fg=footBig.getContext('2d');
+ for(const b of buildings){if(b.kind==='water')continue;fg.fillStyle=shade(TILE[Math.floor(b.y/B)*N+Math.floor(b.x/B)]||MAPC.midtown,.6);fg.fillRect(t(b.x),t(b.y),b.w/MS,b.h/MS)}}
 const hillMini=buildHillMini(MS,MO);
 // the whole map at MS units a pixel, built once: city, hills, then the relief on top. The phone map and drawMini blit it.
 const MAPB={x0:-MO,y0:HILL.edge-MO,x1:W+400,y1:W+400};
@@ -255,13 +265,15 @@ function drawMini(){
   const Pt=(x,y)=>{const dx=(x-cx)*sc,dy=(y-cy)*sc;return[C+dx*cs-dy*sn,C+dx*sn+dy*cs]};
   const edge=(x,y)=>{let[px,py]=Pt(x,y);const dx=px-C,dy=py-C,d=Math.hypot(dx,dy);if(d>RIM){px=C+dx/d*RIM;py=C+dy/d*RIM;return[px,py,true]}return[px,py,false]};
   const inView=(x,y)=>{const[px,py]=Pt(x,y);return Math.hypot(px-C,py-C)<RIM+6};
+  // near rings at 80 and 120 units: thin and faint, so close detail shows without a zoom change
+  c.strokeStyle='rgba(255,255,255,.2)';c.lineWidth=1;for(const r of[80,120]){c.beginPath();c.arc(C,C,r*sc,0,TAU);c.stroke()}
   // route line to the job
   if(job&&job.phase!=='wait'&&!job.noMarker&&!me.inside){const col=jobCol(),[jx,jy]=edge(job.x,job.y);c.strokeStyle=col;c.globalAlpha=.55;c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();c.moveTo(C,C);c.lineTo(jx,jy);c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // waypoint: GPS line along the road grid
   if(waypoint&&!me.inside){const rt=wpRouteC(A.x,A.y,waypoint.x,waypoint.y);c.strokeStyle='#29e6d6';c.globalAlpha=.85;c.lineWidth=3;c.setLineDash([5,5]);c.beginPath();c.moveTo(...Pt(A.x,A.y));rt.forEach(([x,y])=>c.lineTo(...Pt(x,y)));c.stroke();c.setLineDash([]);c.globalAlpha=1}
   // places and spots: small icons, rings for outdoor spots, squares for enterable places
   c.font='700 11px "Chakra Petch",sans-serif';c.textAlign='center';c.textBaseline='middle';
-  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);mapIcon(c,px,py,6,false,'#ffc94a',l.ic)}
+  for(const l of LANDMARKS){const mx=l.x+l.w/2,my=l.y+l.h/2;if(!inView(mx,my))continue;const[px,py]=Pt(mx,my);mapIcon(c,px,py,6,true,'#ffc94a',l.ic)}
   for(const s of HILL_SPOTS){if(!inView(s.x,s.y))continue;const[px,py]=Pt(s.x,s.y);mapIcon(c,px,py,6,false,'#ffc94a',s.icon)}
    {const near=[];for(const d of DOORS){const dd=Math.hypot(d.x-cx,d.y-cy);if(dd<430)near.push([dd,d])}
    near.sort((a,b)=>a[0]-b[0]);

@@ -112,7 +112,7 @@ mapCv.addEventListener('wheel',e=>{e.preventDefault();mapZ=clamp(mapZ*Math.exp(-
 const PHSHORT={airport:'Airport',hood:'Low Palms',beach:'Beach',front:'Sunset Strip',industrial:'Docks',suburb:'Heights',park:'Lagoon',downtown:'Downtown',midtown:'Midtown'};
 function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:PHSHORT[k],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
 // outdoor spots (rings) and enterable places (squares in the door colour), named when zoomed in
-function mapSpots(){return[...HILL_SPOTS.map(s=>({x:s.x,y:s.y,name:s.name,icon:s.icon,door:false,col:'#ffc94a'})),...LANDMARKS.map(l=>({x:l.x+l.w/2,y:l.y+l.h/2,name:l.name,icon:l.ic,door:false,col:'#ffc94a'})),
+function mapSpots(){return[...HILL_SPOTS.map(s=>({x:s.x,y:s.y,name:s.name,icon:s.icon,door:false,col:'#ffc94a'})),...LANDMARKS.map(l=>({x:l.x+l.w/2,y:l.y+l.h/2,name:l.name,icon:l.ic,door:true,col:'#ffc94a'})),
   {x:GARAGE.x,y:GARAGE.y,name:'Garage',icon:'C',door:false,col:'#ffc94a'},...DOORS.map(d=>({x:d.x,y:d.y,name:d.label,icon:DOORICON[d.label]||d.label[0],door:true,col:d.col}))]}
 let mapSpotsC=null;
 // the base layer is blitted, then the icons, markers and the player are drawn over it. Only this runs per frame.
@@ -120,10 +120,14 @@ function phMapDraw(){
   const dpr=mapSize(),c=mapCv.getContext('2d'),v=mapView(),X=v.X,Y=v.Y,s=v.s;
   c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle='#0b2a3d';c.fillRect(0,0,v.cw,v.ch);
   c.drawImage(mapBase,X(MAPB.x0),Y(MAPB.y0),(MAPB.x1-MAPB.x0)*s,(MAPB.y1-MAPB.y0)*s);
+  if(mapZ>1.5)c.drawImage(footBig,X(-MO),Y(-MO),footBig.width*MS*s,footBig.height*MS*s); // footprints, built once in 98-instanced
   phDistr=phDistr||phDistricts();
   c.textAlign='center';c.textBaseline='middle';
   c.font='700 13px "Chakra Petch",sans-serif';c.fillStyle='rgba(243,236,255,.9)';c.shadowColor='#0b0814';c.shadowBlur=6;
   for(const d of phDistr)c.fillText(d.name,X(d.x),Y(d.y));
+  if(mapZ>1.5){ // short names, upright: the boulevard in the gap by the hills, the canal over the open water west of the marina
+    for(const b of CUTS)c.fillText('Boulevard',X(b.ax+(b.bx-b.ax)*.03+300),Y(b.ay+(b.by-b.ay)*.03));
+    c.textAlign='left';c.fillText('Canal',X(-95),Y(CANAL.y0+28));c.textAlign='center'}
   c.shadowBlur=0;
   mapSpotsC=mapSpotsC||mapSpots();
   c.font='700 11px "Chakra Petch",sans-serif';
@@ -149,7 +153,9 @@ function mapLegend(){const L=mk('div','ph-sub');L.style.cssText='display:flex;fl
     item=(css,t)=>{const i=mk('span');i.append(sw(css),t);return i};
   L.append(item('border-radius:50%;border:2px solid #ffc94a;background:#0b0814','Outdoor spot'),item('border:2px solid #29e6d6;background:#0b0814;border-radius:2px','Enterable place'),
     item('border-radius:50%;background:#ffc94a;border:2px solid #0b0814','Mission'),item('border-radius:50%;background:#29e6d6;border:2px solid #0b0814','Waypoint'),
-    item('width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:10px solid #fff;background:none','You'));
+    item('width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:10px solid #fff;background:none','You'),
+    item('width:14px;height:5px;background:#e0a23a;border:1px solid #23212c;border-radius:0','Boulevard'),item('width:14px;height:5px;background:#1d6a8a;border:1px solid #4a4658;border-radius:0','Canal'),
+    item('background:#a0707e;border:1px solid #0b0814','Sunset Strip'),item('border:2px solid #ffc94a;background:#0b0814;border-radius:2px','Landmark'));
   return L}
 phoneApp('map','Map',IC.map,el=>{
   const wrap=mk('div');wrap.style.cssText='position:relative;margin:0 -12px';
