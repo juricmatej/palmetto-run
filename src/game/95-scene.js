@@ -806,6 +806,40 @@ if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,pro
  if(DBG)Object.defineProperty(DBG,'furniture',{get:()=>parts.length});
  if(parts.length)scene.add(new THREE.Mesh(mergeGeos(parts),new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true})));
 }
+// Waterfront edges (ticket 59). West: a concrete quay wall on the industrial edge, split at the canal mouth, with bollards, fenders,
+// two ladders and mooring lines. East: a 10-wide paved promenade on a wall, a railing with a gap at the fishing deck, lamps and benches,
+// and a lower fishing deck with a step at each end. The south has its railing already (the beach boardwalk), so it stays as it is.
+// Solid parts are vertex-coloured and merged into one mesh, the same look as the kerbs, so staticBatch joins them into one draw.
+{const solid=[],tops=[],FX=W+9.5,DECK=[1500,1700],GAP=[CANAL.y0-6,CANAL.y1+6],I=new THREE.Matrix4();
+ const colour=(g,hex)=>{const c=new THREE.Color(hex),n=g.attributes.position.count,a=new Float32Array(n*3);for(let i=0;i<n;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b}g.setAttribute('color',new THREE.BufferAttribute(a,3));return g};
+ const at=(x,y,z,ry)=>new THREE.Matrix4().makeRotationY(ry||0).setPosition(x,y,z);
+ const part=(geo,hex,m)=>solid.push(colour(geo.applyMatrix4(m),hex));
+ const paveTop=(x0,x1,z0,z1)=>tops.push(uvScale(new THREE.PlaneGeometry(x1-x0,z1-z0).rotateX(-Math.PI/2).translate((x0+x1)/2,.02,(z0+z1)/2),(x1-x0)/(B-R),(z1-z0)/(B-R))); // paving, one texture per 320 units like the sidewalks
+ const quayWall=(x0,x1,z0,z1)=>part(new THREE.BoxGeometry(x1-x0,3,z1-z0),'#6a655c',at((x0+x1)/2,-1.5,(z0+z1)/2)); // 3 high, top at the road level, foot in the water at -3
+ // west quay: paving runs out to the kerb (x 0), the wall is 6 deep, from x -9 to -3
+ const west=z=>z<GAP[0]||z>GAP[1];
+ for(const[a,b]of[[0,GAP[0]],[GAP[1],W]]){paveTop(-9,0,a,b);quayWall(-9,-3,a,b)}
+ for(let z=15;z<W;z+=30)if(west(z))part(new THREE.CylinderGeometry(.55,.65,1.3,6),'#8a8699',at(-6,.65,z)); // bollards
+ for(let z=45;z<W;z+=60)if(west(z))part(new THREE.BoxGeometry(.5,1.6,1.6),'#2a2735',at(-3.25,-1.2,z)); // fenders hanging on the face
+ for(const z of[900,2300]){for(const dz of[-.6,.6])part(new THREE.BoxGeometry(.25,3.2,.25),'#3a3742',at(-3.2,-1.5,z+dz));for(const y of[-.6,-1.6,-2.6])part(new THREE.BoxGeometry(.2,.2,1.4),'#3a3742',at(-3.2,y,z))} // two ladders down the face
+ for(const z of[420,1250,2500,3400])if(west(z))part(new THREE.BoxGeometry(4,.14,.14),'#2a2735',new THREE.Matrix4().makeRotationZ(.45).setPosition(-8.5,.4,z)); // mooring lines to nothing
+ // east promenade: paving and wall from the sea-side kerb (W) out to W+10, the railing on its outer edge, stopped at the deck
+ const promenade=[[0,DECK[0]-2],[DECK[1]+2,W]],onProm=z=>z<DECK[0]-2||z>DECK[1]+2;
+ paveTop(W,W+10,0,W);quayWall(W,W+10,0,W);
+ for(let z=0;z<=W;z+=4)if(onProm(z))part(new THREE.BoxGeometry(.4,3.6,.4),'#3a3742',at(FX,1.8,z)); // railing posts every 4
+ for(const[a,b]of promenade)for(const y of[1.2,3]){part(new THREE.BoxGeometry(.25,.25,b-a),'#3a3742',at(FX,y,(a+b)/2))} // two rails
+ for(let z=30;z<W;z+=60)if(onProm(z)){part(new THREE.CylinderGeometry(.22,.3,9,5),'#5b5670',at(W+3,4.5,z));part(new THREE.BoxGeometry(1.2,.5,1.2),'#ffdf9e',at(W+3,9.2,z))} // lamps every 60
+ for(let z=200;z<W;z+=400)if(onProm(z)){part(new THREE.BoxGeometry(2.4,.4,6),'#5a4030',at(W+7,.9,z));part(new THREE.BoxGeometry(.4,1.6,6),'#5a4030',at(W+6.1,1.9,z))} // benches, backs to the city
+ // lower fishing deck, top at -0.5 (the sand plane is at -1), with a step down at each end
+ for(const z of[DECK[0]-2,DECK[1]+2])part(new THREE.BoxGeometry(2,.5,4),'#4a3426',at(W+11,-.25,z));
+ // north: a low retaining wall on the hill side of the road and a hedge behind it, so the city's edge against the hills reads as a seam
+ part(new THREE.BoxGeometry(W,1.2,1.2),'#6a655c',at(W/2,.6,-.6));
+ part(new THREE.BoxGeometry(W,3.4,5),'#2a6a3a',at(W/2,1.7,-4.5));
+ const deck=uvScale(new THREE.BoxGeometry(6,2.5,DECK[1]-DECK[0]),1,(DECK[1]-DECK[0])/6).translate(W+13,-1.75,(DECK[0]+DECK[1])/2);
+ const mergeList=l=>mergeGeos(l.map(g=>[g,I]));
+ scene.add(new THREE.Mesh(mergeList(tops),new THREE.MeshLambertMaterial({map:pavTex})));
+ scene.add(new THREE.Mesh(mergeList(solid),new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true})));
+ scene.add(new THREE.Mesh(deck,twood));}
 // neon billboards on downtown and midtown roofs
 {const names=[['Lucky Palms Casino','#c08bff'],['Velvet Palms','#ff3ea5'],['Snack & Go','#3dd68c'],['Union Bank','#ffd76a'],['Palmetto International','#29e6d6']],r=seeded(555),spots=[];
  for(const b of buildings)if((b.kind==='glass'||b.kind==='tower')&&b.H>=90&&b.w>=56&&b.x<3600&&r()<.3)spots.push(b);
