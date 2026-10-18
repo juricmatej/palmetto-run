@@ -631,6 +631,11 @@ const fireGlows=[];
      const wall=new THREE.Mesh(new THREE.BoxGeometry(64,9,2.4),blam('#5a4a44'));wall.position.set(ccx,5.7,ccy-hd-2.4);scene.add(wall);
      const gg=new THREE.Mesh(new THREE.PlaneGeometry(60,8.4),graffMats[1]);gg.position.set(ccx,5.7,ccy-hd-1.1);scene.add(gg);
      for(const sx of[-1,1]){const bn=new THREE.Mesh(new THREE.BoxGeometry(14,1.2,4.5),blam('#5a4030'));bn.position.set(ccx+sx*60,2.6,ccy-hd-5);scene.add(bn)}}}}
+// palm frond: a slim blade, tapered to a notched tip and folded along the spine into two halves (a shallow V).
+// Local x runs -12 to 12 like the flat box it replaces, so the same instance transforms place it.
+function frondGeo(){const P=[[-12,0],[-6,2.8],[4,2.2],[10,1],[7,0]],v=[];
+ for(const s of[1,-1])for(let i=1;i<4;i++)for(const k of[0,i,i+1])v.push(P[k][0],Math.abs(P[k][1])*.45,s*P[k][1]);
+ const g=new THREE.BufferGeometry().setAttribute('position',new THREE.Float32BufferAttribute(v,3));g.computeVertexNormals();return g}
 // landscape: beach, pier, ferris wheel, palms, pools, cranes, mountains
 let ferris=null;
 {const sand=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(W+600,300),(W+600)/IN,300/IN),new THREE.MeshLambertMaterial({map:sandTex}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-.5,W+150);scene.add(sand);
@@ -644,7 +649,7 @@ let ferris=null;
  scene.add(ferris);for(const dx of[-40,40]){const leg=new THREE.Mesh(new THREE.BoxGeometry(4,150,4),plank);leg.position.set(2100+dx,70,4700);leg.rotation.z=dx>0?-.25:.25;scene.add(leg)}
  const fg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(255,62,165,.4)')),'opacity',1,.3));fg.scale.set(240,240,1);fg.position.set(2100,140,4690);scene.add(fg);
  // palms
- const trunkG=new THREE.CylinderGeometry(1.4,2.4,1,6),trunk=new THREE.InstancedMesh(trunkG,new THREE.MeshLambertMaterial({color:'#6b4a32'}),Math.max(1,palms.length)),frond=new THREE.InstancedMesh(new THREE.BoxGeometry(24,1,6),new THREE.MeshLambertMaterial({color:'#2f8a4e'}),Math.max(1,palms.length*6));
+ const trunkG=new THREE.CylinderGeometry(1.4,2.4,1,6),trunk=new THREE.InstancedMesh(trunkG,new THREE.MeshLambertMaterial({color:'#6b4a32'}),Math.max(1,palms.length)),frond=new THREE.InstancedMesh(frondGeo(),new THREE.MeshLambertMaterial({color:'#2f8a4e',side:THREE.DoubleSide}),Math.max(1,palms.length*6));
  palms.forEach(([x,y,rot],i)=>{const h=44;inst(trunk,i,x,h/2,y,0,1,h,1);for(let k=0;k<6;k++){const a=rot+k/6*TAU;dummy.position.set(x+Math.cos(a)*10,h-2,y+Math.sin(a)*10);dummy.rotation.set(0,-a,-.45);dummy.scale.set(1,1,1);dummy.updateMatrix();frond.setMatrixAt(i*6+k,dummy.matrix)}});
  trunk.count=palms.length;frond.count=palms.length*6;scene.add(trunk,frond);
  // umbrellas
@@ -656,10 +661,15 @@ let ferris=null;
  const yel=new THREE.MeshLambertMaterial({color:'#e0a92a'});for(const[x,y]of cranes){const t=new THREE.Mesh(new THREE.BoxGeometry(7,150,7),yel);t.position.set(x,75,y);scene.add(t);const arm=new THREE.Mesh(new THREE.BoxGeometry(6,5,150),yel);arm.position.set(x,148,y-40);scene.add(arm);const l=new THREE.Mesh(new THREE.BoxGeometry(4,4,4),redLight);l.position.set(x,154,y);scene.add(l);const cb=new THREE.Mesh(new THREE.CylinderGeometry(.4,.4,60,4),capMat);cb.position.set(x,118,y-100);scene.add(cb)}
  // mountains across the bay to the north and west: flat-shaded cones, dark base, lighter peak and a random tint per cone (vertex colours)
  const mtn=fadeC(new THREE.MeshLambertMaterial({vertexColors:true,flatShading:true,fog:false}),'color','#ffffff','#9aa0b8'),mr=seeded(77);
- const mtnCone=(r0,h,k)=>{const g=new THREE.ConeGeometry(r0,h,9),p=g.attributes.position,a=new Float32Array(p.count*3),s=.85+.3*k;
-   for(let i=0;i<p.count;i++){const q=Math.pow((p.getY(i)+h/2)/h,2),tn=.3*q*q;// peaks lean 30% toward a pale sky lavender so the top of the frame stays lit
-     a[i*3]=((.082+q*.27)*(1-tn)+.6*tn)*s;a[i*3+1]=((.055+q*.18)*(1-tn)+.42*tn)*s;a[i*3+2]=((.149+q*.39)*(1-tn)+.74*tn)*s*(1+(k-.5)*.2)}
-   g.setAttribute('color',new THREE.BufferAttribute(a,3));return g};
+ // a mountain is three stacked ridges: a wide far ridge (greyer, so it recedes), a middle ridge, and a top ridge that keeps the lavender lean
+ const mtnCone=(r0,h,k)=>{const s=.85+.3*k,parts=[];
+   for(const[rr,th,y0,layer]of[[r0*1.2,.42*h,-h/2,0],[r0*.75,.45*h,-h*.3,1],[r0*.42,.45*h,h*.05,2]]){const g=new THREE.ConeGeometry(rr,th,9),p=g.attributes.position,a=new Float32Array(p.count*3);
+     for(let i=0;i<p.count;i++){const q=Math.pow((p.getY(i)+th/2)/th,2),tn=layer===2?.3*q*q:0;// peaks lean 30% toward a pale sky lavender so the top of the frame stays lit
+       let r=((.082+q*.27)*(1-tn)+.6*tn)*s,gr=((.055+q*.18)*(1-tn)+.42*tn)*s,b=((.149+q*.39)*(1-tn)+.74*tn)*s*(1+(k-.5)*.2);
+       if(layer===0){const l=(r+gr+b)/3;r=l+(r-l)*.5;gr=l+(gr-l)*.5;b=l+(b-l)*.5}
+       a[i*3]=r;a[i*3+1]=gr;a[i*3+2]=b}
+     g.setAttribute('color',new THREE.BufferAttribute(a,3));g.translate(0,y0+th/2,0);parts.push([g,new THREE.Matrix4()])}
+   return mergeGeos(parts)};
  for(let i=0;i<22;i++){const r0=280+mr()*380,h=380+mr()*620,m=new THREE.Mesh(mtnCone(r0,h,mr()),mtn);m.position.set(-1200+i*290+mr()*120,h/2-4,-2700-mr()*900);m.rotation.y=mr()*3;scene.add(m)}
  for(let i=0;i<8;i++){const r0=260+mr()*300,h=300+mr()*400,m=new THREE.Mesh(mtnCone(r0,h,mr()),mtn);m.position.set(-1100-mr()*700,h/2-4,-400+i*520);scene.add(m)}
  // skyline: a ring of low blocks on the water just outside the city edge (the city spans 0 to W). Windows are an emissive map on one
@@ -711,11 +721,11 @@ const STREET_PROPS=[];
   const tk=IM(new THREE.CylinderGeometry(1.1,1.5,9,6),lam('#4a3426'),T.length),tc2=IM(new THREE.IcosahedronGeometry(1,0),lam('#2a7a4c'),T.length);
   T.forEach(([x,y],i)=>{const sc=.85+((x*7+y*13)%100)/100*.5;inst(tk,i,x,4.5*sc,y,0,1,sc,1);inst(tc2,i,x,11.5*sc,y,(x+y)%6,sc*3.4,sc*3,sc*3.4)});
   tk.count=tc2.count=T.length;scene.add(tk,tc2);
-  const pk=IM(new THREE.CylinderGeometry(1.4,2.2,16,6),lam('#6b4a32'),P.length),pf=IM(new THREE.BoxGeometry(24,1,6),lam('#2f8a4e'),P.length*6);
+  const pk=IM(new THREE.CylinderGeometry(1.4,2.2,16,6),lam('#6b4a32'),P.length),pf=IM(frondGeo(),new THREE.MeshLambertMaterial({color:'#2f8a4e',side:THREE.DoubleSide}),P.length*6);
   P.forEach(([x,y,rot],i)=>{inst(pk,i,x,8,y,0);for(let k=0;k<6;k++){const a=rot+k/6*TAU;inst(pf,i*6+k,x+Math.cos(a)*10,15,y+Math.sin(a)*10,-a)}});
   pk.count=P.length;pf.count=P.length*6;scene.add(pk,pf);}
  // lamps: slim pole with an arm and a small tapered six-sided shade with a warm bulb under it
- const post=IM(mergeGeos([[new THREE.CylinderGeometry(.9,1.3,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#2c2938'),lp.length),
+ const post=IM(mergeGeos([[new THREE.CylinderGeometry(.55,.8,40,6),mx(0,20,0)],[new THREE.BoxGeometry(8,1,1.2),mx(4,39.5,0)]]),lam('#5b5670'),lp.length),
   hd=IM(mergeGeos([[new THREE.CylinderGeometry(2.1,2.6,1.1,6),mx(0,.55,0)],[new THREE.CylinderGeometry(.7,.7,1.6,6),mx(0,-.6,0)]]),lam('#25222e'),lp.length),hb=IM(new THREE.SphereGeometry(.62,6,4),fadeC(new THREE.MeshBasicMaterial({color:'#ffdf9e'}),'color','#ffdf9e','#8f8776'),lp.length),
   pool=IM(new THREE.PlaneGeometry(1,1),fade(additive(glowTex('rgba(255,176,90,.55)'),.4),'opacity',.4,.06),lp.length);
  lp.forEach(([x,y,dx,dz],i)=>{const ry=Math.atan2(-dz,dx),hx=x+dx*7.5,hz=y+dz*7.5;inst(post,i,x,0,y,ry);inst(hd,i,hx,39.5,hz);inst(hb,i,hx,38.5,hz);inst(pool,i,x+dx*10,1.7,y+dz*10,0,96,96,1,-Math.PI/2)});
