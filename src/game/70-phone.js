@@ -109,7 +109,7 @@ function mapUp(e){const p=mapPts.get(e.pointerId);if(!p)return;mapPts.delete(e.p
 mapCv.addEventListener('pointerup',mapUp);
 mapCv.addEventListener('pointercancel',e=>{mapPts.delete(e.pointerId);if(!mapPts.size)mapPinch=null});
 mapCv.addEventListener('wheel',e=>{e.preventDefault();mapZ=clamp(mapZ*Math.exp(-e.deltaY*.002),1,5)},{passive:false});
-const PHSHORT={airport:'Airport',hood:'Low Palms',beach:'Beach',industrial:'Docks',suburb:'Heights',park:'Lagoon',downtown:'Downtown',midtown:'Midtown'};
+const PHSHORT={airport:'Airport',hood:'Low Palms',beach:'Beach',front:'Sunset Strip',industrial:'Docks',suburb:'Heights',park:'Lagoon',downtown:'Downtown',midtown:'Midtown'};
 function phDistricts(){const acc={};for(let i=0;i<N;i++)for(let j=0;j<N;j++){const k=district(i,j);if(!AREA[k])continue;const a=acc[k]||(acc[k]={x:0,y:0,n:0});a.x+=i*B+R+(B-R)/2;a.y+=j*B+R+(B-R)/2;a.n++}return Object.keys(acc).map(k=>({name:PHSHORT[k],x:acc[k].x/acc[k].n,y:acc[k].y/acc[k].n}))}
 // outdoor spots (rings) and enterable places (squares in the door colour), named when zoomed in
 function mapSpots(){return[...HILL_SPOTS.map(s=>({x:s.x,y:s.y,name:s.name,icon:s.icon,door:false,col:'#ffc94a'})),...LANDMARKS.map(l=>({x:l.x+l.w/2,y:l.y+l.h/2,name:l.name,icon:l.ic,door:false,col:'#ffc94a'})),
