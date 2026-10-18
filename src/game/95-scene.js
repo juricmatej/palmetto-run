@@ -134,9 +134,9 @@ const tileOf=b=>{const r=seeded((b.x*29+b.y*13+b.H)|0);return[96+r()*60,96+r()*6
 // a shopfront band and a ledge on each face that looks onto a road (within 30 units of the block edge)
 function shopfronts(b,k){const bx=Math.floor((b.x+b.w/2)/B),bz=Math.floor((b.y+b.h/2)/B),x0=bx*B+R,y0=bz*B+R,x1=(bx+1)*B,y1=(bz+1)*B;
  for(const[px,pz,nx,nz,len,dist]of[[b.x,b.y+b.h/2,-1,0,b.h,b.x-x0],[b.x+b.w,b.y+b.h/2,1,0,b.h,x1-b.x-b.w],[b.x+b.w/2,b.y,0,-1,b.w,b.y-y0],[b.x+b.w/2,b.y+b.h,0,1,b.w,y1-b.y-b.h]]){
-  if(dist>=30||len<28)continue;const L=len-8,ry=Math.atan2(nx,nz);
-  const sp=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(L,14),L/120,1),shopMats[k]);sp.position.set(px+nx*.5,7,pz+nz*.5);sp.rotation.y=ry;scene.add(sp);
-  const lg=new THREE.Mesh(new THREE.BoxGeometry(L,1.4,1.4),ledgeMat);lg.position.set(px+nx*.7,15.2,pz+nz*.7);lg.rotation.y=ry;scene.add(lg)}}
+  if(dist>=30||len<28)continue;const L=len-8,ry=Math.atan2(nx,nz),hg=nx!==0&&AVENUE.includes(bx+(nx>0?1:0))?28:14; // two storeys on avenue faces
+  const sp=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(L,hg),L/120,1),shopMats[k]);sp.position.set(px+nx*.5,hg/2,pz+nz*.5);sp.rotation.y=ry;scene.add(sp);
+  const lg=new THREE.Mesh(new THREE.BoxGeometry(L,1.4,1.4),ledgeMat);lg.position.set(px+nx*.7,hg+.2,pz+nz*.7);lg.rotation.y=ry;scene.add(lg)}}
 if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).length}});
 
 // ground
@@ -189,6 +189,15 @@ const AVENUE=[3,6]; // the two north-south and east-west avenues: double lines, 
    for(let u=12;u<s-12;u+=34)for(const side of[0,1,2,3]){
      const [x,z,ry]=side===0?[x0-7,y0+u,0]:side===1?[x0+s+7,y0+u,0]:side===2?[x0+u,y0-7,Math.PI/2]:[x0+u,y0+s+7,Math.PI/2];
      if(!DOORS.some(d=>Math.hypot(d.x-x,d.y-z)<34)&&!rampZone(x,z)&&!inCut(x,z,6))put(bayG,x,.15,z,ry)}}
+ // avenue medians: a chevron every 90 units down each north-south avenue, 12 across and 30 long, clear of the stop lines
+ const hatchG=vc(new THREE.BoxGeometry(1.6,.3,30.6),PAINT),busG=vc(new THREE.BoxGeometry(5,.3,60),PAINT);
+ for(const k of AVENUE)for(let s=0;s<N;s++)for(let m=0;m<3;m++){const z=s*B+R+40+m*90;
+   put(hatchG,k*B+63,.16,z+15,Math.atan2(6,30));put(hatchG,k*B+57,.16,z+15,-Math.atan2(6,30))}
+ // kerb bus bays: a 60 by 5 pad on the avenue kerb of each city and midtown block (the shelter sits on the sidewalk)
+ for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi];if(t!=='city'&&t!=='midtown')continue;
+   const x0=bi*B+R,y0=bj*B+R,s=B-R;
+   if(AVENUE.includes(bi))put(busG,x0-7,.15,y0+105);
+   if(AVENUE.includes(bi+1))put(busG,x0+s+7,.15,y0+105)}
  for(let k=0;k<=N;k++)for(let i=0;i<6;i++){const p=(i+.5)*W/6+(mh()-.5)*50; // manhole covers on the road centres
    if(mh()<.6&&!inAF(p,k*B+30)&&!inCut(p,k*B+30,6))put(mhG,p,.16,k*B+30);
    if(mh()<.6&&!inAF(k*B+90,p)&&!inCut(k*B+90,p,6))put(mhG,k*B+90,.16,p)}
@@ -477,7 +486,7 @@ for(const b of buildings){
    put(new THREE.CylinderGeometry(.9,1.4,46,6),capMat,cx,H+23,cz);put(new THREE.BoxGeometry(3.4,3.4,3.4),redLight,cx,H+47,cz);
    put(new THREE.BoxGeometry(18,1.2,8),tm,cx,9,cz+rh/2+3.6);put(new THREE.BoxGeometry(1.2,9,1.2),tm,cx-8,4.6,cz+rh/2+7);put(new THREE.BoxGeometry(1.2,9,1.2),tm,cx+8,4.6,cz+rh/2+7);
    roofN.sig=(roofN.sig||0)+1}
-  if(b.kind!=='brick'&&(b.sign||br()<.55)){ // a blade sign on the face that fronts a street
+  if(b.kind!=='brick'&&(b.sign||AVENUE.includes(Math.floor(cx/B))||AVENUE.includes(Math.floor(cx/B)+1)||br()<.55)){ // a blade sign on the face that fronts a street; avenue buildings always try for one
    const bx=Math.floor(cx/B),bz=Math.floor(cz/B),x0=bx*B+R,y0=bz*B+R,x1=(bx+1)*B,y1=(bz+1)*B,faces=[];
    for(const f of[[b.x,b.y+b.h/2,-1,0,b.h,b.x-x0],[b.x+b.w,b.y+b.h/2,1,0,b.h,x1-b.x-b.w],[b.x+b.w/2,b.y,0,-1,b.w,b.y-y0],[b.x+b.w/2,b.y+b.h,0,1,b.w,y1-b.y-b.h]])
     if(f[5]<30&&f[4]>=28)faces.push(f);
@@ -696,6 +705,9 @@ const STREET_PROPS=[];
    for(const[cx,cy]of[[0,0],[1,0],[0,1],[1,1]])tl.push([x0+(cx?s-7:7),y0+(cy?s-7:7),cx?-1:1,cy?-1:1,(bi+cx+bj+cy)%2]); // corner housing; index 4 = cycle phase group
    if(t!=='airport'){hy.push([x0+10,y0+80]);for(const o of[80,190])bl.push([x0+4,y0+o],[x0+s-4,y0+o])}
    if(t==='city')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2],[bj,x0+105,y0+8,Math.PI],[bj+1,x0+105,y0+s-8,0]])if(AV.includes(ok))sh.push([x,y,ry]);
+   // bus stops: a shelter and bench on the sidewalk beside each north-south avenue (city and midtown; the city ones above are kept)
+   if(t==='city'||t==='midtown')for(const[ok,x,y,ry]of[[bi,x0+8,y0+105,-Math.PI/2],[bi+1,x0+s-8,y0+105,Math.PI/2]])
+     if(AVENUE.includes(ok)&&!(t==='city'&&AV.includes(ok))&&!rampZone(x,y)&&!DOORS.some(d=>Math.hypot(d.x-x,d.y-y)<30))sh.push([x,y,ry]);
    // street trees (suburb, city, midtown, hood) and boulevard palms (beach), 13 in from the block edge
    if(t==='suburb')for(const o of[46,150,254])tr.push([x0+13,y0+o],[x0+s-13,y0+o],[x0+o,y0+13],[x0+o,y0+s-13]);
    else if(t==='city'){const o=rq()<.5?[90]:[70,210];for(const u of o)tr.push([x0+13,y0+u],[x0+s-13,y0+u],[x0+u,y0+13],[x0+u,y0+s-13])}
@@ -747,6 +759,15 @@ const STREET_PROPS=[];
  const bo=IM(new THREE.CylinderGeometry(.9,1,3,6),lam('#8a8699'),bl.length);bl.forEach(([x,y],i)=>inst(bo,i,x,1.5,y,0));bo.count=bl.length;scene.add(bo);
  for(const m of[post,hd,hb,pool,tp,th,tc,hm,bm,be,fr,pn]){m.count=m===tc?tl.length*2:m===tp||m===th?tl.length:m===hm?hy.length:m===bm?bn.length:m===be?bch.length:m===fr||m===pn?sh.length:lp.length;scene.add(m)}}
 if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,props:STREET_PROPS.length})}});
+// avenue arches: one neon arch across each north-south avenue at both map ends. Two posts, a neon beam and a lit name board.
+// The board material is shared per name and follows the day/night clock like the shop bands.
+{const post=blam('#2a2636'),neon=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),boards={};
+ for(const[k,end,name,col]of[[AVENUE[0],0,'DOWNTOWN NEON','#ff3ea5'],[AVENUE[0],1,'SUNSET BEACH','#ffc94a'],[AVENUE[1],0,'LOW PALMS','#29e6d6'],[AVENUE[1],1,'SUNSET BEACH','#ffc94a']]){
+  const x=k*B+60,z=end?W-60:60;
+  for(const o of[-56,56]){const p=new THREE.Mesh(new THREE.BoxGeometry(2.4,18.5,2.4),post);p.position.set(x+o,9.25,z);scene.add(p)}
+  const beam=new THREE.Mesh(new THREE.BoxGeometry(116,2.4,2.4),neon);beam.position.set(x,18.5,z);scene.add(beam);
+  const bm=boards[name]||(boards[name]=fadeC(new THREE.MeshBasicMaterial({map:signTex(name,col),side:THREE.DoubleSide}),'color','#ffffff','#8a8a92'));
+  const board=new THREE.Mesh(new THREE.PlaneGeometry(44,11),bm);board.position.set(x,23.5,z);scene.add(board)}}
 // kerbs along every block side, and planters, a bench and a bin on the sidewalk. Skipped on slopes, ramps and door points.
 // Props are painted by vertex colour and merged into one mesh.
 {const kerbMat=new THREE.MeshLambertMaterial({color:'#8d8aa0'}),parts=[],onFlat=(x,z)=>groundZ(x,z)===0&&!rampZone(x,z);
