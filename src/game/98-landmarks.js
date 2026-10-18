@@ -34,11 +34,13 @@ function landmarkMeshes(){
   // the basin is the canal mouth now (ticket 63), so no separate water plane here
   const hull=mergeGeos([[new THREE.BoxGeometry(24,2.2,8),new THREE.Matrix4()],[new THREE.BoxGeometry(8,3,6),new THREE.Matrix4().makeTranslation(-3,2.4,0)]]),hm=new THREE.MeshLambertMaterial({color:'#e8e4f0'});
   LMA.boats=new THREE.InstancedMesh(hull,hm,3);LMA.boats.userData.pos=[[200,3720],[248,3840],[200,3910]];scene.add(LMA.boats);
+  // floodlight masts: a pole, a lit head and a glow sprite per mast. The Pit and the stadium share it
+  const flHead=new THREE.MeshBasicMaterial({color:'#fff1c4'});
+  const flood=(pyl,H)=>{const pp=new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2,1.6,H,6),lmm.metal,pyl.length),ph=new THREE.InstancedMesh(new THREE.BoxGeometry(8,2.4,8),flHead,pyl.length);
+    pyl.forEach(([x,y],i)=>{inst(pp,i,x,H/2,y);inst(ph,i,x,H+1,y)});pp.count=ph.count=pyl.length;scene.add(pp,ph);
+    for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,H+2,y);g.scale.set(40,40,1);scene.add(g)}};
   // the Pit: floodlight pylons with glow sprites, a pink ring on the floor
-  const pyl=[[3218,3218],[3502,3218],[3218,3502],[3502,3502]];
-  const pp=new THREE.InstancedMesh(new THREE.CylinderGeometry(1.2,1.6,36,6),lmm.metal,pyl.length),ph=new THREE.InstancedMesh(new THREE.BoxGeometry(8,2.4,8),new THREE.MeshBasicMaterial({color:'#fff1c4'}),pyl.length);
-  pyl.forEach(([x,y],i)=>{inst(pp,i,x,18,y);inst(ph,i,x,37,y)});pp.count=ph.count=pyl.length;scene.add(pp,ph);
-  for(const[x,y]of pyl){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex('rgba(255,240,200,.8)'),transparent:true,blending:THREE.AdditiveBlending,depthWrite:false}));g.position.set(x,38,y);g.scale.set(40,40,1);scene.add(g)}
+  flood([[3218,3218],[3502,3218],[3218,3502],[3502,3502]],36);
   const ring=new THREE.Mesh(new THREE.RingGeometry(58,60,48),new THREE.MeshBasicMaterial({color:'#ff3ea5'}));ring.rotation.x=-Math.PI/2;ring.position.set(3360,1.4,3360);scene.add(ring);pitMeshes();
   // pier: a lit arcade front, a chip shack with a flue and a stack of crates at the boardwalk end
   {const gz=groundZ(2100,4560),shack=mergeGeos([[new THREE.BoxGeometry(16,10,9),new THREE.Matrix4().makeTranslation(0,5,0)],
@@ -56,7 +58,7 @@ function landmarkMeshes(){
   // the rail and its posts stop at the pier's sides, so the pier is open to cars
   const rg=[];for(let i=0;i<=W/30;i++){const x=i*30;if(x>2060&&x<2140)continue;rg.push([new THREE.BoxGeometry(.8,5,.8).translate(x,groundZ(x,4568)+2.5,4568),new THREE.Matrix4()])}scene.add(new THREE.Mesh(mergeGeos(rg),lmm.metal));
   for(const[a,b]of[[0,2060],[2140,W]]){const rail=new THREE.Mesh(new THREE.BoxGeometry(b-a,.7,.7),lmm.metal);rail.position.set((a+b)/2,6.3,4568);scene.add(rail)}
-  const awm=new THREE.MeshLambertMaterial({color:'#ff3ea5'});LMS.filter(b=>b.m==='stall').forEach(b=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),awm);m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
+  const awm=new THREE.MeshLambertMaterial({color:'#ff3ea5'});LMS.filter(b=>b.m==='stall').forEach(b=>{const m=new THREE.Mesh(new THREE.BoxGeometry(b.w+4,1.2,b.h+6),b.aw?lmm[b.aw]:awm);m.position.set(b.x+b.w/2,groundZ(b.x,b.y)+b.H+1,b.y+b.h/2);scene.add(m)});
   // roller-coaster frame east of the pier: towers and a track of boxes along a wave, merged into two meshes
   const trk=[],tow=[],cz=4650;let px=null;
   for(let i=0;i<=24;i++){const x=2280+i*15,h=groundZ(x,cz)+30+22*Math.abs(Math.sin(i*.5));
@@ -64,6 +66,40 @@ function landmarkMeshes(){
     if(px){const dh=h-px[1],L=Math.hypot(15,dh),mid=new THREE.Matrix4().makeTranslation((px[0]+x)/2,(px[1]+h)/2,cz).multiply(new THREE.Matrix4().makeRotationZ(Math.atan2(dh,15)));trk.push([new THREE.BoxGeometry(L,1.4,1.4),mid])}
     px=[x,h]}
   scene.add(new THREE.Mesh(mergeGeos(trk),lmm.metal),new THREE.Mesh(mergeGeos(tow),lmm.metal));
+  // Palmetto Stadium (block 7,6): taller floodlights at the corners, a pink crown on the wall tops, a scoreboard over the north stand and the pitch on the green sand
+  flood([[3232,2792],[3488,2792],[3232,3048],[3488,3048]],56);
+  const crownM=new THREE.MeshBasicMaterial({color:'#ff3ea5'}),crown=[];
+  for(const[x,y,w,d]of[[3222,2782,276,3],[3222,3053,276,3],[3222,2782,3,274],[3495,2782,3,274]])crown.push([new THREE.BoxGeometry(w,2,d).translate(x+w/2,17,y+d/2),new THREE.Matrix4()]);
+  scene.add(new THREE.Mesh(mergeGeos(crown),crownM));
+  const board=new THREE.Mesh(new THREE.PlaneGeometry(60,15),new THREE.MeshBasicMaterial({map:signTex('HOME 2 : 1','#29e6d6'),side:THREE.DoubleSide}));board.position.set(3360,22,2790);scene.add(board);
+  const pitch=new THREE.Mesh(new THREE.PlaneGeometry(240,200),new THREE.MeshLambertMaterial({color:'#2f8f4e'}));pitch.rotation.x=-Math.PI/2;pitch.position.set(3360,groundZ(3360,2920)+1.4,2920);scene.add(pitch);
+  // Half-built tower (block 6,6): scaffold on the east and south faces, a tower crane with a counterweight and a red light, a silo cap, a hoarding poster and two warning lamps that blink in landmarkTick
+  {const M=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z),sc=[],yc=[];
+   for(let u=2820;u<=3020;u+=20)sc.push([new THREE.BoxGeometry(1,102,1),M(3024.5,51,u)],[new THREE.BoxGeometry(1,102,1),M(u,51,3024.5)]);
+   for(let h=17;h<=102;h+=17)sc.push([new THREE.BoxGeometry(1,.8,200),M(3024.5,h,2920)],[new THREE.BoxGeometry(200,.8,1),M(2920,h,3024.5)]);
+   yc.push([new THREE.BoxGeometry(110,4,5),M(2861,116,2809)],[new THREE.BoxGeometry(14,8,10),M(2800,116,2809)]);
+   scene.add(new THREE.Mesh(mergeGeos(sc),lmm.metal),new THREE.Mesh(mergeGeos(yc),lmm.yel));
+   scene.add(new THREE.Mesh(new THREE.BoxGeometry(3,3,3).translate(2809,122,2809),crownM));
+   scene.add(new THREE.Mesh(new THREE.ConeGeometry(9.5,6,10).translate(2808,39,3008),lmm.conc));
+   const poster=new THREE.Mesh(new THREE.PlaneGeometry(40,10),new THREE.MeshBasicMaterial({map:signTex('BUILD 2027','#ffc94a')}));poster.rotation.y=Math.PI;poster.position.set(2920,4.5,2789.4);scene.add(poster);
+   LMA.lamps=new THREE.InstancedMesh(new THREE.SphereGeometry(1.2,6,4),new THREE.MeshBasicMaterial({color:'#ffb13b'}),2);LMA.lamps.userData.pos=[[2848,104,2848],[2992,104,2992]];scene.add(LMA.lamps)}
+  // Night Market (block 3,7): string lights along the four light poles and a clock face on the post (meshes only)
+  {const wire=[],bulbs=[],M=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+   const string=(x0,z0,x1,z1)=>{const L=Math.abs(x1-x0)+Math.abs(z1-z0),ax=z0===z1;
+     wire.push([ax?new THREE.BoxGeometry(L,.3,.3):new THREE.BoxGeometry(.3,.3,L),M((x0+x1)/2,13,(z0+z1)/2)]);
+     for(let t=0;t<=L;t+=12)bulbs.push([new THREE.BoxGeometry(1.4,1.4,1.4),M(ax?x0+t:x0,12.2,ax?z0:z0+t)])};
+   string(1457.5,3227.5,1742.5,3227.5);string(1457.5,3492.5,1742.5,3492.5);string(1457.5,3227.5,1457.5,3492.5);string(1742.5,3227.5,1742.5,3492.5);
+   scene.add(new THREE.Mesh(mergeGeos(wire),lmm.metal),new THREE.Mesh(mergeGeos(bulbs),new THREE.MeshBasicMaterial({color:'#ffdf9e'})));
+   scene.add(new THREE.Mesh(new THREE.CylinderGeometry(4,4,1,12).rotateX(Math.PI/2).translate(1600,19,3364.5),new THREE.MeshBasicMaterial({color:'#f3ecff'})))}
+  // Grid Substation (block 1,6): a lattice pylon 40 high with two cross-arms and insulators, bushings on the transformers, a pink trim on the control hut and a warning sign on the west fence
+  {const cx=780,cz=2930,lat=[],ins=[],M=(x,y,z)=>new THREE.Matrix4().makeTranslation(x,y,z);
+   for(const[dx,dz]of[[-4,-4],[4,-4],[-4,4],[4,4]])lat.push([new THREE.CylinderGeometry(.5,1.2,40,4),M(cx+dx,20,cz+dz)]);
+   for(let y=6;y<40;y+=8)for(const o of[-4,4])lat.push([new THREE.BoxGeometry(8,.5,.5),M(cx,y,cz+o)],[new THREE.BoxGeometry(.5,.5,8),M(cx+o,y,cz)]);
+   for(const y of[38,32]){lat.push([new THREE.BoxGeometry(22,1,1),M(cx,y,cz)]);for(const x of[cx-10,cx+10])ins.push([new THREE.CylinderGeometry(.8,.8,3,6),M(x,y-2,cz)])}
+   for(const y of[2832,2972])for(const x of[650,670])ins.push([new THREE.CylinderGeometry(.8,.8,6,6),M(x,17,y)]);
+   scene.add(new THREE.Mesh(mergeGeos(lat),lmm.metal),new THREE.Mesh(mergeGeos(ins),new THREE.MeshLambertMaterial({color:'#d9d4e6'})));
+   scene.add(new THREE.Mesh(new THREE.BoxGeometry(26,1,18).translate(712,10.5,2808),lmm.trim));
+   const sign=new THREE.Mesh(new THREE.PlaneGeometry(14,3.5),new THREE.MeshBasicMaterial({map:signTex('DANGER','#ff6b3d')}));sign.rotation.y=-Math.PI/2;sign.position.set(587.4,5,2850);scene.add(sign)}
 }
 // on foot or in a car, falling into the sea east of the pier puts you back at the pier start (same rule as lakeFall)
 function pierFall(){
@@ -77,6 +113,7 @@ function pierFall(){
 // per-frame motion for landmarks: the fountain spray
 function landmarkTick(){
   const bo=LMA.boats;if(bo){const p=bo.userData.pos;for(let i=0;i<p.length;i++)inst(bo,i,p[i][0],-2.6+Math.sin(time*1.3+i*2)*.15,p[i][1],Math.sin(time*.9+i)*.03);bo.instanceMatrix.needsUpdate=true}
+  const lp=LMA.lamps;if(lp){const p=lp.userData.pos;p.forEach(([x,y,z],i)=>{const k=Math.sin(time*5+i*3)>0?1.3:.7;inst(lp,i,x,y,z,0,k,k,k)});lp.instanceMatrix.needsUpdate=true}
   const sp=LMA.spray;if(!sp)return;const fx=1160,fy=2040,fg=groundZ(fx,fy);
   for(let i=0;i<8;i++){const a=i/8*TAU+time*.6,r=7+Math.sin(time*3+i)*1.5,y=fg+6+(Math.sin(time*6+i*.9)+1)*2.2;inst(sp,i,fx+Math.cos(a)*r,y,fy+Math.sin(a)*r)}
   sp.instanceMatrix.needsUpdate=true;

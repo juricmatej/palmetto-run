@@ -22,7 +22,7 @@ function mergeGeos(list){const hasUv=list.every(([g])=>g.attributes.uv),hasCol=l
 // Static world meshes merge into one draw per look (same map, emissive, side, blend and flags). Colour goes into vertex colours,
 // so meshes with the same look but different material objects still share a draw. Animated or toggled objects stay apart.
 function staticBatch(){
-  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,LMA.boats,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
+  const skip=new Set([...shopRings,roul,clubBall,beaconRing,beacon,skyDome,tv,heliShadow,copHeliCone,copHeliSpot,LMA.boats,LMA.lamps,...fireGlows].filter(Boolean)),groups=new Map(),gone=[],tinted=new Map();scene.updateMatrixWorld(true);
   const look=m=>[m.type,m.map?m.map.uuid:'',m.emissiveMap?m.emissiveMap.uuid:'',m.emissive?m.emissive.getHex():'',m.side,+!!m.flatShading,+!!m.transparent,m.opacity,m.blending,+!!m.depthWrite,+!!m.depthTest,+!!m.fog,+!!m.vertexColors,m.specular?m.specular.getHex():'',m.shininess||'',m.userData.fade?JSON.stringify(m.userData.fade):'',m.userData.fadeC?JSON.stringify(m.userData.fadeC):''].join('|');
   for(const o of scene.children){
     if(!o.isMesh&&!o.isInstancedMesh||!o.visible||Array.isArray(o.material)||skip.has(o))continue;const m=o.material,g=o.geometry;
@@ -215,7 +215,7 @@ const AVENUE=[3,6]; // the two north-south and east-west avenues: double lines, 
 
 // blocks
 function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
-{const sw=new THREE.MeshLambertMaterial({map:pavTex}),inner={front:sw,plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
+{const sw=new THREE.MeshLambertMaterial({map:pavTex}),inner={front:sw,plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'}),stadium:lam0('#8a9a5b'),site:lam0('#5b564e'),market:lam0('#3b3748'),substation:lam0('#4a4640')};
  const s=B-R,swGeo=new THREE.BoxGeometry(s,1,s),inGeo=new THREE.BoxGeometry(s-2*SW,.3,s-2*SW);
  const lines=new THREE.InstancedMesh(new THREE.BoxGeometry(1.5,.3,40),new THREE.MeshBasicMaterial({color:'#5a566a'}),lots.length*27);let ln=0;
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi],cx=bi*B+R+s/2,cz=bj*B+R+s/2;
@@ -767,7 +767,7 @@ if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,pro
  // local frame: front is +z, which faces the road
  const prop=(x,y,z,ry,items)=>{const M=new THREE.Matrix4().makeRotationY(ry).setPosition(x,y,z);for(const[g,lx,ly,lz]of items)parts.push([g,new THREE.Matrix4().multiplyMatrices(M,new THREE.Matrix4().makeTranslation(lx,ly,lz))])};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi];if(t==='airport')continue;
-  const x0=bi*B+R,y0=bj*B+R,s=B-R,r=seeded(bi*31+bj*7+5),city=t==='city',hood=t==='hood'||t==='industrial',sub=t==='suburb',pk=t==='park',bc=t==='beach',street=t!=='lot'&&t!=='plaza'&&t!=='skate'&&t!=='pit'&&t!=='marina';
+  const x0=bi*B+R,y0=bj*B+R,s=B-R,r=seeded(bi*31+bj*7+5),city=t==='city',hood=t==='hood'||t==='industrial',sub=t==='suburb',pk=t==='park',bc=t==='beach',street=t!=='lot'&&!Object.values(LANDBLK).includes(t);
   for(let side=0;side<4;side++){ // 0 west, 1 east, 2 north, 3 south
    const ox=side===0?-1:side===1?1:0,oz=side===2?-1:side===3?1:0,ry=Math.atan2(ox,oz);
    const at=(u,d)=>side<2?[side===0?x0+d:x0+s-d,y0+u]:[x0+u,side===2?y0+d:y0+s-d]; // u along the side, d in from its edge
