@@ -31,7 +31,7 @@ function landmarkMeshes(){
    const g2=new THREE.Mesh(new THREE.PlaneGeometry(64,16),graffMats[2]);g2.rotation.y=Math.PI/2;g2.position.set(1888.3,groundZ(1888,3340)+5,3340);scene.add(g2);
    for(const[x,y,w,d]of[[2000,3440,30,1],[2000,3380,1,30]]){const m=new THREE.Mesh(new THREE.BoxGeometry(w,1,d),lmm.metal);m.position.set(x,groundZ(x,y)+6.5,y);scene.add(m)}}
   // marina: basin water, three moored boats (one shared bob in landmarkTick), containers, the crane is drawn by the cranes list
-  const mw=new THREE.Mesh(new THREE.PlaneGeometry(126,304),lmm.water);mw.rotation.x=-Math.PI/2;mw.position.set(233,1.6,3800);scene.add(mw);
+  // the basin is the canal mouth now (ticket 63), so no separate water plane here
   const hull=mergeGeos([[new THREE.BoxGeometry(24,2.2,8),new THREE.Matrix4()],[new THREE.BoxGeometry(8,3,6),new THREE.Matrix4().makeTranslation(-3,2.4,0)]]),hm=new THREE.MeshLambertMaterial({color:'#e8e4f0'});
   LMA.boats=new THREE.InstancedMesh(hull,hm,3);LMA.boats.userData.pos=[[200,3720],[248,3840],[200,3910]];scene.add(LMA.boats);
   // the Pit: floodlight pylons with glow sprites, a pink ring on the floor
@@ -68,6 +68,7 @@ function landmarkMeshes(){
 // on foot or in a car, falling into the sea east of the pier puts you back at the pier start (same rule as lakeFall)
 function pierFall(){
   if(state!=='play'||groundZ(me.x,me.y)>-2)return;
+  if(!(me.y>W-40||(me.x>2100&&me.x<2280&&me.y>4550)))return; // the sea south and east of the pier only; the canal has its own rule
   if(me.heli||me.jet||(me.z||0)>groundZ(me.x,me.y)+6)return; // flying over the water is not falling in
   const x=2100,y=4600;
   if(me.car){me.car.x=x;me.car.y=y;me.car.vx=me.car.vy=0}
@@ -75,7 +76,7 @@ function pierFall(){
 }
 // per-frame motion for landmarks: the fountain spray
 function landmarkTick(){
-  const bo=LMA.boats;if(bo){const p=bo.userData.pos;for(let i=0;i<p.length;i++)inst(bo,i,p[i][0],1.9+Math.sin(time*1.3+i*2)*.15,p[i][1],Math.sin(time*.9+i)*.03);bo.instanceMatrix.needsUpdate=true}
+  const bo=LMA.boats;if(bo){const p=bo.userData.pos;for(let i=0;i<p.length;i++)inst(bo,i,p[i][0],-2.6+Math.sin(time*1.3+i*2)*.15,p[i][1],Math.sin(time*.9+i)*.03);bo.instanceMatrix.needsUpdate=true}
   const sp=LMA.spray;if(!sp)return;const fx=1160,fy=2040,fg=groundZ(fx,fy);
   for(let i=0;i<8;i++){const a=i/8*TAU+time*.6,r=7+Math.sin(time*3+i)*1.5,y=fg+6+(Math.sin(time*6+i*.9)+1)*2.2;inst(sp,i,fx+Math.cos(a)*r,y,fy+Math.sin(a)*r)}
   sp.instanceMatrix.needsUpdate=true;

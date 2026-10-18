@@ -63,7 +63,7 @@ function uvScale(geo,su,sv){const uv=geo.attributes.uv;for(let i=0;i<uv.count;i+
 const asphTex=rtex(1024,1024,(g,w,h)=>{const k=w/B;g.fillStyle='#1d1b26';g.fillRect(0,0,w,h);grit(g,w,h,240000,1,.05);
  for(const e of[-3,120]){g.fillStyle='rgba(0,0,0,.22)';g.fillRect(e*k,0,6*k,h);g.fillRect(0,e*k,w,6*k)}
  for(const c of[36,84])for(const d of[-9,9]){g.fillStyle='rgba(0,0,0,.05)';g.fillRect((c+d-7)*k,0,14*k,h);g.fillRect(0,(c+d-7)*k,w,14*k)}});
-const asphGeo=new THREE.PlaneGeometry(W,W);{const u=asphGeo.attributes.uv,p=asphGeo.attributes.position;for(let i=0;i<u.count;i++)u.setXY(i,(p.getX(i)+W/2)/B,1-(W/2-p.getY(i))/B)}
+const asphGeo=planeHoles(W);{const u=asphGeo.attributes.uv,p=asphGeo.attributes.position;for(let i=0;i<u.count;i++)u.setXY(i,(p.getX(i)+W/2)/B,1-(W/2-p.getY(i))/B)}
 // sidewalk: one texture per block (block is B-R=320 units): 23 slabs per side, kerb band on the outer edge
 const walkTex=rtex(512,512,(g,w,h)=>{const r=seeded(3),n=23,q=w/n;g.fillStyle='#36313f';g.fillRect(0,0,w,h);
  for(let j=0;j<n;j++)for(let i=0;i<n;i++){g.fillStyle=`rgba(${r()<.5?'255,255,255':'0,0,0'},${r()*.05})`;g.fillRect(i*q,j*q,q,q)}
@@ -142,7 +142,7 @@ if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).lengt
 // ground
 const asphMat=new THREE.MeshLambertMaterial({map:asphTex}); // weather tints this in rain
 {const water=new THREE.Mesh(new THREE.PlaneGeometry(W*5,W*5),new THREE.MeshLambertMaterial({color:'#0b2436',emissive:'#05131f'}));water.rotation.x=-Math.PI/2;water.position.set(W/2,-3,W/2);scene.add(water);
- const sand=new THREE.Mesh(new THREE.PlaneGeometry(W+80,W+80),new THREE.MeshLambertMaterial({color:'#3d3242'}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-1,W/2);scene.add(sand);
+ const sand=new THREE.Mesh(planeHoles(W+80),new THREE.MeshLambertMaterial({color:'#3d3242'}));sand.rotation.x=-Math.PI/2;sand.position.set(W/2,-1,W/2);scene.add(sand);
  const asph=new THREE.Mesh(asphGeo,asphMat);asph.rotation.x=-Math.PI/2;asph.position.set(W/2,0,W/2);scene.add(asph);}
 
 // road markings. Lane dashes and crosswalks are instanced; everything else (avenue double lines, stop lines,
@@ -273,6 +273,48 @@ for(const[x0,y0,x1,y1]of[[hillA.x,hillA.y,hillA.x,440],[hillA.x,hillA.y,1440,hil
   const x0=bi*B+R,y0=bj*B+R,s=B-R,dr=seeded(bi*29+bj*83+7);
   for(let k=0;k<2;k++){const dx=x0+70+dr()*(s-140),dy=y0+70+dr()*(s-140),r0=38+dr()*20,h=2.6+dr()*2.2;
     if(!rampZone(dx,dy))addShape({kind:'mound',x:dx,y:dy,r:r0,h})}}}
+
+// The docks canal: a dug channel from the sea into the marina, with quay walls, bollards, a bridge
+// where the grid road crosses, moored barges and a fall rule. The channel shape digs the heightmap; the
+// ground planes above cut the holes in CANAL_HOLES; nothing drives on the water.
+function planeHoles(size){const sh=new THREE.Shape(),h=size/2;
+ sh.moveTo(-h,-h);sh.lineTo(h,-h);sh.lineTo(h,h);sh.lineTo(-h,h);sh.closePath();
+ for(const[x0,x1,z0,z1]of CANAL_HOLES){const p=new THREE.Path();
+  p.moveTo(x0-W/2,W/2-z1);p.lineTo(x1-W/2,W/2-z1);p.lineTo(x1-W/2,W/2-z0);p.lineTo(x0-W/2,W/2-z0);p.closePath();sh.holes.push(p)}
+ return new THREE.ShapeGeometry(sh,1)}
+{for(const[ax,bx]of[[CANAL.x0,CANAL.bridge[0]],[CANAL.bridge[1],CANAL.x1]]) // the bridge band keeps its ground
+  addShape({kind:'channel',x:(ax+bx)/2,y:(CANAL.y0+CANAL.y1)/2,w:(bx-ax)/2,d:(CANAL.y1-CANAL.y0)/2,depth:CANAL.depth});
+ rebuildRaised();
+ const cw=(CANAL.x1-CANAL.x0),ch=(CANAL.y1-CANAL.y0),cx=(CANAL.x0+CANAL.x1)/2,cy=(CANAL.y0+CANAL.y1)/2,
+  water=new THREE.Mesh(new THREE.PlaneGeometry(cw+120,ch),new THREE.MeshLambertMaterial({color:'#0b2436',emissive:'#05131f'}));
+ water.rotation.x=-Math.PI/2;water.position.set(cx,CANAL.water,cy);scene.add(water);
+ const bed=new THREE.Mesh(new THREE.PlaneGeometry(cw+120,ch),new THREE.MeshLambertMaterial({color:'#101a20'}));
+ bed.rotation.x=-Math.PI/2;bed.position.set(cx,CANAL.depth+.4,cy);scene.add(bed);
+ {const CM={},cmat=c=>CM[c]||(CM[c]=new THREE.MeshLambertMaterial({color:c})),A=[],B=[],wall=cmat('#6a655c'),iron=cmat('#3a3742');
+  for(const[ax,bx]of[[CANAL.x0+58,CANAL.bridge[0]],[CANAL.bridge[1],CANAL.x1]])
+   for(const[z,sgn]of[[CANAL.y0,-1],[CANAL.y1,1]]){
+    const top=Math.max(1.4,groundZ((ax+bx)/2,z+sgn*6)+.4),ln=bx-ax;
+    A.push([new THREE.BoxGeometry(ln,top-CANAL.depth+.6,5),new THREE.Matrix4().makeTranslation((ax+bx)/2,(top+CANAL.depth)/2-.3,z+sgn*2.5)]);
+    for(let u=ax+10;u<bx-6;u+=40)B.push([new THREE.CylinderGeometry(.9,1,3,6),new THREE.Matrix4().makeTranslation(u,top+1.4,z+sgn*1.4)]);
+    A.push([new THREE.BoxGeometry(ln,1.2,3),new THREE.Matrix4().makeTranslation((ax+bx)/2,top+.3,z+sgn*1.2)])}
+  const[bx0,bx1]=CANAL.bridge,bl=bx1-bx0,bc=(bx0+bx1)/2;
+  for(const z of[CANAL.y0-4,CANAL.y1+4])A.push([new THREE.BoxGeometry(bl,2.6,7),new THREE.Matrix4().makeTranslation(bc,-1.4,z)]);
+  for(const px of[bx0+8,bx1-8])for(const z of[CANAL.y0-4,CANAL.y1+4])A.push([new THREE.CylinderGeometry(2,2,9,8),new THREE.Matrix4().makeTranslation(px,-4.6,z)]);
+  for(const z of[CANAL.y0,CANAL.y1]){B.push([new THREE.BoxGeometry(bl,.5,.5),new THREE.Matrix4().makeTranslation(bc,3.4,z)]);
+   for(let u=bx0+4;u<bx1;u+=12)B.push([new THREE.BoxGeometry(.7,3,.7),new THREE.Matrix4().makeTranslation(u,1.9,z)])}
+  for(const[bx,dir]of[[150,1],[640,-1]]){
+   A.push([new THREE.BoxGeometry(30,4,10),new THREE.Matrix4().makeTranslation(bx,CANAL.water+1.2,cy)]);
+   A.push([new THREE.BoxGeometry(9,5,8),new THREE.Matrix4().makeTranslation(bx-7*dir,CANAL.water+4.6,cy)]);
+   for(const[ox,c]of[[-3,'#b8432f'],[5,'#2f6fb8'],[12,'#d68a2f']]){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(7,6,8),cmat(c));m.position.set(bx+ox*dir,CANAL.water+6.4,cy);scene.add(m)}}
+  scene.add(new THREE.Mesh(mergeGeos(A),wall));
+  if(B.length)scene.add(new THREE.Mesh(mergeGeos(B),iron))}}
+function canalFall(){if(state!=='play')return;
+ if(me.x<CANAL.x0-30||me.x>CANAL.x1+30||me.y<CANAL.y0-8||me.y>CANAL.y1+8)return;
+ if(groundZ(me.x,me.y)>CANAL.water+1)return;
+ const x=clamp(me.x,20,740),y=Math.abs(me.y-CANAL.y0)<Math.abs(me.y-CANAL.y1)?CANAL.y0-16:CANAL.y1+16;
+ if(me.car){me.car.x=x;me.car.y=y;me.car.vx=me.car.vy=0;me.car.air=false}
+ me.x=x;me.y=y;me.vx=me.vy=0;me.z=groundZ(x,y);feed('You fell in the canal. Back to the quay')}
 
 for(const s of TERRAIN){const m=terrainMesh(s);Array.isArray(m)?scene.add(...m):scene.add(m)}
 for(const m of hillMeshes())scene.add(m);

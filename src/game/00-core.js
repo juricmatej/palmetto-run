@@ -87,7 +87,10 @@ function inCut(x,y,pad){for(const c of CUTS)if(cutD(c,x,y)<c.half+(pad||0))retur
 function cutRect(x,y,w,h,pad){for(const c of CUTS){const hh=c.half+(pad||0);
   for(let a=0;a<=w;a+=15)for(let b=0;b<=h;b+=15)if(cutD(c,x+a,y+b)<hh)return true}
   return false}
-if(DBG)Object.defineProperties(DBG,{cuts:{get:()=>CUTS.map(c=>c.name)},cutDist:{get:()=>cutD}});
+// the docks canal (ticket 63): a channel from the open sea into the marina, cut through the quay blocks
+const CANAL={x0:-60,x1:760,y0:3772,y1:3828,bridge:[440,560],depth:-9,water:-3};
+const CANAL_HOLES=[[CANAL.x0,CANAL.bridge[0],CANAL.y0,CANAL.y1],[CANAL.bridge[1],CANAL.x1,CANAL.y0,CANAL.y1]];
+if(DBG)Object.defineProperties(DBG,{cuts:{get:()=>CUTS.map(c=>c.name)},canal:{get:()=>CANAL},cutDist:{get:()=>cutD}});
 {const r=seeded(4242);
  const mk=(list,o)=>{const[roof,trim]=o.pal||ROOFS[Math.floor(r()*ROOFS.length)];const b=Object.assign({roof,trim,vent:null,sign:false,ladder:null},o);b.sides=[shade(b.roof,.55),shade(b.roof,.8),shade(b.roof,.45),shade(b.roof,.7)];if(!cutRect(b.x,b.y,b.w,b.h,8)){list.push(b);buildings.push(b)}return b};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){
@@ -215,19 +218,21 @@ function shapeHz(px,py,s){const dx=px-s.x,dy=py-s.y;
   if(s.kind==='mound'){const d=Math.hypot(dx,dy);return d>=s.r?null:s.h*(1+Math.cos(d/s.r*Math.PI))*.5}
   if(s.kind==='ramp'){const ca=Math.cos(s.a),sa=Math.sin(s.a),fw=dx*ca+dy*sa;return fw<0||fw>s.len||Math.abs(-dx*sa+dy*ca)>s.w/2?null:s.h*fw/s.len}
   if(s.kind==='plateau'){const m=Math.max(Math.abs(dx)-(s.w/2-s.slope),Math.abs(dy)-(s.d/2-s.slope));return m>=s.slope?null:m<=0?s.h:s.h*(1-m/s.slope)}
+  if(s.kind==='channel'){return Math.abs(dx)>=s.w||Math.abs(dy)>=s.d?null:s.depth}
   if(s.kind==='bowl'){const d=Math.hypot(dx,dy);return d>=s.r?null:s.depth*(1+Math.cos(d/s.r*Math.PI))*.5}
   return null}
 function addShape(s){TERRAIN.push(s);if(s.kind==='ramp')RAMPS.push(s);
   let bb;
   if(s.kind==='mound'||s.kind==='bowl')bb=[s.x-s.r,s.y-s.r,s.x+s.r,s.y+s.r];
   else if(s.kind==='plateau')bb=[s.x-s.w/2-s.slope,s.y-s.d/2-s.slope,s.x+s.w/2+s.slope,s.y+s.d/2+s.slope];
+  else if(s.kind==='channel')bb=[s.x-s.w,s.y-s.d,s.x+s.w,s.y+s.d];
   else{const c=Math.cos(s.a),n=Math.sin(s.a),lx=-n*s.w/2,ly=c*s.w/2,ax=s.x+c*s.len,ay=s.y+n*s.len,
     x0=Math.min(s.x-lx,s.x+lx,ax-lx,ax+lx),y0=Math.min(s.y-ly,s.y+ly,ay-ly,ay+ly);bb=[x0,y0,s.x+ax-x0,s.y+ay-y0]}
   const gw=HM.gw,i0=Math.max(0,(Math.floor((bb[0]-HM.x0)/HM.cell))-1),j0=Math.max(0,(Math.floor((bb[1]-HM.y0)/HM.cell))-1),
     i1=Math.min(HM.gw-1,Math.ceil((bb[2]-HM.x0)/HM.cell)+1),j1=Math.min(HM.gh-1,Math.ceil((bb[3]-HM.y0)/HM.cell)+1),sunken=s.kind==='bowl';
   s.box=[i0,j0,i1,j1];
   for(let j=j0;j<=j1;j++)for(let i=i0;i<=i1;i++){const h=shapeHz(HM.x0+i*HM.cell,HM.y0+j*HM.cell,s);if(h===null)continue;
-    const k=j*gw+i;HM.a[k]=sunken?HM.a[k]-h:Math.max(HM.a[k],h)}} // a bowl digs into the ground under it, so it works on a raised deck
+    const k=j*gw+i;HM.a[k]=s.kind==='channel'?Math.min(HM.a[k],h):sunken?HM.a[k]-h:Math.max(HM.a[k],h)}} // a bowl digs into the ground under it and a channel cuts through anything laid first
 function groundZ(x,y){if(x>W+300)return 0;const gx=(x-HM.x0)/HM.cell,gy=(y-HM.y0)/HM.cell;if(gx<0||gy<0||gx>=HM.gw-1||gy>=HM.gh-1)return 0;const ix=gx|0,iy=gy|0,fx=gx-ix,fy=gy-iy,g=HM.a,i=iy*HM.gw+ix;
   return g[i]*(1-fx)*(1-fy)+g[i+1]*fx*(1-fy)+g[i+HM.gw]*(1-fx)*fy+g[i+HM.gw+1]*fx*fy}
 const GN=[0,0]; // shared result: read it at once, do not keep the reference
@@ -703,11 +708,11 @@ addShape({kind:'plateau',x:1240,y:2140,w:110,d:56,h:4,slope:2});    // stage
 for(let i=0;i<6;i++){lmSolid(140+i*44,3236,40,18,8,i%2?'cA':'cB');lmSolid(140+i*44,3290,40,18,i<3?16:8,i%2?'cC':'cD')}
 lmSolid(140,3350,40,18,8,'cC');lmSolid(184,3350,40,18,8,'cA');
 lmSolid(170,3648,126,4,3.2,'wall');lmSolid(170,3948,126,4,3.2,'wall');   // basin bulkheads, north and south
-lmSolid(166,3648,4,304,3.2,'wall');lmSolid(296,3648,4,130,3.2,'wall');lmSolid(296,3822,4,130,3.2,'wall'); // west bank; quay edge with a gap at y 3778 to 3822 for the ramp lip
+lmSolid(166,3648,4,124,3.2,'wall');lmSolid(166,3828,4,124,3.2,'wall');    // west bank, split by the canal mouthlmSolid(296,3648,4,130,3.2,'wall');lmSolid(296,3822,4,130,3.2,'wall'); // west bank; quay edge with a gap at y 3778 to 3822 for the ramp lip
 addShape({kind:'plateau',x:370,y:3800,w:140,d:320,h:3,slope:2});          // quay
-addShape({kind:'ramp',x:345,y:3800,a:Math.PI,len:40,w:30,h:12});         // off the quay, west over the basin
+addShape({kind:'ramp',x:345,y:3862,a:Math.PI,len:40,w:30,h:12});         // off the quay, west along the south bank
 for(const[y,c]of[[3660,'cA'],[3682,'cB'],[3704,'cC'],[3960-18-80,'cD']])lmSolid(372,y,40,18,8,c); // quay containers, north part
-lmSolid(126,3664,36,18,8,'cB');lmSolid(126,3686,36,18,8,'cA');lmSolid(126,3822,36,18,8,'cC');lmSolid(126,3844,36,18,16,'cD');lmSolid(126,3866,36,18,8,'cB'); // west bank row
+lmSolid(126,3664,36,18,8,'cB');lmSolid(126,3686,36,18,8,'cA');lmSolid(126,3836,36,18,8,'cC');lmSolid(126,3844,36,18,16,'cD');lmSolid(126,3866,36,18,8,'cB'); // west bank row
 cranes.push([424,3450],[424,3930]);
 // The Pit, block (7,7): a walled arena for player fights. Two gaps in the west and east walls, cover blocks, a 6-high catwalk along the north wall, four floodlight pylons.
 lmSolid(3230,3230,260,4,8,'wall');lmSolid(3230,3486,260,4,8,'wall');              // north and south walls

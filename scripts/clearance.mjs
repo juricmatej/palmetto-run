@@ -3,6 +3,8 @@
 //   node scripts/clearance.mjs
 const MIN = 40, B = 440, R = 120, N = 10;
 const cuts = [{ name: 'Palmetto Boulevard', ax: 1060, ay: 60, bx: 3150, by: 4560, half: 44 }];
+// the canal is a water corridor: same test, half-width 28, only points near its line matter
+const canal = { name: 'Docks canal', ax: -60, ay: 3800, bx: 760, by: 3800, half: 28 };
 const door = (bi, bj) => [bi * B + R + (B - R) / 2, bj * B + R + 9];
 const pts = {};
 const add = (n, x, y) => { pts[n] = [x, y]; };
@@ -24,11 +26,14 @@ const rects = {
   marina: [120, 3200, 440, 3960], pit: [3240, 3240, 3560, 3560], bankblk: [1440, 1880, 1760, 2200],
   'block 2,4 plaza': [1000, 1880, 1320, 2200], 'block 4,7 skate': [1880, 3280, 2200, 3600], 'block 7,7 pit': [3240, 3240, 3560, 3560],
 };
+// Landmark rectangles are checked against land corridors only: the canal is meant to cut through the
+// marina (it is the marina's waterway), so its rectangle is not a fault there.
+const rectPts = {};
 for (const k in rects) {
   const [x0, y0, x1, y1] = rects[k];
   for (let t = 0; t <= 1; t += .05) {
-    add(k + ' n' + t.toFixed(2), x0 + (x1 - x0) * t, y0); add(k + ' s' + t.toFixed(2), x0 + (x1 - x0) * t, y1);
-    add(k + ' w' + t.toFixed(2), x0, y0 + (y1 - y0) * t); add(k + ' e' + t.toFixed(2), x1, y0 + (y1 - y0) * t);
+    rectPts[k + ' n' + t.toFixed(2)] = [x0 + (x1 - x0) * t, y0]; rectPts[k + ' s' + t.toFixed(2)] = [x0 + (x1 - x0) * t, y1];
+    rectPts[k + ' w' + t.toFixed(2)] = [x0, y0 + (y1 - y0) * t]; rectPts[k + ' e' + t.toFixed(2)] = [x1, y0 + (y1 - y0) * t];
   }
 }
 const distToCut = (c, x, y) => {
@@ -36,10 +41,11 @@ const distToCut = (c, x, y) => {
   return Math.hypot(x - (c.ax + dx * t), y - (c.ay + dy * t));
 };
 let bad = 0;
-for (const c of cuts) {
+for (const c of [...cuts, canal]) {
+  const pool = c === canal ? pts : { ...pts, ...rectPts };
   let best = { d: Infinity, n: '' };
-  for (const n in pts) { const d = distToCut(c, pts[n][0], pts[n][1]) - c.half; if (d < best.d) best = { d, n }; }
-  const inside = Object.entries(pts).filter(([, p]) => distToCut(c, p[0], p[1]) < c.half).map(([n]) => n);
+  for (const n in pool) { const d = distToCut(c, pool[n][0], pool[n][1]) - c.half; if (d < best.d) best = { d, n }; }
+  const inside = Object.entries(pool).filter(([, p]) => distToCut(c, p[0], p[1]) < c.half).map(([n]) => n);
   console.log(`${c.name}: nearest fixed point is ${best.n} at ${best.d.toFixed(1)} units past the corridor edge (want >= ${MIN})`);
   if (best.d < MIN) { console.log(`  FAIL: ${best.n} is too close`); bad++; }
   if (inside.length) { console.log(`  FAIL: inside the corridor: ${inside.join(', ')}`); bad++; }

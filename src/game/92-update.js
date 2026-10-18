@@ -13,7 +13,7 @@ function update(dt){
   if(state==='play'){propStep();if(me.car&&!me.inside)propStore()}
   if(state==='play'&&time-me.lastHurt>7&&me.hp<BAL.playerHp)me.hp=Math.min(BAL.playerHp,me.hp+5*dt);
   const play=state==='play';
-  lakeFall();pierFall();if(me.y<0)hillArrive();hillFog();
+  canalFall();lakeFall();pierFall();if(me.y<0)hillArrive();hillFog();
   // input vector
   let ix=(held('right')?1:0)-(held('left')?1:0),iy=(held('down')?1:0)-(held('up')?1:0);
   const shift=held('sprint'),hu=handsUp;

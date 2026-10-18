@@ -220,6 +220,11 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
    g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
    if(tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
  g.fillStyle=MAPC.ave;for(const k of AVENUE){g.fillRect(t(k*B+40),t(0),40/MS,W/MS);g.fillRect(t(0),t(k*B+40),W/MS,40/MS)}
+ // the docks canal: water with a quay casing
+ {const x0=t(CANAL.x0),x1=t(CANAL.x1),y0=t(CANAL.y0),y1=t(CANAL.y1);
+  g.fillStyle=MAPC.roadEdge;g.fillRect(x0-2,y0-2,x1-x0+4,y1-y0+4);
+  g.fillStyle=MAPC.waterLight;g.fillRect(x0,y0,x1-x0,y1-y0);
+  g.fillStyle=MAPC.roadEdge;g.fillRect(t(CANAL.bridge[0]),y0-2,(CANAL.bridge[1]-CANAL.bridge[0])/MS,y1-y0+4)}
  // the planned corridors: a light verge with the road down its middle
  for(const c of CUTS){g.lineCap='round';
   g.strokeStyle=MAPC.roadEdge;g.lineWidth=2*c.half/MS;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke();
