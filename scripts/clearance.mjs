@@ -25,7 +25,10 @@ const rects = {
   plaza: [1000, 1880, 1320, 2200], pier: [1900, 4520, 2300, 4780], skate: [1880, 3280, 2200, 3600],
   marina: [120, 3200, 440, 3960], pit: [3240, 3240, 3560, 3560], bankblk: [1440, 1880, 1760, 2200],
   'block 2,4 plaza': [1000, 1880, 1320, 2200], 'block 4,7 skate': [1880, 3280, 2200, 3600], 'block 7,7 pit': [3240, 3240, 3560, 3560],
+  // ticket 65: candidate blocks, whole block footprints (x0, y0 to x0+320)
+  'stadium 7,6': [3200, 2760, 3520, 3080], 'site 6,6': [2760, 2760, 3080, 3080], 'market 3,7': [1440, 3200, 1760, 3520], 'substation 1,6': [560, 2760, 880, 3080],
 };
+const newBlocks = ['stadium 7,6', 'site 6,6', 'market 3,7', 'substation 1,6'];
 // Landmark rectangles are checked against land corridors only: the canal is meant to cut through the
 // marina (it is the marina's waterway), so its rectangle is not a fault there.
 const rectPts = {};
@@ -41,6 +44,17 @@ const distToCut = (c, x, y) => {
   return Math.hypot(x - (c.ax + dx * t), y - (c.ay + dy * t));
 };
 let bad = 0;
+// a new block must clear every fixed point (doors, HQs, ramps, vendors, jets) by MIN, measured from the block's edge
+for (const n of newBlocks) {
+  const [x0, y0, x1, y1] = rects[n];
+  let best = { d: Infinity, n: '' };
+  for (const p in pts) {
+    const d = Math.hypot(Math.max(x0 - pts[p][0], 0, pts[p][0] - x1), Math.max(y0 - pts[p][1], 0, pts[p][1] - y1));
+    if (d < best.d) best = { d, n: p };
+  }
+  console.log(`${n}: nearest fixed point is ${best.n} at ${best.d.toFixed(1)} (want >= ${MIN})`);
+  if (best.d < MIN) { console.log(`  FAIL: ${best.n} is too close`); bad++; }
+}
 for (const c of [...cuts, canal]) {
   const pool = c === canal ? pts : { ...pts, ...rectPts };
   let best = { d: Infinity, n: '' };

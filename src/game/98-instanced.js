@@ -216,9 +216,9 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
  const BC={airport:MAPC.airport,hood:MAPC.hood,park:MAPC.park,lot:MAPC.lot,beach:MAPC.sand,front:MAPC.front,suburb:MAPC.suburb,industrial:MAPC.industrial,city:MAPC.midtown};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R,tp=blockType[bj*N+bi];
    g.fillStyle=MAPC.roadEdge;g.fillRect(t(x),t(y),sz/MS,sz/MS);
-   g.fillStyle=tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'?MAPC.gold:district(bi,bj)==='downtown'?MAPC.downtown:(BC[tp]||MAPC.midtown);
+   g.fillStyle=Object.values(LANDBLK).includes(tp)?MAPC.gold:district(bi,bj)==='downtown'?MAPC.downtown:(BC[tp]||MAPC.midtown);
    g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
-   if(tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
+   if(Object.values(LANDBLK).includes(tp)){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
  g.fillStyle=MAPC.ave;for(const k of AVENUE){g.fillRect(t(k*B+40),t(0),40/MS,W/MS);g.fillRect(t(0),t(k*B+40),W/MS,40/MS)}
  // the docks canal: water with a quay casing
  {const x0=t(CANAL.x0),x1=t(CANAL.x1),y0=t(CANAL.y0),y1=t(CANAL.y1);

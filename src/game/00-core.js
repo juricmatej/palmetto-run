@@ -75,7 +75,7 @@ const inAF=(x,y)=>x>AF.x0&&x<AF.x1&&y>AF.y0&&y<AF.y1;
 function afShut(ax,ay,bx,by){const x1=ax*B+60,x2=bx*B+60,y1=ay*B+60,y2=by*B+60;return Math.max(x1,x2)>AF.x0&&Math.min(x1,x2)<AF.x1&&Math.max(y1,y2)>AF.y0&&Math.min(y1,y2)<AF.y1}
 const AREA={hills:['Palmetto Hills','Mountain roads, the observatory and the sign'],airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],front:['Sunset Strip','Hotels, arcades and the sea'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
 // blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
-const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
+const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina','7,6':'stadium','6,6':'site','3,7':'market','1,6':'substation'};
 // ---------- city cuts ----------
 // Planned corridors drawn over the grid: the diagonal Palmetto Boulevard from the canyon gate to the beach
 // (and, from ticket 63, the docks canal). Buildings, props and park items keep clear of a cut; the grid
@@ -693,10 +693,10 @@ function hillFog(){const on=me.y<0;if(on===fogHill)return;fogHill=on;skyLook()}
 // Shapes go through addShape, so the heightmap, steps and ramps need no extra code.
 const LMS=[],LMA={spray:null,boats:null};
 // name shown on entry (AREA banner), footprint for the minimap and the debug list
-const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3520,w:320,h:440,ic:'M'},{name:'Container Yard',sub:'Stacked containers and a crane',x:120,y:3200,w:320,h:320,ic:'Y'}];
+const LANDMARKS=[{name:'The Pit',sub:'Walled arena, catwalk and floodlights',x:3200,y:3200,w:320,h:320,ic:'X'},{name:'Palmetto Plaza',sub:'Fountain, stage and a terrace',x:1000,y:1880,w:320,h:320,ic:'F'},{name:'Sunset Pier',sub:'Boardwalk, Ferris wheel and the coaster frame',x:1900,y:4520,w:400,h:260,ic:'W'},{name:'Skate Park',sub:'Bowls, graffiti walls and rails',x:1880,y:3200,w:320,h:320,ic:'Z'},{name:'Rustwater Marina',sub:'Quay, boats and containers',x:120,y:3520,w:320,h:440,ic:'M'},{name:'Container Yard',sub:'Stacked containers and a crane',x:120,y:3200,w:320,h:320,ic:'Y'},{name:'Palmetto Stadium',sub:'Walled bowl, stands and floodlights',x:3200,y:2760,w:320,h:320,ic:'S'},{name:'Half-built Tower',sub:'Concrete frame, scaffold and a crane',x:2760,y:2760,w:320,h:320,ic:'B'},{name:'Night Market',sub:'Stalls, string lights and a clock',x:1440,y:3200,w:320,h:320,ic:'K'},{name:'Grid Substation',sub:'Transformers and a lattice pylon',x:560,y:2760,w:320,h:320,ic:'E'}];
 function landmarkKey(x,y){const i=LANDMARKS.findIndex(l=>x>=l.x&&x<l.x+l.w&&y>=l.y&&y<l.y+l.h);return i<0?null:'lm'+i}
 LANDMARKS.forEach((l,i)=>AREA['lm'+i]=[l.name,l.sub]); // entry banner text
-const LMC={cA:'#b8432f',cB:'#2f6fb8',cC:'#d68a2f',cD:'#3d8a52',stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32'};
+const LMC={cA:'#b8432f',cB:'#2f6fb8',cC:'#d68a2f',cD:'#3d8a52',stall:'#5a4030',wall:'#4a4658',stone:'#3a3646',planter:'#5a4a3a',metal:'#2c2938',water:'#1d6a8a',wood:'#6b4a32',conc:'#77747f',yel:'#e0a92a',ctrl:'#4a4f5c',trim:'#ff3ea5'};
 // solid box: collision in buildings, a mesh in landmarkMeshes(); m is a key of LMC. H is the height above the ground.
 function lmSolid(x,y,w,h,H,m){const b={x,y,w,h,H,kind:'lm',m,roof:LMC[m]};buildings.push(b);LMS.push(b);
   cells[clamp(Math.floor((y+h/2)/B),0,N-1)*N+clamp(Math.floor((x+w/2)/B),0,N-1)].push(b);return b}
@@ -755,7 +755,28 @@ addShape({kind:'ramp',x:2140,y:3240,a:Math.PI/2,len:26,w:30,h:12}); // quarter p
 addShape({kind:'ramp',x:2140,y:3480,a:-Math.PI/2,len:26,w:30,h:12}); // quarter pipe, facing north
 lmSolid(2100,3204,80,4,10,'wall');  // north wall, graffiti on its south face
 lmSolid(1884,3300,4,80,10,'wall');  // west wall, graffiti on its east face
-// (trees, benches and lamps: see landmarkMeshes)
+// Palmetto Stadium, block (7,6): a walled bowl, 16 high, with gates in the west and east walls (y 2906 to 2934). Four tiers stand north and south of the pitch, so the gates open straight onto the grass.
+lmSolid(3224,2784,272,4,16,'wall');lmSolid(3224,3052,272,4,16,'wall');              // north and south walls
+lmSolid(3224,2784,4,122,16,'wall');lmSolid(3224,2934,4,122,16,'wall');              // west wall, gap at y 2906 to 2934
+lmSolid(3492,2784,4,122,16,'wall');lmSolid(3492,2934,4,122,16,'wall');              // east wall, same gap
+for(let k=0;k<4;k++){const c=['cA','cB','cC','cD'][k];                                // tiers rise toward the wall
+  lmSolid(3240,2820-8*(k+1),240,8,3+3*k,c);lmSolid(3240,3020+8*k,240,8,3+3*k,c)}
+// Half-built tower, block (6,6): three concrete slabs stepping back as they rise, plywood hoarding with a gap on the south side, a crane in the north-west corner and a silo.
+lmSolid(2820,2820,200,200,34,'conc');lmSolid(2834,2834,172,172,68,'conc');lmSolid(2848,2848,144,144,102,'conc'); // slabs
+lmSolid(2790,2790,260,2,9,'wood');lmSolid(3048,2790,2,260,9,'wood');lmSolid(2790,2790,2,260,9,'wood');     // hoarding: north, east, west
+lmSolid(2790,3048,110,2,9,'wood');lmSolid(2944,3048,106,2,9,'wood');                                        // south, gap at x 2900 to 2944
+lmSolid(2806,2806,6,6,120,'yel');                                                                           // crane mast; the jib and counterweight are meshes
+lmSolid(2800,3000,16,16,36,'conc');                                                                         // silo; the cap is a mesh
+// Night Market, block (3,7): a plaza with twelve stalls in two rows, crates, a clock post and string lights on four poles. Stalls are solid counters; each awning takes its stall's colour.
+for(const y of[3236,3440])for(let i=0;i<6;i++)lmSolid(1468+i*48,y,24,12,8,'stall').aw=['cA','cB','cC','cD'][(i+(y>3300?2:0))%4];
+for(const[x,y]of[[1620,3296],[1632,3296],[1626,3308]])lmSolid(x,y,8,8,6,'wood');
+lmSolid(1597,3357,6,6,22,'metal');                                                                          // clock post
+for(const[x,y]of[[1456,3226],[1741,3226],[1456,3491],[1741,3491]])lmSolid(x,y,3,3,14,'metal');              // light poles
+// Grid Substation, block (1,6): a fenced yard with a gate on the west, two transformers, a control hut and a 40-high lattice pylon (meshes only, see landmarkMeshes).
+lmSolid(590,2790,260,2,8,'metal');lmSolid(590,3048,260,2,8,'metal');lmSolid(848,2790,2,260,8,'metal'); // fence: north, south, east
+lmSolid(588,2790,2,110,8,'metal');lmSolid(588,2944,2,106,8,'metal');                                    // west fence, gate at y 2900 to 2944
+lmSolid(640,2820,40,24,14,'metal');lmSolid(640,2960,40,24,14,'metal');                                  // transformers
+lmSolid(700,2800,24,16,10,'ctrl');                                                                      // control hut
 rebuildRaised();
 if(DBG)Object.defineProperties(DBG,{landmarks:{get:()=>LANDMARKS.map(l=>l.name)}});
 if(DBG)Object.defineProperties(DBG,{tris:{get:()=>renderer.info.render.triangles}}); // triangles of the last frame, for the perf numbers
