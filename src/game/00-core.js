@@ -76,8 +76,20 @@ function afShut(ax,ay,bx,by){const x1=ax*B+60,x2=bx*B+60,y1=ay*B+60,y2=by*B+60;r
 const AREA={hills:['Palmetto Hills','Mountain roads, the observatory and the sign'],airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
 // blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
 const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
+// ---------- city cuts ----------
+// Planned corridors drawn over the grid: the diagonal Palmetto Boulevard from the canyon gate to the beach
+// (and, from ticket 63, the docks canal). Buildings, props and park items keep clear of a cut; the grid
+// roads tie into it at their crossings. Verified by scripts/clearance.mjs.
+const CUTS=[{name:'Palmetto Boulevard',ax:1060,ay:60,bx:3150,by:4560,half:44,road:30}];
+function cutD(c,x,y){const dx=c.bx-c.ax,dy=c.by-c.ay,t=clamp(((x-c.ax)*dx+(y-c.ay)*dy)/(dx*dx+dy*dy),0,1);
+  return Math.hypot(x-(c.ax+dx*t),y-(c.ay+dy*t))}
+function inCut(x,y,pad){for(const c of CUTS)if(cutD(c,x,y)<c.half+(pad||0))return true;return false}
+function cutRect(x,y,w,h,pad){for(const c of CUTS){const hh=c.half+(pad||0);
+  for(let a=0;a<=w;a+=15)for(let b=0;b<=h;b+=15)if(cutD(c,x+a,y+b)<hh)return true}
+  return false}
+if(DBG)Object.defineProperties(DBG,{cuts:{get:()=>CUTS.map(c=>c.name)},cutDist:{get:()=>cutD}});
 {const r=seeded(4242);
- const mk=(list,o)=>{const[roof,trim]=o.pal||ROOFS[Math.floor(r()*ROOFS.length)];const b=Object.assign({roof,trim,vent:null,sign:false,ladder:null},o);b.sides=[shade(b.roof,.55),shade(b.roof,.8),shade(b.roof,.45),shade(b.roof,.7)];list.push(b);buildings.push(b);return b};
+ const mk=(list,o)=>{const[roof,trim]=o.pal||ROOFS[Math.floor(r()*ROOFS.length)];const b=Object.assign({roof,trim,vent:null,sign:false,ladder:null},o);b.sides=[shade(b.roof,.55),shade(b.roof,.8),shade(b.roof,.45),shade(b.roof,.7)];if(!cutRect(b.x,b.y,b.w,b.h,8)){list.push(b);buildings.push(b)}return b};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){
   const x0=bi*B+R,y0=bj*B+R,s=B-R,list=[];cells.push(list);const dist=district(bi,bj);
   if(LANDBLK[bi+','+bj]){blockType.push(LANDBLK[bi+','+bj]);continue}
@@ -133,7 +145,10 @@ const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'mar
     if(Math.abs(y+h-(y0+s-22))<1&&r()<(tall?.4:.55))b.ladder=1;
   }}
  }
- // airfield: buildings, then the fence. A piece goes in the cell nearB reads for it (floor of its min x and y over B), so each piece is at most 400 long
+ // the corridors clear loose props too: trees, palms, umbrellas, barrels, pools, courts, cranes and lots
+  for(const p of parks)p.trees=p.trees.filter(t=>!inCut(t[0],t[1],6));
+  for(const L of[palms,umbrellas,barrels,courts,cranes,lots])for(let i=L.length-1;i>=0;i--){const q=L[i];if(inCut(q[0]||q.x,q[1]||q.y,6))L.splice(i,1)}
+  // airfield: buildings, then the fence. A piece goes in the cell nearB reads for it (floor of its min x and y over B), so each piece is at most 400 long
  const afMk=(x,y,w,h,H,kind,pal)=>mk(cells[Math.min(N-1,Math.floor(y/B))*N+Math.min(N-1,Math.floor(x/B))],{x,y,w,h,H,kind,pal});
  const fenceRuns=(a,b)=>{const n=Math.ceil((b-a)/400),st=(b-a)/n;return Array.from({length:n},(_,i)=>[a+st*i,a+st*(i+1)])};
  afMk(3780,1230,110,300,30,'glass',['#33405a','#ffc94a']); // terminal: door on the west face, onto the car park

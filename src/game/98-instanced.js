@@ -220,6 +220,11 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
    g.fillRect(t(x+SW),t(y+SW),(sz-2*SW)/MS,(sz-2*SW)/MS);
    if(tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'){g.strokeStyle=MAPC.gold;g.lineWidth=1.5;g.strokeRect(t(x)+1,t(y)+1,sz/MS-2,sz/MS-2)}}
  g.fillStyle=MAPC.ave;for(const k of AVENUE){g.fillRect(t(k*B+40),t(0),40/MS,W/MS);g.fillRect(t(0),t(k*B+40),W/MS,40/MS)}
+ // the planned corridors: a light verge with the road down its middle
+ for(const c of CUTS){g.lineCap='round';
+  g.strokeStyle=MAPC.roadEdge;g.lineWidth=2*c.half/MS;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke();
+  g.strokeStyle=MAPC.ave;g.lineWidth=2*c.road/MS;g.beginPath();g.moveTo(t(c.ax),t(c.ay));g.lineTo(t(c.bx),t(c.by));g.stroke()}
+ g.lineCap='butt';
  g.fillStyle=MAPC.airport;g.fillRect(t(AF.x0),t(AF.y0),(AF.x1-AF.x0)/MS,(AF.y1-AF.y0)/MS);
  g.fillStyle=MAPC.runway;g.fillRect(t(RWX-48),t(300),96/MS,2000/MS);
  g.fillStyle=MAPC.roadEdge;g.fillRect(t(RWX+60),t(300),26/MS,2130/MS);g.fillRect(t(4096),t(2430),296/MS,195/MS);

@@ -188,10 +188,15 @@ const AVENUE=[3,6]; // the two north-south and east-west avenues: double lines, 
    const x0=bi*B+R,y0=bj*B+R,s=B-R; // parking bays along both kerbs of downtown and midtown streets
    for(let u=12;u<s-12;u+=34)for(const side of[0,1,2,3]){
      const [x,z,ry]=side===0?[x0-7,y0+u,0]:side===1?[x0+s+7,y0+u,0]:side===2?[x0+u,y0-7,Math.PI/2]:[x0+u,y0+s+7,Math.PI/2];
-     if(!DOORS.some(d=>Math.hypot(d.x-x,d.y-z)<34)&&!rampZone(x,z))put(bayG,x,.15,z,ry)}}
+     if(!DOORS.some(d=>Math.hypot(d.x-x,d.y-z)<34)&&!rampZone(x,z)&&!inCut(x,z,6))put(bayG,x,.15,z,ry)}}
  for(let k=0;k<=N;k++)for(let i=0;i<6;i++){const p=(i+.5)*W/6+(mh()-.5)*50; // manhole covers on the road centres
-   if(mh()<.6&&!inAF(p,k*B+30))put(mhG,p,.16,k*B+30);
-   if(mh()<.6&&!inAF(k*B+90,p))put(mhG,k*B+90,.16,p)}
+   if(mh()<.6&&!inAF(p,k*B+30)&&!inCut(p,k*B+30,6))put(mhG,p,.16,k*B+30);
+   if(mh()<.6&&!inAF(k*B+90,p)&&!inCut(k*B+90,p,6))put(mhG,k*B+90,.16,p)}
+ // the boulevard's centre pair and edge lines follow its corridor
+ for(const c of CUTS.filter(c=>c.road)){const mx=(c.ax+c.bx)/2,my=(c.ay+c.by)/2,L=Math.hypot(c.bx-c.ax,c.by-c.ay),
+   ry=Math.atan2(c.bx-c.ax,c.by-c.ay),nx=(c.by-c.ay)/L,ny=-(c.bx-c.ax)/L;
+  for(const o of[-2.7,2.7])put(vc(new THREE.BoxGeometry(1.6,.3,L-24),LINE),mx+nx*o,1.5,my+ny*o,ry);
+  for(const o of[-c.road+2,c.road-2])put(vc(new THREE.BoxGeometry(1.2,.3,L-24),PAINT),mx+nx*o,1.5,my+ny*o,ry)}
  scene.add(new THREE.Mesh(mergeGeos(parts),new THREE.MeshBasicMaterial({vertexColors:true})));
  // decals: patches, cracks and stains on one atlas, one instanced quad set per variant so each can offset its quarter
  const dtex=rtex(512,512,(g)=>{const r=seeded(21);g.clearRect(0,0,512,512);
@@ -271,6 +276,20 @@ for(const[x0,y0,x1,y1]of[[hillA.x,hillA.y,hillA.x,440],[hillA.x,hillA.y,1440,hil
 
 for(const s of TERRAIN){const m=terrainMesh(s);Array.isArray(m)?scene.add(...m):scene.add(m)}
 for(const m of hillMeshes())scene.add(m);
+// Palmetto Boulevard: the corridor's own surface. Asphalt with concrete kerb verges, laid just above the
+// block surface so it reads as a raised diagonal avenue; the grid roads and their crossings stay as they are.
+{CUTS.filter(c=>c.road).forEach(c=>{const dx=c.bx-c.ax,dy=c.by-c.ay,L=Math.hypot(dx,dy),nx=-dy/L,ny=dx/L,
+  seg=Math.max(2,Math.ceil(L/20));
+ const strip=(o1,o2,mat,y,tile)=>{const pos=[],uv=[],ix=[];
+  for(let i=0;i<=seg;i++){const t=i/seg,x=c.ax+dx*t,z=c.ay+dy*t,al=i*20;
+   pos.push(x+nx*o1,y,z+ny*o1, x+nx*o2,y,z+ny*o2);uv.push(o1/tile,al/tile, o2/tile,al/tile)}
+  for(let i=0;i<seg;i++){const k=i*2;ix.push(k,k+2,k+1,k+1,k+2,k+3)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);g.computeVertexNormals();
+  scene.add(new THREE.Mesh(g,mat))};
+ strip(-c.road,c.road,asphMat,1.42,440);
+ strip(-c.half,-c.road,tconc,1.43,320);
+ strip(c.road,c.half,tconc,1.43,320)})}
 // buildings
 const wallTex=canvasTex(256,256,(g)=>{g.fillStyle='#a49ebb';g.fillRect(0,0,256,256);g.fillStyle='#8c86a3';for(let y=0;y<8;y++)g.fillRect(0,y*32+29,256,3);g.fillStyle='#262233';for(let y=0;y<8;y++)for(let x=0;x<8;x++)g.fillRect(8+x*32,8+y*32,18,18)});
 const litTex=canvasTex(256,256,(g)=>{g.fillStyle='#000';g.fillRect(0,0,256,256);const r=seeded(99);for(let y=0;y<8;y++)for(let x=0;x<8;x++){const v=r();if(v<.42){g.globalAlpha=.45+r()*.55;g.fillStyle=v<.1?'#7fe9ff':v<.3?'#ffcf86':'#ff9ad5';g.fillRect(8+x*32,8+y*32,18,18)}}g.globalAlpha=1});
@@ -630,7 +649,7 @@ const STREET_PROPS=[];
    else if(t==='city'){const o=rq()<.5?[90]:[70,210];for(const u of o)tr.push([x0+13,y0+u],[x0+s-13,y0+u],[x0+u,y0+13],[x0+u,y0+s-13])}
    else if(t==='hood'&&rq()<.6)tr.push([x0+13,y0+180],[x0+s-13,y0+180]);
    else if(t==='beach')for(const o of[40,140,240])pm.push([x0+12,y0+o,rq()*TAU],[x0+s-12,y0+o,rq()*TAU]);}
- for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1])||inAF(lp[i][0],lp[i][1]))lp.splice(i,1); // no lamp in a ramp's landing zone or in the airfield
+ for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1])||inAF(lp[i][0],lp[i][1])||inCut(lp[i][0],lp[i][1],7))lp.splice(i,1); // no lamp in a ramp's landing zone, the airfield or a corridor
  for(let i=tl.length-1;i>=0;i--)if(inAF(tl[i][0],tl[i][1]))tl.splice(i,1); // no traffic light in the airfield
  for(let i=bl.length-1;i>=0;i--)if(rampZone(bl[i][0],bl[i][1])||DOORS.some(d=>Math.hypot(d.x-bl[i][0],d.y-bl[i][1])<30))bl.splice(i,1); // no bollard in a ramp zone or at a door
  for(const d of DOORS){const big=d.int===club||d.int===casino||d.int===bankL;for(const o of[-1,1])bch.push([d.x+o*(big?70:48),d.y-3,Math.PI]);bn.push([d.x+(big?92:72),d.y-3])}
@@ -638,9 +657,15 @@ const STREET_PROPS=[];
  for(const[x,y,ry]of sh)bch.push([x,y,ry]);
  STREET_PROPS.push(...hy,...bn,...bl,...sh);
  const lam=c=>new THREE.MeshLambertMaterial({color:c}),IM=(g,m,n)=>new THREE.InstancedMesh(g,m,Math.max(1,n));
+ // palms and lamps line the boulevard on alternating verges
+ for(const c of CUTS){const dx=c.bx-c.ax,dy=c.by-c.ay,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L,nx=-uy,ny=ux;
+  for(let u=80,sg=1;u<L-80;u+=70,sg=-sg){
+   const x=c.ax+ux*u,y=c.ay+uy*u;
+   pm.push([x+nx*sg*(c.half+9),y+ny*sg*(c.half+9),sg*1.3]);
+   lp.push([x+nx*sg*(c.road+8),y+ny*sg*(c.road+8),-nx*sg,-ny*sg])}}
  // street trees and boulevard palms, instanced, clear of doors, ramps and buildings
  {const qc=(x,y)=>!rampZone(x,y)&&!inAF(x,y)&&groundZ(x,y)===0&&!DOORS.some(d=>Math.hypot(d.x-x,d.y-y)<26)&&!solidAt(x,y,2);
-  const T=tr.filter(([x,y])=>qc(x,y)),P=pm.filter(([x,y])=>qc(x,y));
+  const T=tr.filter(([x,y])=>qc(x,y)&&!inCut(x,y,8)),P=pm.filter(([x,y])=>qc(x,y)&&!inCut(x,y,8));
   const tk=IM(new THREE.CylinderGeometry(1.1,1.5,9,6),lam('#4a3426'),T.length),tc2=IM(new THREE.IcosahedronGeometry(1,0),lam('#2a7a4c'),T.length);
   T.forEach(([x,y],i)=>{const sc=.85+((x*7+y*13)%100)/100*.5;inst(tk,i,x,4.5*sc,y,0,1,sc,1);inst(tc2,i,x,11.5*sc,y,(x+y)%6,sc*3.4,sc*3,sc*3.4)});
   tk.count=tc2.count=T.length;scene.add(tk,tc2);
@@ -684,9 +709,9 @@ if(DBG)Object.defineProperties(DBG,{street:{get:()=>({facades:FACADES.length,pro
   for(let side=0;side<4;side++){ // 0 west, 1 east, 2 north, 3 south
    const ox=side===0?-1:side===1?1:0,oz=side===2?-1:side===3?1:0,ry=Math.atan2(ox,oz);
    const at=(u,d)=>side<2?[side===0?x0+d:x0+s-d,y0+u]:[x0+u,side===2?y0+d:y0+s-d]; // u along the side, d in from its edge
-   if([at(0,0),at(s/2,0),at(s,0)].every(([x,z])=>onFlat(x,z))){const[kx,kz]=at(s/2,1.1),k=new THREE.Mesh(side<2?new THREE.BoxGeometry(2.2,1.6,s):new THREE.BoxGeometry(s,1.6,2.2),kerbMat);k.position.set(kx,.8,kz);scene.add(k)}
+   if([at(0,0),at(s/2,0),at(s,0)].every(([x,z])=>onFlat(x,z))&&!inCut(at(s/2,1.1)[0],at(s/2,1.1)[1],6)){const[kx,kz]=at(s/2,1.1),k=new THREE.Mesh(side<2?new THREE.BoxGeometry(2.2,1.6,s):new THREE.BoxGeometry(s,1.6,2.2),kerbMat);k.position.set(kx,.8,kz);scene.add(k)}
    if(!street)continue;
-   const spot=(u,d)=>{const[x,z]=at(u,d);return onFlat(x,z)&&!DOORS.some(v=>Math.hypot(v.x-x,v.y-z)<30)?[x,z]:null},plant=[[pBox,0,1.3,0],[pLeaf,-2.2,3.4,0],[pLeaf,2.2,3.6,0]],
+   const spot=(u,d)=>{const[x,z]=at(u,d);return onFlat(x,z)&&!inCut(x,z,6)&&!DOORS.some(v=>Math.hypot(v.x-x,v.y-z)<30)?[x,z]:null},plant=[[pBox,0,1.3,0],[pLeaf,-2.2,3.4,0],[pLeaf,2.2,3.6,0]],
     seat=[[bSeat,0,3.4,0],[bBack,0,6,-2.2],[bArm,-5.5,1.5,0],[bArm,5.5,1.5,0]],bin=[[binG,0,2,0]],hedge=[[hEdge,0,1.6,0]];
    let p;
    if((city||hood)&&r()<.7&&(p=spot(60,16)))prop(p[0],1.25,p[1],ry,plant);
