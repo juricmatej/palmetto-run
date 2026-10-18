@@ -436,7 +436,7 @@ function copHeliDraw(dt){
  for(let i=0;i<12;i++){const a=i/12*TAU,l=new THREE.Mesh(box(3,2,3),new THREE.MeshBasicMaterial({color:'#3dff7a'}));l.position.set(PAD.x+Math.cos(a)*64,2.5,PAD.y+Math.sin(a)*64);scene.add(l)}}
 // airport, fighter jets, powder dealer
 // The airfield (AF, see the district code): the car park, terminal and control tower by the gate on the west side, the runway, taxiway and apron on the east.
-{const flat=(x0,y0,x1,y1,col,yy)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,y1-y0),lam(col));m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,yy,(y0+y1)/2);scene.add(m)};
+{const flat=(x0,y0,x1,y1,col,yy)=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(x1-x0,y1-y0),typeof col==='string'?lam(col):col);m.rotation.x=-Math.PI/2;m.position.set((x0+x1)/2,yy,(y0+y1)/2);scene.add(m)};
  const dmat=new THREE.MeshBasicMaterial({color:'#e8e4f0'}),fm=lam('#5a6270'),tankM=lam('#8a909c');
  flat(AF.x0,AF.y0,AF.x1,AF.y1,'#262830',.35);
  flat(RWX-48,300,RWX+48,2300,'#15161a',.5); // runway, 96 wide, from 300 to 2300
@@ -457,6 +457,43 @@ function copHeliDraw(dt){
  const tower=[[box(40,10,40),lam('#4a4f5c'),5],[new THREE.CylinderGeometry(7,9,150,12),lam('#c9c3d6'),75],[new THREE.CylinderGeometry(17,14,18,16),glassMat,141],[box(4,4,4),redLight,154]];
  for(const[g,m,y]of tower){const t=new THREE.Mesh(g,m);t.position.set(3670,y,1110);scene.add(t)}
  for(const b of buildings)if(b.kind==='fence'){const g=b.h>b.w?new THREE.BoxGeometry(1.2,b.H,b.h):new THREE.BoxGeometry(b.w,b.H,1.2),m=new THREE.Mesh(g,fm);m.position.set(b.x+b.w/2,b.H/2,b.y+b.h/2);scene.add(m)}
+ const put=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);scene.add(m);return m};
+ // markings: touchdown bars, taxiway hold-short bars, apron lead-in lines to each jet spot
+ const pt=(x0,y0,x1,y1)=>flat(x0,y0,x1,y1,dmat,.66);
+ for(const y of[390,2180])for(const s of[-1,1])pt(RWX+s*20,y,RWX+s*30,y+40);
+ pt(RWX+58,2266,RWX+88,2272);pt(RWX+58,2258,RWX+88,2264);
+ for(const p of JET_SPOTS)pt(p.x-1.2,2434,p.x+1.2,2520);
+ // runway designators, one shared material, the south one turned to read from the north
+ const des=new THREE.MeshBasicMaterial({map:canvasTex(256,128,(g,w,h)=>{g.fillStyle='#f3ecff';g.font='100px Bungee, Impact, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText('27',w/2,h/2+6)}),alphaTest:.5});
+ for(const[y,rz]of[[372,0],[2256,Math.PI]]){const d=put(new THREE.PlaneGeometry(40,20),des,RWX,.7,y);d.rotation.set(-Math.PI/2,0,rz)}
+ // windsocks: a pole and an open striped sleeve at each threshold, wide end downwind
+ const sockM=new THREE.MeshBasicMaterial({map:canvasTex(64,64,(g,w,h)=>{g.fillStyle='#ff7a1a';g.fillRect(0,0,w,h);g.fillStyle='#f3ecff';for(let y=0;y<h;y+=16)g.fillRect(0,y,w,8)}),side:THREE.DoubleSide}),sockG=new THREE.CylinderGeometry(3.2,1.2,10,10,1,true).rotateZ(-Math.PI/2),poleG=new THREE.CylinderGeometry(.5,.5,8,6);
+ for(const y of[340,2260]){put(poleG,lam('#c9c3d6'),4170,4,y);put(sockG,sockM,4175,8,y)}
+ // grass verge on the west side of the runway, with tufts
+ flat(4134,320,4190,2280,'#3d5a34',.47);
+ const tufts=new THREE.InstancedMesh(new THREE.ConeGeometry(1.1,2.2,4),lam('#5f8a48'),60),ga=seeded(58);
+ for(let i=0;i<60;i++)inst(tufts,i,4138+ga()*50,1.1,330+ga()*1940,0,1,1,1);scene.add(tufts);
+ // apron clutter at seeded spots, 20 clear of each jet spot plus the item's half size
+ const ca=seeded(59),spot=(hw,x0,x1)=>{for(let t=0;t<60;t++){const x=x0+ca()*(x1-x0),y=2442+ca()*170;if(JET_SPOTS.every(p=>Math.hypot(p.x-x,p.y-y)>20+hw))return[x,y]}return null};
+ const yel=lam('#e0b020'),wheelG=new THREE.CylinderGeometry(1.8,1.8,1.6,8).rotateX(Math.PI/2);
+ let tw=spot(10,4120,4370);if(tw){const[x,y]=tw;put(box(11,4,7),yel,x,3,y);put(box(5,4,6),lam('#2a2d36'),x-3,7,y);for(const[dx,dz]of[[-3.5,-3.6],[-3.5,3.6],[3.5,-3.6],[3.5,3.6]])put(wheelG,M.wheel,x+dx,1.8,y+dz)}
+ let bw=spot(8,4120,4370);if(bw){const[x,y]=bw;put(box(10,2,6),lam('#3a404a'),x,1,y);put(new THREE.CylinderGeometry(4,4,8,10),tankM,x,6,y)}
+ let gp=spot(5,4120,4370);if(gp)put(box(7,6,5),lam('#3a404a'),gp[0],3,gp[1]);
+ let bg=spot(14,4104,4130);if(bg){const[x,y]=bg;put(box(4,3,5),yel,x,1.5,y);for(let k=0;k<3;k++)put(box(5,2,6),lam('#c9c3d6'),x,1.3,y+8+8*k)} // baggage train on the terminal side
+ const cones=new THREE.InstancedMesh(new THREE.ConeGeometry(.9,2.6,6),lam('#ff7a1a'),24);let cn=0;
+ for(let row=3+Math.floor(ca()*3);row>0;row--){const c=spot(6,4120,4370);if(!c)continue;for(let i=0;i<4;i++)inst(cones,cn++,c[0]+i*4,1.3,c[1],0)}
+ cones.count=cn;scene.add(cones);
+ // blast fence on the apron's east edge, 80 long and 4 high, with the industrial wall material
+ const bf=new THREE.BoxGeometry(1.5,4,80);boxUV(bf,1.5,4,80);put(bf,facMat('ind',1),4380,2,2480);
+ // hangar doors, open: a dark recess in front of each door
+ const recess=new THREE.MeshBasicMaterial({color:'#07060c'});
+ put(new THREE.PlaneGeometry(40,22),recess,4156,12,2421);put(new THREE.PlaneGeometry(36,22),recess,4373,12,2421);
+ // cargo corner, blocks (8,4) and (8,5): pallets, a loader, a container row, a second tank pair and the shed sign (the shed itself is in 00-core)
+ for(const[x,y]of[[3700,1930],[3745,1930],[3700,1975]]){put(box(30,1,24),lam('#8a6a40'),x,.5,y);put(box(26,8,20),lam('#b08a5a'),x,5,y);put(box(22,6,16),lam('#c9a878'),x,12,y)}
+ put(box(16,6,9),yel,3780,3,2030);put(box(6,6,8),lam('#2a2d36'),3770,9,2030);
+ for(let k=0;k<4;k++)put(box(40,10,18),lam(CONT[k]),3700+k*42,5,2110);
+ for(const x of[3700,3732]){const t=new THREE.Mesh(tank,tankM);t.position.set(x,groundZ(x,2570)+8,2570);scene.add(t)}
+ const cs=new THREE.Mesh(new THREE.PlaneGeometry(30,7.5),new THREE.MeshBasicMaterial({map:signTex('CARGO','#ffc94a')}));cs.position.set(3890,10,2080.4);scene.add(cs);
  const dl=personMesh('#26232e','#6b4630',false);dl.position.set(DEALER.x,0,DEALER.y);dl.rotation.y=-Math.PI/4;scene.add(dl);
  const dr=new THREE.Mesh(new THREE.RingGeometry(9,12,24),new THREE.MeshBasicMaterial({color:'#f3ecff',side:THREE.DoubleSide}));dr.rotation.x=-Math.PI/2;dr.position.set(DEALER.x+12,.8,DEALER.y+12);scene.add(dr);shopRings.push(dr)}
 function jetMesh(){const g=new THREE.Group(),ud=g.userData,body=new THREE.Group();g.add(body);ud.body=body;

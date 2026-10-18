@@ -120,6 +120,7 @@ if(DBG)Object.defineProperties(DBG,{cuts:{get:()=>CUTS.map(c=>c.name)},canal:{ge
   if(bi===3&&bj===4){blockType.push('city');mk(list,{x:x0+34,y:y0+40,w:s-68,h:s-74,H:760,kind:'bank',pal:['#3a3220','#ffc94a']});continue}
   if(dist==='airport'){blockType.push('airport');
     r();r(); // the old airport drew two random numbers here; keep them so the rest of the city does not move. Its buildings are placed after the loop
+    if(bi===8&&(bj===4||bj===5))mk(list,{x:3870,y:2060,w:40,h:20,H:14,kind:'warehouse',pal:['#5a6070','#ffc94a']}); // cargo shed; pal is given, so no random draw
     continue}
   if(dist==='hood'){blockType.push('hood');
     if(bi===7&&bj===5){courts.push([x0,y0,s]);for(let i=0;i<5;i++)barrels.push([x0+24+r()*(s-48),y0+s-30-r()*30]);continue}
