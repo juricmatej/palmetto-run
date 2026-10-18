@@ -441,7 +441,7 @@ function spawnPed(x,y){
   const p={x:px,y:py,vx:0,vy:0,a:0,spd:rr(28,44),flee:0,fx:0,fy:0,down:0,skin:PEDCOL[Math.floor(rand()*5)],shirt:SHIRT[Math.floor(rand()*SHIRT.length)],fem:rand()<.5,hair:HAIRC[Math.floor(rand()*HAIRC.length)],skirt:rand()<.5?['#2a2d3a','#7a2f3a','#3a3f5a','#c9c3d6'][Math.floor(rand()*4)]:null,ci:0,dir:rand()<.5?1:-1,ph:rand()*TAU,kind:'walk',brave:'coward'};
   const bv=rand();if(bv<.05)p.brave='armed';else if(bv<.2)p.brave='fighter';
   let kr=rand();
-  for(const[k,w]of[['drunk',venue?.3:.04],['jog',.1],['phone',.08],['tourist',d==='downtown'||d==='midtown'?.08:.02],['beach',d==='beach'?.5:0]]){if(kr<w){p.kind=k;break}kr-=w}
+  for(const[k,w]of[['drunk',venue?.3:.04],['jog',.1],['phone',.08],['tourist',d==='downtown'||d==='midtown'?.08:.02],['beach',d==='beach'||d==='front'?.5:0]]){if(kr<w){p.kind=k;break}kr-=w}
   if(p.kind==='jog'){p.spd=rr(70,85);p.shirt=SPORTS[Math.floor(rand()*SPORTS.length)]}
   if(p.kind==='phone'){p.phT=rr(4,10);p.still=false}
   if(p.kind==='tourist')p.tourT=rr(8,14);

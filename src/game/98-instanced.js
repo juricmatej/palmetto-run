@@ -213,7 +213,7 @@ const MS=4,MO=100,miniBig=document.createElement('canvas');miniBig.width=miniBig
  g.fillStyle=MAPC.sand;g.fillRect(t(-30),t(W-10),(W+60)/MS,310/MS);
  g.fillStyle=MAPC.road;g.fillRect(t(0),t(0),W/MS,W/MS);
  // district tints, the two avenues, landmark blocks ringed in gold
- const BC={airport:MAPC.airport,hood:MAPC.hood,park:MAPC.park,lot:MAPC.lot,beach:MAPC.sand,suburb:MAPC.suburb,industrial:MAPC.industrial,city:MAPC.midtown};
+ const BC={airport:MAPC.airport,hood:MAPC.hood,park:MAPC.park,lot:MAPC.lot,beach:MAPC.sand,front:MAPC.front,suburb:MAPC.suburb,industrial:MAPC.industrial,city:MAPC.midtown};
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const x=bi*B+R,y=bj*B+R,sz=B-R,tp=blockType[bj*N+bi];
    g.fillStyle=MAPC.roadEdge;g.fillRect(t(x),t(y),sz/MS,sz/MS);
    g.fillStyle=tp==='plaza'||tp==='skate'||tp==='pit'||tp==='marina'?MAPC.gold:district(bi,bj)==='downtown'?MAPC.downtown:(BC[tp]||MAPC.midtown);

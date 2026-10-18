@@ -67,13 +67,13 @@ const barrels=[],courts=[];
 const cells=[],buildings=[],parks=[],lots=[],blockType=[],palms=[],umbrellas=[],pools=[],cranes=[];
 const PASTEL=['#e8b4c8','#b4d8e8','#f1e3a8','#c8e8b4','#e8c8a8','#d0c4f0'];
 const CONT=['#b8432f','#2f6fb8','#d68a2f','#3d8a52','#7b6bff','#9d97ad'];
-function district(bi,bj){if(bj===N-1)return'beach';if(bi<=1)return'industrial';if(bi>=8&&bj<=5)return'airport';if(bi>=6&&bj<=3)return'suburb';if(bi>=6&&bj>=4)return'hood';if((bi===3||bi===4)&&bj<=1)return'park';if(bi>=2&&bi<=5&&bj>=2&&bj<=5)return'downtown';return'midtown'}
+function district(bi,bj){if(bj===N-1)return'beach';if(bi<=1)return'industrial';if(bj===N-2&&bi>=2)return'front';if(bi>=8&&bj<=5)return'airport';if(bi>=6&&bj<=3)return'suburb';if(bi>=6&&bj>=4)return'hood';if((bi===3||bi===4)&&bj<=1)return'park';if(bi>=2&&bi<=5&&bj>=2&&bj<=5)return'downtown';return'midtown'}
 // The airfield: blocks 8 and 9 by rows 0 to 5, behind a fence. Roads and lanes are the grid; a lane whose box touches the airfield is shut (afShut), so no traffic or parked car uses it.
 const AF={x0:8*B+R,x1:10*B,y0:R,y1:6*B},DX=[1,0,-1,0],DY=[0,1,0,-1];
 const inAF=(x,y)=>x>AF.x0&&x<AF.x1&&y>AF.y0&&y<AF.y1;
 // lane from crossing (ax,ay) to (bx,by); crossings sit at index*B+60
 function afShut(ax,ay,bx,by){const x1=ax*B+60,x2=bx*B+60,y1=ay*B+60,y2=by*B+60;return Math.max(x1,x2)>AF.x0&&Math.min(x1,x2)<AF.x1&&Math.max(y1,y2)>AF.y0&&Math.min(y1,y2)<AF.y1}
-const AREA={hills:['Palmetto Hills','Mountain roads, the observatory and the sign'],airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
+const AREA={hills:['Palmetto Hills','Mountain roads, the observatory and the sign'],airport:['Palmetto International','Fighter jets on the runway'],hood:['Low Palms','Kings territory. Watch your back'],beach:['Sunset Beach','Sand, surf and palm trees'],front:['Sunset Strip','Hotels, arcades and the sea'],industrial:['Rustwater Docks','Viper gang territory. Watch your back'],suburb:['Palm Heights','Quiet streets, pools, lawns'],park:['Lagoon Park','Trees and the lagoon'],downtown:['Downtown Neon','Skyscrapers and nightlife'],midtown:['Midtown','Shops and apartments']};
 // blocks owned by the landmarks section (see LANDMARKS): left empty here, built there
 const LANDBLK={'2,4':'plaza','4,7':'skate','7,7':'pit','0,7':'marina','0,8':'marina'};
 // ---------- city cuts ----------
@@ -104,6 +104,13 @@ if(DBG)Object.defineProperties(DBG,{cuts:{get:()=>CUTS.map(c=>c.name)},canal:{ge
     for(let i=0;i<7;i++)palms.push([x0+30+r()*(s-60),y0+30+r()*(s-60),r()*TAU]);
     for(let i=0;i<5;i++)umbrellas.push([x0+30+r()*(s-60),y0+90+r()*(s-120),['#ff3ea5','#29e6d6','#ffc94a','#ff6b3d'][Math.floor(r()*4)]]);
     if(r()<.6)mk(list,{x:x0+s/2-34,y:y0+30,w:68,h:44,H:24,kind:'shack',pal:[PASTEL[Math.floor(r()*PASTEL.length)],'#ff3ea5']});
+    continue}
+  if(dist==='front'){blockType.push('front'); // the sea row: hotels and motels 26 in from the south edge, so the sidewalk and palms sit in front of them
+    const fr=seeded(bi*71+bj*13+9),L0=x0+22,sy=y0+s-26,span=s-44,tower=bi%2===1,motel=bi%4===2;
+    if(motel)mk(list,{x:L0,y:sy-150,w:span,h:150,H:30,kind:'tower',pal:['#b58c6a','#ff3ea5'],motel:1});
+    else{const n=tower?3:2+Math.floor(fr()*2),gap=12,w=(span-gap*(n-1))/n;
+      for(let k=0;k<n;k++){const t=tower&&k===1,h=150+Math.round(fr()*120);
+        mk(list,{x:L0+k*(w+gap),y:sy-h,w,h,H:t?120+Math.round(fr()*40):40+Math.round(fr()*50),kind:t?'glass':'tower',pal:['#8a7f9a','#ffc94a'],hotel:1,pool:(bi+k)%3===0,arc:k===0})}}
     continue}
   if(dist==='suburb'){blockType.push('suburb');
     for(const[qx,qy]of[[0,0],[1,0],[0,1],[1,1]]){const hw=Math.round(70+r()*16),hh=Math.round(58+r()*12),cx=x0+s*(qx?.72:.28),cy=y0+s*(qy?.7:.3);
@@ -630,7 +637,7 @@ if(DBG)Object.defineProperties(DBG,{hillCars:{get:()=>cars.filter(c=>c.kind==='h
 // shared map palette: the minimap and the phone map draw from these colours
 const MAPC={water:'#12384f',waterLight:'#1d6a8a',surf:'#bfeaf5',sand:'#b09064',park:'#1f5c36',parkLight:'#2f8a4e',
  road:'#23212c',roadEdge:'#4a4658',ave:'#57536a',downtown:'#3b3448',midtown:'#3e3950',hood:'#4a3c34',suburb:'#3c5340',
- industrial:'#3a4250',airport:'#33363f',runway:'#191b22',gold:'#ffc94a',wood:'#6a5040',lot:'#2a2735',front:'#4c3f4e'};
+ industrial:'#3a4250',airport:'#33363f',runway:'#191b22',gold:'#ffc94a',wood:'#6a5040',lot:'#2a2735',front:'#9c9084'};
 // minimap layer for the hills, drawn once: terrain colour, roads and the lake. buildMapBase adds the relief on top.
 function buildHillMini(MS,MO){
   const X0=-MO,Y0=HILL.edge-MO,cv=document.createElement('canvas');cv.width=Math.ceil((W+2*MO)/MS);cv.height=Math.ceil(-Y0/MS);cv.ox=X0;cv.oy=Y0;

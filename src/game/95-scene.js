@@ -134,9 +134,9 @@ const tileOf=b=>{const r=seeded((b.x*29+b.y*13+b.H)|0);return[96+r()*60,96+r()*6
 // a shopfront band and a ledge on each face that looks onto a road (within 30 units of the block edge)
 function shopfronts(b,k){const bx=Math.floor((b.x+b.w/2)/B),bz=Math.floor((b.y+b.h/2)/B),x0=bx*B+R,y0=bz*B+R,x1=(bx+1)*B,y1=(bz+1)*B;
  for(const[px,pz,nx,nz,len,dist]of[[b.x,b.y+b.h/2,-1,0,b.h,b.x-x0],[b.x+b.w,b.y+b.h/2,1,0,b.h,x1-b.x-b.w],[b.x+b.w/2,b.y,0,-1,b.w,b.y-y0],[b.x+b.w/2,b.y+b.h,0,1,b.w,y1-b.y-b.h]]){
-  if(dist>=30||len<28)continue;const L=len-8,ry=Math.atan2(nx,nz);
-  const sp=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(L,14),L/120,1),shopMats[k]);sp.position.set(px+nx*.5,7,pz+nz*.5);sp.rotation.y=ry;scene.add(sp);
-  const lg=new THREE.Mesh(new THREE.BoxGeometry(L,1.4,1.4),ledgeMat);lg.position.set(px+nx*.7,15.2,pz+nz*.7);lg.rotation.y=ry;scene.add(lg)}}
+  if(dist>=30||len<28)continue;const L=len-8,ry=Math.atan2(nx,nz),hh=b.hotel?26:14; // hotels get a two-storey band
+  const sp=new THREE.Mesh(uvScale(new THREE.PlaneGeometry(L,hh),L/120,1),shopMats[k]);sp.position.set(px+nx*.5,hh/2,pz+nz*.5);sp.rotation.y=ry;scene.add(sp);
+  const lg=new THREE.Mesh(new THREE.BoxGeometry(L,1.4,1.4),ledgeMat);lg.position.set(px+nx*.7,hh+1.2,pz+nz*.7);lg.rotation.y=ry;scene.add(lg)}}
 if(DBG)Object.defineProperties(DBG,{texCount:{get:()=>Object.keys(facMats).length}});
 
 // ground
@@ -215,7 +215,7 @@ const AVENUE=[3,6]; // the two north-south and east-west avenues: double lines, 
 
 // blocks
 function lam0(c){return new THREE.MeshLambertMaterial({color:c})}
-{const sw=new THREE.MeshLambertMaterial({map:pavTex}),inner={plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
+{const sw=new THREE.MeshLambertMaterial({map:pavTex}),inner={front:sw,plaza:lam0('#3b3748'),marina:lam0('#2a3138'),skate:lam0('#2e2a26'),pit:lam0('#2a2d36'),airport:lam0('#2f333b'),hood:new THREE.MeshLambertMaterial({color:'#2e2a26'}),beach:new THREE.MeshLambertMaterial({map:sandTex}),suburb:new THREE.MeshLambertMaterial({map:grassTex}),industrial:new THREE.MeshPhongMaterial({map:dockTex,specular:'#33425a',shininess:50}),city:new THREE.MeshLambertMaterial({color:'#25212f'}),park:new THREE.MeshLambertMaterial({map:grassTex,color:'#bdccd6'}),lot:new THREE.MeshLambertMaterial({color:'#211f2a'})};
  const s=B-R,swGeo=new THREE.BoxGeometry(s,1,s),inGeo=new THREE.BoxGeometry(s-2*SW,.3,s-2*SW);
  const lines=new THREE.InstancedMesh(new THREE.BoxGeometry(1.5,.3,40),new THREE.MeshBasicMaterial({color:'#5a566a'}),lots.length*27);let ln=0;
  for(let bj=0;bj<N;bj++)for(let bi=0;bi<N;bi++){const t=blockType[bj*N+bi],cx=bi*B+R+s/2,cz=bj*B+R+s/2;
@@ -367,6 +367,7 @@ const roofG={
  ant:mergeGeos([[new THREE.BoxGeometry(1.1,24,1.1),mtx(0,12,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,19,0)],[new THREE.BoxGeometry(3.6,1.2,1.2),mtx(0,23.5,0)]])};
 const crownMats={},BLADE=[['PALMETTO LIQUOR','#3dd68c'],['24 HR','#29e6d6'],['DINER','#ff3ea5'],['LAUNDRY','#4aa3ff'],['PAWN','#ffc94a'],['TATTOO','#ff7ad9'],['NOODLES','#ff6b3d'],['MOTEL','#c08bff']],
  bladeMats=BLADE.map(([t,c])=>fadeC(new THREE.MeshBasicMaterial({map:signTex(t,c),side:THREE.DoubleSide}),'color','#ffffff','#8f8f96'));
+const arcadeMat=fadeC(new THREE.MeshBasicMaterial({map:signTex('ARCADE','#29e6d6'),side:THREE.DoubleSide}),'color','#ffffff','#8f8f96');
 const roofN={blade:0,parapet:0,clutter:0,crown:0,setback:0,sig:0,blades:[]};
 if(DBG)Object.defineProperties(DBG,{roof:{get:()=>roofN}});
 for(const b of buildings){
@@ -460,6 +461,14 @@ for(const b of buildings){
    const g1=new THREE.BoxGeometry(rw,H-34,rh);boxUV(g1,rw,H-34,rh,...tileOf(b));put(g1,facMat(ft,fv),cx,34+(H-34)/2,cz)}
   else{const geo=new THREE.BoxGeometry(b.w,H,b.h);boxUV(geo,b.w,H,b.h,...tileOf(b));put(geo,facMat(ft,fv),cx,H/2,cz)}
   shopfronts(b,fv);
+  if(b.hotel){ // hotel dressing: an awning over the sea-side shopfront, a pool deck on every third roof, an arcade sign on the first
+    put(new THREE.BoxGeometry(b.w-8,1.2,5),blam('#c0283c'),cx,12,b.y+b.h+2.5);
+    if(b.pool){put(new THREE.BoxGeometry(b.w-14,1.2,b.h-14),blam('#d9c7a5'),cx,H+1.5,cz);put(new THREE.BoxGeometry(b.w*.5,1,b.h*.4),blam('#2bb8e6'),cx,H+2.4,cz)}
+    if(b.arc)put(new THREE.PlaneGeometry(Math.min(40,b.w-12),9),arcadeMat,cx,30,b.y+b.h+.8)}
+  if(b.motel){ // motel: a two-storey walkway along the sea side with a rail, and the MOTEL blade on the face
+    put(new THREE.BoxGeometry(b.w-6,1.2,4),blam('#8d8aa0'),cx,15,b.y+b.h+2);
+    put(new THREE.BoxGeometry(b.w-6,3,.5),blam('#8d8aa0'),cx,17,b.y+b.h+4);
+    put(new THREE.PlaneGeometry(34,8.5),bladeMats[BLADE.length-1],cx,22,b.y+b.h+.8)}
   const tm=trimMats[b.trim]||(trimMats[b.trim]=new THREE.MeshBasicMaterial({color:b.trim}));
   put(new THREE.BoxGeometry(b.w+1.6,2.4,b.h+1.6),tm,cx,H,cz);
   put(roofBox(rw-3,1.4,rh-3),roofMat,cx,H+.9,cz);
@@ -690,6 +699,7 @@ const STREET_PROPS=[];
    if(t==='suburb')for(const o of[46,150,254])tr.push([x0+13,y0+o],[x0+s-13,y0+o],[x0+o,y0+13],[x0+o,y0+s-13]);
    else if(t==='city'){const o=rq()<.5?[90]:[70,210];for(const u of o)tr.push([x0+13,y0+u],[x0+s-13,y0+u],[x0+u,y0+13],[x0+u,y0+s-13])}
    else if(t==='hood'&&rq()<.6)tr.push([x0+13,y0+180],[x0+s-13,y0+180]);
+   else if(t==='front')for(const u of[60,230])pm.push([x0+u,y0+s-13,rq()*TAU]); // palms on the sea side
    else if(t==='beach')for(const o of[40,140,240])pm.push([x0+12,y0+o,rq()*TAU],[x0+s-12,y0+o,rq()*TAU]);}
  for(let i=lp.length-1;i>=0;i--)if(rampZone(lp[i][0],lp[i][1])||inAF(lp[i][0],lp[i][1])||inCut(lp[i][0],lp[i][1],7))lp.splice(i,1); // no lamp in a ramp's landing zone, the airfield or a corridor
  for(let i=tl.length-1;i>=0;i--)if(inAF(tl[i][0],tl[i][1]))tl.splice(i,1); // no traffic light in the airfield
