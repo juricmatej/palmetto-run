@@ -320,10 +320,10 @@ function placeLayout(){
 // the sign, observatory, mansions, reservoir water, radio tower, campsite and trail posts. Solid parts are plain meshes so staticBatch merges them by material.
 function placeMeshes(){
   const out=[],add=(geo,mat,x,y,z,ry)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);if(ry)m.rotation.y=ry;out.push(m);return m};
-  const white=new THREE.MeshLambertMaterial({color:'#e8e2d8'}),roofM=new THREE.MeshLambertMaterial({color:'#3a3442'}),poolM=new THREE.MeshLambertMaterial({color:'#2bb8e6',emissive:'#0b5a72'}),
-    steel=new THREE.MeshLambertMaterial({color:'#2a2633'}),obsM=new THREE.MeshLambertMaterial({color:'#f2f4f8'}),domeM=new THREE.MeshLambertMaterial({color:'#c8d0dc'}),
-    carM=new THREE.MeshLambertMaterial({color:'#2b2b33'}),wood=new THREE.MeshLambertMaterial({color:'#8a6a44'}),redM=new THREE.MeshBasicMaterial({color:'#ff2d55'}),
-    tentM=[new THREE.MeshLambertMaterial({color:'#c24d3a'}),new THREE.MeshLambertMaterial({color:'#e0b43a'}),new THREE.MeshLambertMaterial({color:'#4a7fb0'})];
+  // six materials in all, so staticBatch merges each group into one draw call
+  const white=new THREE.MeshLambertMaterial({color:'#eeeae4'}),roofM=new THREE.MeshLambertMaterial({color:'#3a3442'}),poolM=new THREE.MeshLambertMaterial({color:'#2bb8e6',emissive:'#0b5a72'}),
+    steel=new THREE.MeshLambertMaterial({color:'#2a2633'}),wood=new THREE.MeshLambertMaterial({color:'#8a6a44'}),redM=new THREE.MeshBasicMaterial({color:'#ff2d55'}),
+    obsM=white,domeM=white,carM=steel,tentM=[wood,wood,wood];
   const glowAt=(x,y,z,w,h,col)=>{const m=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(col),blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,fog:false}));m.position.set(x,y,z);m.scale.set(w,h,1);out.push(m);return m};
   // observatory
   const[O,S,,,,T]=HILL_SPOTS,oh=hillBase(O.x,O.y);
@@ -345,9 +345,9 @@ function placeMeshes(){
     for(const sx of[-22,22])add(new THREE.BoxGeometry(2,6,2),steel,x+sx,h+3,y+31)}
   // observatory door-less car park edge and campsite
   const cy=-430,ch=hillBase(430,cy);
-  add(new THREE.CylinderGeometry(7,7,1.4,10),new THREE.MeshLambertMaterial({color:'#4a4650'}),430,ch+.7,cy);
+  add(new THREE.CylinderGeometry(7,7,1.4,10),steel,430,ch+.7,cy);
   glowAt(430,ch+6,cy,22,22,'rgba(255,150,60,1)');
-  for(const[x,y,a]of[[410,-446,.4],[440,-410,1.1],[452,-448,2.3]])add(new THREE.ConeGeometry(16,20,4),tentM[Math.floor(a*3)%3],x,ch+10,y,a*Math.PI);
+  for(const[x,y,a]of[[410,-446,.4],[440,-410,1.1],[452,-448,2.3]])add(new THREE.ConeGeometry(16,20,4),tentM[0],x,ch+10,y,a*Math.PI);
   for(const[x,y]of[[400,-418],[456,-436]]){add(new THREE.BoxGeometry(16,1,8),wood,x,ch+6,y);add(new THREE.BoxGeometry(14,4,1),wood,x,ch+2,y)}
   // radio tower on the second peak: a mast with a red beacon
   const T0=T.x,T1=T.y,th=hillBase(T0,T1);
@@ -418,6 +418,7 @@ function roadMeshes(){
 const HC={verge:new THREE.Color('#4a4a36'),g1:new THREE.Color('#5b8a3a'),g2:new THREE.Color('#9aa04c'),r1:new THREE.Color('#625c55'),r2:new THREE.Color('#827a6e')},HCOL=new THREE.Color(),HCOL2=new THREE.Color();
 function hillMeshes(){
   const det=canvasTex(256,256,(g,w,h)=>{g.fillStyle='#c8c8c8';g.fillRect(0,0,w,h);grit(g,w,h,9000,31,.12)});det.wrapS=det.wrapT=THREE.RepeatWrapping;
+  const tm=new THREE.MeshLambertMaterial({vertexColors:true,map:det});
   const nx=Math.floor((W+300-HM.x0)/HM.cell)+1,hz=(i,j)=>HM.a[clamp(j,0,HM.gh-1)*HM.gw+clamp(i,0,HM.gw-1)],out=[];
   for(let j0=20;j0<260;j0+=40){const j1=Math.min(260,j0+40),nr=j1-j0+1,pos=[],nor=[],col=[],uv=[],ix=[];
     for(let j=j0;j<=j1;j++)for(let i=0;i<nx;i++){const x=HM.x0+i*HM.cell,z=HM.y0+j*HM.cell,h=hz(i,j);
@@ -429,7 +430,7 @@ function hillMeshes(){
     for(let j=0;j<nr-1;j++)for(let i=0;i<nx-1;i++){const a=j*nx+i,b=a+1,c=a+nx,d=c+1;ix.push(a,c,b,b,c,d)}
     const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
     g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(ix);
-    out.push(new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true,map:det})))}
+    out.push(new THREE.Mesh(g,tm))}
   return out.concat(roadMeshes(),placeMeshes(),propMeshes(),[hikeMesh()])}
 
 // hill traffic: up to 6 cars (kind 'hill') drive the paved hill roads both ways and slow in bends. Eight hikers walk the dirt trail and the overlook as one instanced mesh.
@@ -3211,7 +3212,7 @@ function render(dt){
   if(meColorNow!==myColor){setShirt(meMesh,myColor);meColorNow=myColor}
   // cars
   syncMap(carMeshes,cars,c=>c.kind==='hill'?hillCarMesh(c.color):carMesh(c.color,c.type),(c,m)=>{
-    m.visible=!far(c.x,c.y,1500);if(!m.visible)return;if(m.userData.detail)m.userData.detail.visible=!far(c.x,c.y,650);
+    m.visible=!far(c.x,c.y,c.kind==='hill'?700:1500);if(!m.visible)return;if(m.userData.detail)m.userData.detail.visible=!far(c.x,c.y,650);
     m.position.set(c.x,c.z||0,c.y);m.rotation.order='YZX';m.rotation.set(carRoll(c),-c.a,carPitch(c));const ud=m.userData;if(ud.brakes){const bm=c.kind==='mine'&&c.brk?brakeM:tailM;if(ud.brakes.material!==bm)ud.brakes.material=bm}if(ud.wheels){const gs=c.kind==='traffic'||c.kind==='police'&&c.mode!=='chase'?c.cur:(c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a));if(!c.air)c.wsp=gs;const sp=c.air?c.wsp||0:gs;for(const w of ud.wheels)w.rotation.z-=sp*dt/4.5}
     if(c.kind==='dead'&&!ud.dead){ud.dead=true;ud.body.material=M.char;if(ud.cabin)ud.cabin.material=[M.char,M.char];ud.beam.visible=false;if(ud.l1){ud.l1.material=ud.l2.material=M.dim;ud.glow.visible=false}}
     if(!ud.dead){ud.beam.visible=c.kind!=='parked';if(ud.l1){const on=Math.sin(time*16+c.siren)>0;ud.l1.material=on?M.red:M.dim;ud.l2.material=on?M.dim:M.blue;ud.glow.material=on?M.redGlow:M.blueGlow}}
